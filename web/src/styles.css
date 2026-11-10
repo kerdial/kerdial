@@ -1,0 +1,204 @@
+@import "tailwindcss";
+@import "./styles/fonts.css";
+@import "./styles/kerdial.css";
+@import "./styles/components.css";
+
+/* One file per screen restyle, so seven parallel workstreams never
+   edit the same stylesheet. Anything two screens both need belongs in
+   components.css instead — a pattern living in one screen's file and being
+   imported by another is the drift this split exists to prevent. */
+@import "./styles/screens/overview.css";
+@import "./styles/screens/holdings.css";
+@import "./styles/screens/activity.css";
+@import "./styles/screens/overlays.css";
+@import "./styles/screens/performance.css";
+@import "./styles/screens/instruments.css";
+@import "./styles/screens/controls.css";
+@import "./styles/screens/portfolios.css";
+@import "./styles/screens/import.css";
+@import "./styles/screens/currencies.css";
+@import "./styles/screens/dividends.css";
+@import "./styles/screens/watchlist.css";
+
+/* Tailwind v4 theme bridge.
+ *
+ * `kerdial.css` owns the values; this block only makes them reachable as
+ * utilities (`bg-paper-100`, `text-ink-900`, `rounded-card`). Every entry is
+ * `var(--kerdial-token)` rather than a literal, so there is exactly one place
+ * a value can change. `theme-bridge.drift.test.ts` fails if a ramp token in
+ * `kerdial.css` has no bridge entry here.
+ *
+ * Tailwind's default palette is cleared. While the milestone was in
+ * flight it stayed loaded, because `--color-*: initial` would have made
+ * `bg-slate-800` resolve to nothing across 63 unmigrated files and left the app
+ * broken for weeks. At zero remaining call sites that reasoning expires, and
+ * clearing it converts the rule from a convention into a structural fact:
+ * `bg-slate-800` is now a lint error *and* a utility that generates no CSS, so
+ * it cannot reach production by any route.
+ *
+ * Note the deliberate name collisions on `--radius-*`, `--shadow-*` and
+ * `--font-mono`: these are Tailwind namespaces too, so declaring them here
+ * *replaces* Tailwind's scale with Kerdial's. `rounded-lg` is 18px in this app,
+ * not Tailwind's 8px. That is the intended reading of "never introduce a radius
+ * that is not in the token file".
+ */
+@theme {
+  /* Clears Tailwind's default palette outright. Every colour in this app comes
+     from the Kerdial token set below; there is no second palette to fall back
+     to, and a stray `text-red-500` now renders nothing rather than something
+     plausible-but-wrong. */
+  --color-*: initial;
+
+  /* ---- Ink: warm-cool charcoal, never pure black ---- */
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-800: var(--ink-800);
+  --color-ink-700: var(--ink-700);
+  --color-ink-600: var(--ink-600);
+  --color-ink-500: var(--ink-500);
+  --color-ink-400: var(--ink-400);
+  --color-ink-300: var(--ink-300);
+  --color-ink-200: var(--ink-200);
+  --color-ink-100: var(--ink-100);
+  --color-ink-50: var(--ink-50);
+
+  /* ---- Paper: the app's default ground ---- */
+  --color-paper-0: var(--paper-0);
+  --color-paper-50: var(--paper-50);
+  --color-paper-100: var(--paper-100);
+  --color-paper-200: var(--paper-200);
+
+  /* ---- Teal: primary brand ---- */
+  --color-teal-50: var(--teal-50);
+  --color-teal-100: var(--teal-100);
+  --color-teal-200: var(--teal-200);
+  --color-teal-300: var(--teal-300);
+  --color-teal-400: var(--teal-400);
+  --color-teal-500: var(--teal-500);
+  --color-teal-600: var(--teal-600);
+  --color-teal-700: var(--teal-700);
+  --color-teal-800: var(--teal-800);
+  --color-teal-900: var(--teal-900);
+
+  /* ---- Apricot: energy. Never a loss. ---- */
+  --color-apricot-50: var(--apricot-50);
+  --color-apricot-100: var(--apricot-100);
+  --color-apricot-200: var(--apricot-200);
+  --color-apricot-300: var(--apricot-300);
+  --color-apricot-400: var(--apricot-400);
+  --color-apricot-500: var(--apricot-500);
+  --color-apricot-600: var(--apricot-600);
+  --color-apricot-700: var(--apricot-700);
+
+  --color-lilac-100: var(--lilac-100);
+  --color-lilac-300: var(--lilac-300);
+  --color-lilac-500: var(--lilac-500);
+  --color-lilac-700: var(--lilac-700);
+
+  --color-sky-100: var(--sky-100);
+  --color-sky-300: var(--sky-300);
+  --color-sky-500: var(--sky-500);
+  --color-sky-700: var(--sky-700);
+
+  --color-lemon-100: var(--lemon-100);
+  --color-lemon-300: var(--lemon-300);
+  --color-lemon-500: var(--lemon-500);
+  --color-lemon-700: var(--lemon-700);
+
+  /* ---- Market semantics: the only money-meaning colours ---- */
+  --color-gain-100: var(--gain-100);
+  --color-gain-500: var(--gain-500);
+  --color-gain-700: var(--gain-700);
+  --color-loss-100: var(--loss-100);
+  --color-loss-500: var(--loss-500);
+  --color-loss-700: var(--loss-700);
+  --color-warn-100: var(--warn-100);
+  --color-warn-500: var(--warn-500);
+  --color-warn-700: var(--warn-700);
+
+  /* ---- Semantic aliases: prefer THESE in components ---- */
+  --color-surface-card: var(--surface-card);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-surface-brand: var(--surface-brand);
+  --color-surface-brand-soft: var(--surface-brand-soft);
+  --color-surface-accent-soft: var(--surface-accent-soft);
+  --color-bg-app: var(--bg-app);
+  --color-bg-canvas: var(--bg-canvas);
+  --color-text-strong: var(--text-strong);
+  --color-text-body: var(--text-body);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-text-brand: var(--text-brand);
+  --color-text-gain: var(--text-gain);
+  --color-text-loss: var(--text-loss);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-border-brand: var(--border-brand);
+  --color-focus-ring: var(--focus-ring);
+
+  /* ---- Asset classes. Locked mapping. ---- */
+  --color-class-stock: var(--class-stock);
+  --color-class-etf: var(--class-etf);
+  --color-class-fund: var(--class-fund);
+  --color-class-scpi: var(--class-scpi);
+  --color-class-crypto: var(--class-crypto);
+  --color-class-index: var(--chart-6);
+
+  /* ---- Chart ramp ---- */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  /* ---- Type ---- */
+  /* Only `--font-sans` is declared here. `--font-display` and `--font-mono` are
+     Tailwind namespace names that `kerdial.css` already declares, so bridging
+     them would emit `--font-mono: var(--font-mono)` — a circular reference,
+     which resolves to nothing rather than to an error. Import order does the
+     job instead: `kerdial.css` is imported after `tailwindcss`, so its values
+     win for every name the two share, and `font-mono` already resolves to
+     JetBrains Mono. The same reasoning removes `--radius-*` and `--shadow-*`
+     from this block: `rounded-lg` is 18px because `kerdial.css` redefines
+     `--radius-lg`, not because it is repeated here. */
+  --font-sans: var(--font-text);
+
+  /* Named for the recipe rather than the step, so `rounded-card` reads as the
+     card recipe from the design rather than as an arbitrary size. These
+     two are new names, so they carry no collision. */
+  --radius-card: var(--radius-lg);
+  --radius-panel: var(--radius-xl);
+}
+
+/* The display face has no Tailwind namespace to borrow, so it ships as an
+   explicit utility rather than a circular theme entry. */
+@utility font-display {
+  font-family: var(--font-display);
+  letter-spacing: var(--track-display);
+}
+
+/* The two numeral classes from the design exist as plain classes in
+   `kerdial.css` (`.k-num`, `.k-mono`) because they are part of the design
+   system's own base layer. They are re-exposed as utilities so Tailwind's
+   variant machinery (`sm:`, `hover:`) can reach them and so a call site can
+   compose them with the rest of a class list without mixing conventions. */
+@utility tabular {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: var(--numeric-tabular);
+}
+
+/* The uppercase label that introduces a value — `TOTAL VALUE` above the hero
+   figure, and the same treatment above every stat tile. The design fixes it
+   at 12px / 600 / uppercase with 0.04em tracking, and it is the *only* place
+   the design allows ALL-CAPS: everything else is sentence case. Shipping it as
+   one utility is what stops that rule from being re-typed per screen and
+   drifting a step in size or tracking each time. */
+@utility micro-label {
+  font: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-muted);
+}

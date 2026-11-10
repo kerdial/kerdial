@@ -1,0 +1,31 @@
+{
+  "name": "@kerdial/ledger",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kerdial/api-contracts": "workspace:*",
+    "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/core-domain": "workspace:*",
+    "@kerdial/core-reference-data": "workspace:*",
+    "@kerdial/market-ingestion": "workspace:*",
+    "@kerdial/market-ports": "workspace:*",
+    "@kerdial/platform-db": "workspace:*",
+    "@kerdial/platform-logging": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@kerdial/market-adapters": "workspace:*",
+    "@kerdial/market-test-support": "workspace:*",
+    "@kerdial/platform-test-support": "workspace:*",
+    "fast-check": "^3.23.2",
+    "pg-boss": "^12.26.2"
+  }
+}

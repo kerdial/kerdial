@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // NestJS 11's DI container reads constructor parameter types from
+    // `design:paramtypes` metadata (`reflect-metadata`) — both are required
+    // for `@Injectable()`/`@Controller()` classes to be wired up at all.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src"]
+}

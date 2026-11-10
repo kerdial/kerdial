@@ -1,0 +1,10 @@
+packages:
+  - "core/*"
+  - "platform/*"
+  - "market/*"
+  - "ledger"
+  - "valuation"
+  - "importer"
+  - "api"
+  - "web"
+  - "tools/*"

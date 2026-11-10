@@ -1,0 +1,41 @@
+# Build-context exclusions for Kerdial's root `Dockerfile` (SH-27), the one
+# image the project publishes.
+#
+# The first two entries are the load-bearing ones. Every workspace package's
+# `dist/` is gitignored build output, and this repo has already recorded a case
+# where a stale local `dist/` made a missing build step invisible (see the CI
+# workflow's own "Build workspace" comments). Excluding them here means the
+# image can only ever contain output the `build` stage actually produced: if
+# `pnpm build` were dropped, the runtime stage's `COPY --from=build .../dist`
+# fails the build instead of silently shipping whatever happened to be lying
+# around on the developer's disk. Excluding `node_modules` makes the install a
+# real `--frozen-lockfile` install of the pinned tree, not a copy of a host
+# tree built on some other libc/architecture (`argon2` ships a compiled
+# `.node`).
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+**/*.tsbuildinfo
+
+.git/
+.github/
+.claude/
+docs/
+
+# Test/tooling artefacts — never inputs to a build.
+coverage/
+playwright-report/
+test-results/
+blob-report/
+web/dev-dist/
+web/.vite/
+web/e2e/.cache/
+*.log
+
+# Secrets must never enter a build context (they end up in layer history).
+.env
+.env.*
+!.env.example
+*.pem
+*.key

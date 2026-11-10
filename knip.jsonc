@@ -1,0 +1,105 @@
+// Unused-export gate. Run via `pnpm unused-exports-gate`.
+//
+// **There is no `paths` map, and that is a measurement rather than an omission.**
+//
+// This file used to carry one, mapping each `@kerdial/*` specifier to its
+// source entry, on the stated grounds that `package.json` `main` points at a
+// gitignored `dist/` so knip could not otherwise follow a re-export chain like
+// `api -> market-composition -> market-ingestion`. The header recorded that as
+// red-confirmed against `onDemandQuoteRefreshBucket`.
+//
+// It did not reproduce. Removing the map — the whole map, not one entry —
+// changes nothing that can be measured:
+//
+//   * with the map gone and a deliberately dead export added to
+//     `market/ingestion`, the gate still reports it and still exits 1;
+//   * with the map gone and no dead export, the gate reports no unused export
+//     anywhere and exits 0 — so removing it introduces no false positive;
+//   * both of the above hold with **every `dist/` deleted**, which is the
+//     precise scenario the old header said the map existed for.
+//
+// That last probe is the one that settles it. If knip were resolving these
+// specifiers through `main: ./dist/index.js`, deleting `dist/` would break the
+// resolution and the chain-consumed exports would light up as unused. They do
+// not, so knip is not reading `main` at all: it resolves a workspace package to
+// its workspace and uses the `entry` configured below.
+//
+// `onDemandQuoteRefreshBucket` — the export the old claim named — is still the
+// live case: defined in `market/ingestion/src/quote-refresh.ts`, re-exported by
+// `market/composition/src/index.ts`, consumed by `api`. It is not flagged, with
+// or without a `paths` map.
+//
+// The gate covers the six originally over-exporting packages plus `ledger`;
+// widening it to web/api/tools is a separate decision (their entry surfaces are
+// shaped differently).
+//
+// **`ledger`'s entry is configured and the gate still cannot see most of it
+// (measured).** `ledger/src/index.ts` re-exports through 17 `export * from`
+// lines, and knip does not attribute individual names through a star re-export:
+// a deliberately dead export added to `instrument-provider-map-service.ts` is
+// **not** reported while that module is star-exported, and **is** reported the
+// moment the same line is written as a named re-export. So this entry gates
+// `ledger`'s internal modules and not its public surface.
+//
+// A second measurement from the same probe, which matters more: knip counts a
+// workspace's own test files as consumers, so the five caller-less re-mapping
+// functions that prompted adding `ledger` were **never** going to be flagged — their unit
+// test imports them. Adding `ledger` here would not have caught them. Both
+// findings are tracked separately; the entry stays because it is correct and
+// becomes load-bearing the moment the star re-exports go.
+//
+// **Both were decided on 2026-09-07, and the answers live in
+// `scripts/unused-exports-gate.ts` — read its header before changing anything
+// here.** In short:
+//
+//   * the star re-exports **stay** (converting them trades a known blindness
+//     for the by-value drift this file has three recorded instances of), and
+//     the gate now pins their count per workspace, so a new `export * from`
+//     in a gated entry fails and the numbers can only be lowered;
+//   * test files **should not** count as consumers, and `knip --production`
+//     cannot express that here — measured, per-workspace it reports 92 false
+//     positives (it cannot see cross-workspace consumers) and whole-repo it
+//     reports 438 (only 8 of ~20 workspaces have an `entry` configured). So
+//     `unused-exports-gate` finds exports nothing at all imports, **not**
+//     exports only tests import. Closing that gap needs the widening deferred
+//     three paragraphs above, not a flag.
+{
+  "include": ["exports", "types"],
+  "includeEntryExports": true,
+  "workspaces": {
+    ".": {
+      "entry": ["vitest.global-setup.ts", "scripts/*.ts", "eslint.config.mjs"],
+      "project": [],
+    },
+    "market/ingestion": {
+      "entry": ["src/index.ts"],
+      "project": "src/**/*.ts",
+    },
+    "market/composition": {
+      "entry": ["src/index.ts", "src/worker-main.ts"],
+      "project": "src/**/*.ts",
+    },
+    "market/ports": {
+      "entry": ["src/index.ts"],
+      "project": "src/**/*.ts",
+    },
+    "valuation": {
+      "entry": ["src/index.ts"],
+      "project": "src/**/*.ts",
+    },
+    "platform/auth": {
+      "entry": ["src/index.ts"],
+      "project": "src/**/*.ts",
+    },
+    // csv-import CI-5. New package, wired in from day one so
+    // the gate is never retro-fitted onto an already-over-exporting surface.
+    "ledger": {
+      "entry": ["src/index.ts"],
+      "project": "src/**/*.ts",
+    },
+    "importer": {
+      "entry": ["src/index.ts"],
+      "project": "src/**/*.ts",
+    },
+  },
+}

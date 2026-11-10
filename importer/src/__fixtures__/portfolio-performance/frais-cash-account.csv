@@ -1,0 +1,7 @@
+﻿Date;Type;Valeur;Devise de l'opération;Montant brut;Montant brut en devise;Taux de change;Frais;Impôts / Taxes;Parts;ISIN;WKN;Symbole boursier;Nom du titre;Note
+2024-12-02T00:00;Dépôt;100,00;EUR;;;;;;;;;;;
+2024-12-10T00:00;Frais;-3,10;EUR;;;;;;;IE00B4L5Y983;;IWDA.AS;iShares Core MSCI World UCITS ETF USD (Acc);Frais de gestion annuels
+2024-12-10T00:00;Retrait;-3,10;EUR;;;;;;;;;;;
+2024-12-11T00:00;Frais;3,10;EUR;;;;;;;IE00B4L5Y983;;IWDA.AS;iShares Core MSCI World UCITS ETF USD (Acc);Remboursement frais
+2024-12-31T00:00;Intérêts débiteurs;-0,85;EUR;;;;;;;;;;;
+2024-12-31T00:00;Frais;-9,00;EUR;;;;;;;;;;;Droits de garde 2024

@@ -1,0 +1,9 @@
+# kerdial-transactions v2
+date,type,portfolio,cash_account,cash_account_currency,isin,exchange_mic,symbol,quantity,unit_price,gross_amount,currency
+2026-01-05,DEPOSIT,Portefeuille,Compte principal,EUR,,,,,,10000.00,EUR
+2026-01-06,BUY,Portefeuille,Compte principal,EUR,FRKERDEI7001,XPAR,,10,100.00,,EUR
+2026-01-07,BUY,Portefeuille,Compte principal,EUR,FRKERDEI7001,XPAR,,10,120.00,,EUR
+2026-02-10,DIVIDEND,Portefeuille,Compte principal,EUR,FRKERDEI7001,XPAR,,,,45.00,EUR
+2026-03-11,SELL,Portefeuille,Compte principal,EUR,FRKERDEI7001,XPAR,,5,130.00,,EUR
+2026-03-12,BUY,Portefeuille,Compte principal,EUR,FRKERDEI7002,XPAR,,4,250.00,,EUR
+2026-04-01,WITHDRAWAL,Portefeuille,Compte principal,EUR,,,,,,500.00,EUR

@@ -1,0 +1,4 @@
+ALTER TABLE "transaction" DROP CONSTRAINT "transaction_platform_fee_amount_positive";--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT "transaction_cost_components_sum_to_fee_amount";--> statement-breakpoint
+ALTER TABLE "transaction" DROP COLUMN "platform_fee_amount";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_cost_components_sum_to_fee_amount" CHECK (("transaction"."broker_fee_amount" IS NULL AND "transaction"."fx_fee_amount" IS NULL AND "transaction"."tax_amount" IS NULL AND "transaction"."other_cost_amount" IS NULL) OR ("transaction"."fee_amount" IS NOT NULL AND "transaction"."fee_amount" = coalesce("transaction"."broker_fee_amount",0) + coalesce("transaction"."fx_fee_amount",0) + coalesce("transaction"."tax_amount",0) + coalesce("transaction"."other_cost_amount",0)));

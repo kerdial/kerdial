@@ -1,0 +1,13 @@
+{
+  // Build-time typecheck scope: only what `vite build` actually bundles.
+  // Test files are excluded because drift-guard tests (e.g.
+  // `src/lib/tester-schema-parity.test.ts`) relative-import server packages
+  // (`api/src/...` → `@kerdial/ledger`) that web deliberately does NOT
+  // depend on — so `pnpm -r run build` gives no topological guarantee their
+  // `dist/` exists yet when web builds. Those tests are still typechecked by
+  // the `typecheck` script (full tsconfig.json), which CI runs after the
+  // whole workspace is built.
+  "extends": "./tsconfig.json",
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

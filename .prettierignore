@@ -1,0 +1,14 @@
+dist/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+pnpm-lock.yaml
+web/dist/
+docs/
+# drizzle-kit generated migration snapshots (platform/db, T-5) — machine
+# output, not hand-maintained.
+platform/db/migrations/meta/
+# transaction-dialog-refresh GATE-G0: raw `JSON.stringify` POST bodies compared
+# byte for byte — reformatting them would break the strict-string comparison.
+web/src/__fixtures__/transaction-payload-goldens/

@@ -1,0 +1,24 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./core/domain" },
+    { "path": "./core/decimal" },
+    { "path": "./core/reference-data" },
+    { "path": "./core/api-contracts" },
+    { "path": "./platform/db" },
+    { "path": "./platform/auth" },
+    { "path": "./platform/test-support" },
+    { "path": "./platform/logging" },
+    { "path": "./market/ports" },
+    { "path": "./market/adapters" },
+    { "path": "./market/ingestion" },
+    { "path": "./market/composition" },
+    { "path": "./market/test-support" },
+    { "path": "./ledger" },
+    { "path": "./valuation" },
+    { "path": "./importer" },
+    { "path": "./api" },
+    { "path": "./tools/deploy-tests" },
+    { "path": "./tools/gates" }
+  ]
+}

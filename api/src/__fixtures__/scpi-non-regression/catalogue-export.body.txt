@@ -1,0 +1,905 @@
+{
+  "schemaVersion": 1,
+  "generator": "kerdial",
+  "exportedAt": "<exportedAt>",
+  "baseCurrency": "EUR",
+  "iconsIncluded": true,
+  "instruments": [
+    {
+      "identity": {
+        "kind": "SHARE",
+        "exchangeMic": "XPAR",
+        "symbol": "NRGSHR"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "NRGFIX SHARE NRGSHR",
+      "primaryIdentifier": "SYMBOL",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "ETF",
+        "exchangeMic": "XETR",
+        "symbol": "NRGETF"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "NRGFIX ETF NRGETF",
+      "primaryIdentifier": "SYMBOL",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "FUND",
+        "exchangeMic": "XPAR",
+        "symbol": "NRGFDA"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "NRGFIX FUND NRGFDA",
+      "primaryIdentifier": "SYMBOL",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "FUND",
+        "exchangeMic": "XPAR",
+        "symbol": "NRGFDM"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "NRGFIX FUND NRGFDM",
+      "primaryIdentifier": "SYMBOL",
+      "quotePolicy": "MANUAL_ONLY",
+      "status": "ACTIVE",
+      "manualPrices": [
+        {
+          "priceDate": "2024-01-04",
+          "close": "200",
+          "currency": "EUR"
+        },
+        {
+          "priceDate": "2024-05-31",
+          "close": "212.4",
+          "currency": "EUR"
+        }
+      ]
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120271",
+        "exchangeMic": "XPAR",
+        "symbol": "TTE"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "TotalEnergies",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000121014",
+        "exchangeMic": "XPAR",
+        "symbol": "MC"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "LVMH Moët Hennessy Louis Vuitton",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120578",
+        "exchangeMic": "XPAR",
+        "symbol": "SAN"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Sanofi",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "NL0000235190",
+        "exchangeMic": "XPAR",
+        "symbol": "AIR"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Airbus",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "NL",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000121972",
+        "exchangeMic": "XPAR",
+        "symbol": "SU"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Schneider Electric",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120073",
+        "exchangeMic": "XPAR",
+        "symbol": "AI"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Air Liquide",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000052292",
+        "exchangeMic": "XPAR",
+        "symbol": "RMS"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Hermès International",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000121667",
+        "exchangeMic": "XPAR",
+        "symbol": "EL"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "EssilorLuxottica",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000073272",
+        "exchangeMic": "XPAR",
+        "symbol": "SAF"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Safran",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000131104",
+        "exchangeMic": "XPAR",
+        "symbol": "BNP"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "BNP Paribas",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120628",
+        "exchangeMic": "XPAR",
+        "symbol": "CS"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "AXA",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000125486",
+        "exchangeMic": "XPAR",
+        "symbol": "DG"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Vinci",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120644",
+        "exchangeMic": "XPAR",
+        "symbol": "BN"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Danone",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000121485",
+        "exchangeMic": "XPAR",
+        "symbol": "KER"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Kering",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120693",
+        "exchangeMic": "XPAR",
+        "symbol": "RI"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Pernod Ricard",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000125007",
+        "exchangeMic": "XPAR",
+        "symbol": "SGO"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Compagnie de Saint-Gobain",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0014003TT8",
+        "exchangeMic": "XPAR",
+        "symbol": "DSY"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Dassault Systèmes",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR001400AJ45",
+        "exchangeMic": "XPAR",
+        "symbol": "ML"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Michelin (CGDE)",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000125338",
+        "exchangeMic": "XPAR",
+        "symbol": "CAP"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Capgemini",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120321",
+        "exchangeMic": "XPAR",
+        "symbol": "OR"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "L'Oréal",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000133308",
+        "exchangeMic": "XPAR",
+        "symbol": "ORA"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Orange",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0010307819",
+        "exchangeMic": "XPAR",
+        "symbol": "LR"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Legrand",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000130577",
+        "exchangeMic": "XPAR",
+        "symbol": "PUB"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Publicis Groupe",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000121329",
+        "exchangeMic": "XPAR",
+        "symbol": "HO"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Thales",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000045072",
+        "exchangeMic": "XPAR",
+        "symbol": "ACA"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Crédit Agricole",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000130809",
+        "exchangeMic": "XPAR",
+        "symbol": "GLE"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Société Générale",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000124141",
+        "exchangeMic": "XPAR",
+        "symbol": "VIE"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Veolia Environnement",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0010208488",
+        "exchangeMic": "XPAR",
+        "symbol": "ENGI"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Engie",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000131906",
+        "exchangeMic": "XPAR",
+        "symbol": "RNO"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Renault",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "NL00150001Q9",
+        "exchangeMic": "XPAR",
+        "symbol": "STLAP"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Stellantis",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "NL",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120503",
+        "exchangeMic": "XPAR",
+        "symbol": "EN"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Bouygues",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120172",
+        "exchangeMic": "XPAR",
+        "symbol": "CA"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Carrefour",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0000120404",
+        "exchangeMic": "XPAR",
+        "symbol": "AC"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Accor",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0014000MR3",
+        "exchangeMic": "XPAR",
+        "symbol": "ERF"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Eurofins Scientific",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "LU",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0010908533",
+        "exchangeMic": "XPAR",
+        "symbol": "EDEN"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Edenred",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0006174348",
+        "exchangeMic": "XPAR",
+        "symbol": "BVI"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Bureau Veritas",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0010220475",
+        "exchangeMic": "XPAR",
+        "symbol": "ALO"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Alstom",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR0010313833",
+        "exchangeMic": "XPAR",
+        "symbol": "AKE"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Arkema",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "FR00140182K6",
+        "exchangeMic": "XPAR",
+        "symbol": "WLN"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "Worldline",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "FR",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "LU1598757687",
+        "exchangeMic": "XAMS",
+        "symbol": "MT"
+      },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "ArcelorMittal",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "LU",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US0378331005",
+        "exchangeMic": "XNAS",
+        "symbol": "AAPL"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Apple Inc.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US5949181045",
+        "exchangeMic": "XNAS",
+        "symbol": "MSFT"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Microsoft Corp.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US67066G1040",
+        "exchangeMic": "XNAS",
+        "symbol": "NVDA"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "NVIDIA Corp.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US0231351067",
+        "exchangeMic": "XNAS",
+        "symbol": "AMZN"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Amazon.com Inc.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US02079K3059",
+        "exchangeMic": "XNAS",
+        "symbol": "GOOGL"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Alphabet Inc. Cl A",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US02079K1079",
+        "exchangeMic": "XNAS",
+        "symbol": "GOOG"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Alphabet Inc. Cl C",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US30303M1027",
+        "exchangeMic": "XNAS",
+        "symbol": "META"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Meta Platforms Inc. Class A",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US11135F1012",
+        "exchangeMic": "XNAS",
+        "symbol": "AVGO"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Broadcom Inc.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US92826C8394",
+        "exchangeMic": "XNYS",
+        "symbol": "V"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Visa Inc. Class A Shares",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US46625H1005",
+        "exchangeMic": "XNYS",
+        "symbol": "JPM"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "JPMorgan Chase & Co.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    },
+    {
+      "identity": {
+        "kind": "SHARE",
+        "isin": "US5324571083",
+        "exchangeMic": "XNYS",
+        "symbol": "LLY"
+      },
+      "private": false,
+      "listingCurrency": "USD",
+      "displayName": "Eli Lilly & Co.",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "domicileCountry": "US",
+      "manualPrices": []
+    }
+  ],
+  "portfolios": [
+    {
+      "name": "AC-512 fixture",
+      "cashAccounts": [
+        {
+          "name": "Compte EUR",
+          "currency": "EUR",
+          "archived": false
+        }
+      ]
+    }
+  ],
+  "fxRatesUser": []
+}

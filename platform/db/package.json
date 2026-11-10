@@ -1,0 +1,41 @@
+{
+  "name": "@kerdial/platform-db",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "//exports": "`./seed-data/instrument-catalogue` is a TEST-ONLY entry point. The 51-row instrument catalogue is not on `.`, so it is not loaded into the api or worker runtimes; the suites that need its row count reach it here. The subpath deliberately names the source file: `vitest.config.ts`'s alias derivation maps `<pkg>/<subpath>` to `<pkg>/src/<subpath>.ts`, so a shorter name would resolve under `tsc` and fail under Vitest. `.` is listed explicitly because declaring `exports` at all makes it the only gate on this package's entry points.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./seed-data/instrument-catalogue": {
+      "types": "./dist/seed-data/instrument-catalogue.d.ts",
+      "default": "./dist/seed-data/instrument-catalogue.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "db:seed:generate": "tsx src/seed-data/generate-seed-migration.ts",
+    "db:seed:generate:market-calendar": "tsx src/seed-data/generate-market-calendar-seed-migration.ts",
+    "db:seed:generate:instruments": "tsx src/seed-data/generate-instrument-catalogue-seed-migration.ts"
+  },
+  "dependencies": {
+    "@kerdial/api-contracts": "workspace:*",
+    "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/core-reference-data": "workspace:*",
+    "decimal.js": "^10.4.3",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^10.16.0",
+    "drizzle-kit": "^0.31.10",
+    "fast-check": "^3.23.2",
+    "testcontainers": "^10.16.0"
+  }
+}

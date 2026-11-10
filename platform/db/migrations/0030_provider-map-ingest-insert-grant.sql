@@ -1,0 +1,19 @@
+-- IC-2 — M2: grants `app_ingest` INSERT on `instrument_provider_map`.
+--
+-- The new in-process worker (IC-7) writes a `HEURISTIC` `instrument_provider_map`
+-- row when a freshly created instrument's provider symbol has never
+-- been resolved before. `app_ingest` already holds `SELECT` on this table
+-- (migration `0018`) — never `INSERT`/`UPDATE`/`DELETE` — so this is the
+-- missing write half of that.
+--
+-- `INSERT` only: mapping revision/confirmation
+-- (`ledger/src/instrument-provider-map-service.ts`, migration `0012`'s
+-- `UPDATE`/`DELETE` grant) stays an `app_web`-only concern. `app_ingest`'s own
+-- `platform/db/src/instrument-provider-map-ingest-insert-grant.integration
+-- .test.ts` proves both halves directly against the real `app_ingest` role:
+-- the `INSERT` succeeds, and a subsequent `UPDATE` against the same row it
+-- just inserted is rejected with a permission error.
+--
+-- Does not touch `transaction`, `transaction_posting`, or `holding_state`
+-- (AC47's guarantee, re-asserted here since this migration touches grants).
+GRANT INSERT ON "instrument_provider_map" TO app_ingest;

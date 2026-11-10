@@ -1,0 +1,45 @@
+-- IC-1 (RELEASE GATE) — M1: grants `app_web` access to `instrument_backfill_state`
+-- for AC11's backfill trigger.
+--
+-- **Fixes a pre-existing production bug, not just a gap in this feature.**
+-- No migration since 0007 has ever granted `app_web` anything on
+-- `instrument_backfill_state`. `TransactionWriteService#triggerInstrumentBackfill`
+-- — shipped and "wired" since T-37 — runs as `app_web` and has been silently
+-- failing with `permission denied` in any real deployment ever since: its own
+-- F4 `catch` (ledger/src/transaction-write-service.ts) logs and swallows the
+-- error, so a successful financial write masks a completely dead backfill
+-- trigger. Every existing test that exercises this path
+-- (`transaction-write-service.instrument-backfill.integration.test.ts`,
+-- `instrument-backfill-job.integration.test.ts`) does so via the
+-- Testcontainers superuser (`ownerDb`), which is exactly what hid this gap
+-- from CI — see this feature's own
+-- `transaction-write-service.instrument-backfill-app-web-grant.integration
+-- .test.ts` and `instrument-backfill-app-web-grant.integration.test.ts`,
+-- which connect as the real `app_web` role instead and reproduce
+-- `permission denied for table instrument_backfill_state` against the
+-- pre-migration schema.
+--
+-- This same grant is the hard prerequisite for this feature's own
+-- creation-time trigger (IC-9) and, transitively, the history-status read
+-- (IC-12) and the end-to-end gate (IC-10).
+--
+-- `UPDATE` is required for `ensureInstrumentBackfillRequested`'s widen branch
+-- (`instrument-backfill-job.ts`, the `requested_from`-decreasing `UPDATE`).
+-- `SELECT` is required both for the future history-status read (IC-12) and
+-- because `INSERT ... ON CONFLICT DO NOTHING` itself requires `SELECT`
+-- privilege on the target table even when no conflict occurs — verified
+-- directly by this feature's own two Testcontainers suites, and the same
+-- Postgres behaviour migration `0007`'s own doc comment documents for
+-- `app_ingest`'s upsert grants on a different table.
+--
+-- No RLS implications: `instrument_backfill_state` carries no `tenant_id`
+-- column (shared reference/operational data — migration `0007`'s own closing
+-- comment already lists it among the tables deliberately left un-RLS'd) — no
+-- policy is added or changed here, so AC33/AC35's tenant-isolation guarantees
+-- are unaffected.
+--
+-- This migration does not touch `transaction`, `transaction_posting`, or
+-- `holding_state` — AC47's guarantee (no write grant on those three tables
+-- for any non-`app_owner` role) remains visibly intact; nothing above names
+-- any of the three.
+GRANT SELECT, INSERT, UPDATE ON "instrument_backfill_state" TO app_web;

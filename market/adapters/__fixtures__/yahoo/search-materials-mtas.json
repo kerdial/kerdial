@@ -1,0 +1,24 @@
+{
+  "explains": [],
+  "count": 1,
+  "quotes": [
+    {
+      "exchange": "AMS",
+      "shortname": "ArcelorMittal",
+      "quoteType": "EQUITY",
+      "symbol": "MT.AS",
+      "index": "quotes",
+      "score": 20014.0,
+      "typeDisp": "Equity",
+      "longname": "ArcelorMittal S.A.",
+      "exchDisp": "Amsterdam",
+      "sector": "Basic Materials",
+      "sectorDisp": "Basic Materials",
+      "industry": "Steel",
+      "industryDisp": "Steel",
+      "dispSecIndFlag": true,
+      "isYahooFinance": true
+    }
+  ],
+  "news": []
+}

@@ -1,0 +1,1 @@
+{"kind":"CURRENCY_EXCHANGE","portfolioId":"11111111-1111-4111-8111-111111111111","tradeDate":"2026-03-12","amount":"500.00","currency":"USD","cashAccountId":"55555555-5555-4555-8555-555555555555","targetCurrency":"EUR","targetCashAccountId":"66666666-6666-4666-8666-666666666666","exchangeRate":"0.9180","fee":{"amount":"1.50","components":{"brokerFee":"1.00","fxFee":"0.50"}}}

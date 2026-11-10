@@ -1,0 +1,30 @@
+-- PA-T1 — PAD-1; FR-591, PA-L2.
+--
+-- drizzle-kit generated (generated name: `0072_clean_molecule_man`; file and
+-- journal tag renamed to the descriptive form every migration here uses). The
+-- statement below is the generator's own output, unedited, and
+-- `meta/0072_snapshot.json` is byte-identical to what the generator wrote.
+-- `db:generate` re-run afterwards reports "No schema changes detected".
+--
+-- **What.** `portfolio.archived_at`, a display-only flag: web option lists, the
+-- Aperçu cards, QuickSearch and the Portefeuilles list hide or group an
+-- archived portfolio, and nothing else reads it — no figure, no `calc_epoch`.
+--
+-- **Why nullable, no default.** NULL is "not archived", so every existing row
+-- reads not archived with no backfill; the instant mirrors
+-- `cash_account.archived_at`. On PG 17 a nullable column without a default is
+-- catalogue-only: no table rewrite, the ACCESS EXCLUSIVE lock is held for
+-- milliseconds. Reversible by `DROP COLUMN`.
+--
+-- **Why no grant.** `app_web` holds SELECT, INSERT, UPDATE, DELETE on
+-- `portfolio` at table level from `0007_roles-grants-rls.sql`; no later
+-- migration narrows it to a column list, so the new column is covered.
+-- `app_ingest` has no grant on `portfolio` and needs none.
+--
+-- **Why no owner reassign.** `ALTER TABLE ... OWNER TO app_owner` is needed for
+-- a new table; a column inherits its table's owner. RLS
+-- (`portfolio_tenant_isolation`) is row-level and unchanged.
+--
+-- **Why no index.** No server statement filters on `archived_at`: the API never
+-- hides an archived portfolio, and filtering is client-side over the list.
+ALTER TABLE "portfolio" ADD COLUMN "archived_at" timestamp with time zone;

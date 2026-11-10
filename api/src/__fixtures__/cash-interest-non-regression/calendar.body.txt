@@ -1,0 +1,1 @@
+{"baseCurrency":"EUR","total":{"count":8,"volumeBase":"28291.5"},"years":[{"period":"2024","count":8,"volumeBase":"28291.5"}],"months":[{"period":"2024-01","count":4,"volumeBase":"27100"},{"period":"2024-03","count":1,"volumeBase":"12.5"},{"period":"2024-06","count":2,"volumeBase":"428.75"},{"period":"2024-07","count":1,"volumeBase":"750.25"}]}

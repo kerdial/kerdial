@@ -1,0 +1,94 @@
+{
+  "quotes": [
+    {
+      "exchange": "CCC",
+      "shortname": "Solana USD",
+      "quoteType": "CRYPTOCURRENCY",
+      "symbol": "SOL-USD",
+      "index": "quotes",
+      "score": 51974.402,
+      "typeDisp": "Cryptocurrency",
+      "longname": "Solana USD",
+      "exchDisp": "CCC",
+      "isYahooFinance": true
+    },
+    {
+      "exchange": "NMS",
+      "shortname": "Kratos Defense & Security Solut",
+      "quoteType": "EQUITY",
+      "symbol": "KTOS",
+      "index": "quotes",
+      "score": 43564.0,
+      "typeDisp": "Equity",
+      "longname": "Kratos Defense & Security Solutions, Inc.",
+      "exchDisp": "NASDAQ",
+      "sector": "Industrials",
+      "industry": "Aerospace & Defense",
+      "isYahooFinance": true
+    },
+    {
+      "exchange": "NMS",
+      "shortname": "First Solar, Inc.",
+      "quoteType": "EQUITY",
+      "symbol": "FSLR",
+      "index": "quotes",
+      "score": 40088.0,
+      "typeDisp": "Equity",
+      "longname": "First Solar, Inc.",
+      "exchDisp": "NASDAQ",
+      "sector": "Technology",
+      "industry": "Solar",
+      "isYahooFinance": true
+    },
+    {
+      "exchange": "NCM",
+      "shortname": "ReTo Eco-Solutions, Inc.",
+      "quoteType": "EQUITY",
+      "symbol": "RETO",
+      "index": "quotes",
+      "score": 34809.0,
+      "typeDisp": "Equity",
+      "longname": "ReTo Eco-Solutions, Inc.",
+      "exchDisp": "NASDAQ",
+      "sector": "Basic Materials",
+      "industry": "Building Materials",
+      "isYahooFinance": true
+    },
+    {
+      "exchange": "NYQ",
+      "shortname": "Forgent Power Solutions, Inc.",
+      "quoteType": "EQUITY",
+      "symbol": "FPS",
+      "index": "quotes",
+      "score": 31908.0,
+      "typeDisp": "Equity",
+      "longname": "Forgent Power Solutions, Inc.",
+      "exchDisp": "NYSE",
+      "sector": "Industrials",
+      "industry": "Electrical Equipment & Parts",
+      "isYahooFinance": true
+    },
+    {
+      "exchange": "CME",
+      "shortname": "SOL Futures,Oct-2026",
+      "quoteType": "FUTURE",
+      "symbol": "SOL=F",
+      "index": "quotes",
+      "score": 30012.0,
+      "typeDisp": "Futures",
+      "exchDisp": "Chicago Mercantile Exchange",
+      "isYahooFinance": true
+    },
+    {
+      "exchange": "CME",
+      "shortname": "Micro SOL Futures,Oct-2026",
+      "quoteType": "FUTURE",
+      "symbol": "MSL=F",
+      "index": "quotes",
+      "score": 30001.0,
+      "typeDisp": "Futures",
+      "exchDisp": "Chicago Mercantile Exchange",
+      "isYahooFinance": true
+    }
+  ]
+}

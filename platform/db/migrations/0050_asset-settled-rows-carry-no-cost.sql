@@ -1,0 +1,97 @@
+-- 0050 — an asset-settled row carries no cost, and the database says so
+-- (found by the FT-48 re-gate; sibling of the earlier asset-settled rule).
+--
+-- ## The gap
+--
+-- The earlier rule: an asset-settled principal leg moves no cash
+-- (FR-236), so after L5 — where a cost is denominated by the account that
+-- settled the trade — there is no account and no currency to denominate a cost
+-- by. A row that settles in BTC cannot have a 25,00 <nothing> fee.
+--
+-- Until this migration the rule was enforced **in the service only**:
+-- `recordSettledBuy` refuses it in its argument block, and `resolveCostLeg`
+-- refuses it before the INSERT. The database did not. `0048` dropped
+-- `transaction_fee_amount_currency_pairing` and `0049` the remaining
+-- three fee objects; between them they were the only constraints that
+-- happened to catch this shape, and nothing replaced them. A direct
+--
+--   INSERT ... kind='BUY', txn_settlement_instrument_id=<btc>,
+--              cash_currency=NULL, fee_amount='25'
+--
+-- succeeded cleanly at `0049`. Reproduced before this file was written.
+--
+-- ## Why it matters, given the shipped write path cannot produce it
+--
+-- The row is **storable and unexpandable**, and the two consumers disagree
+-- about that in the worst possible way:
+--
+--   * `ledger/src/posting-expander.ts` throws `PostingExpansionError` — and
+--     `regeneratePostings` runs for the whole portfolio, so one such row breaks
+--     every subsequent write to it; and
+--   * `ledger/src/position-replay.ts` **silently drops** the cost from the
+--     basis instead of throwing — a wrong cost basis with no error, which is
+--     the worse of the two.
+--
+-- Reachable by an out-of-band writer, a restored dump, or a future importer
+-- path — not by the shipped write path. That is precisely the population a
+-- CHECK is for, and **AC-237's own standard for this cycle** is that a shape is
+-- "refused by the database, not only by the application".
+--
+-- ## `NOT VALID`, and why that is the honest form
+--
+-- **The shape was legal when it was written.** Before phase 2 a fee carried its
+-- own currency and its own cash account, so an asset-settled row could hold one
+-- and it genuinely moved cash: FR-60/AC49 is what made it representable, and
+-- FR-157 constrains only the *principal* leg (`transaction_settled_principal_
+-- has_no_cash_account`), never the fee leg. `cash-account-backfill.integration.
+-- test.ts`'s own fixture carries exactly such a row — a BTC-settled BUY with a
+-- GBP fee — and its comment says why it is there: *"its GBP fee genuinely moved
+-- cash"*, which is a sharper FR-157 case than a wholly unattributed row.
+--
+-- So this constraint is **not** retroactively true, and an earlier draft of
+-- this file that added it validated failed to apply against that fixture with
+-- `23514 ... is violated by some row`. A migration that is correct and
+-- unsatisfiable at once is a recorded failure of this project, and the reasoning
+-- that produced it is worth naming: *"every stored row expands, and
+-- `expandPostings` throws on this shape, so no such row can exist"* is circular.
+-- Such a row expanded perfectly well **before** `0049` — through the
+-- `fee_currency` branch that no longer exists. `0049` is what made it
+-- unexpandable, which is the substance of the gap.
+--
+-- `NOT VALID` therefore says exactly what is true: **every INSERT and every
+-- UPDATE from here on is checked** — which is the whole gap, an
+-- out-of-band writer, a restored dump or a future importer path — while rows
+-- written under the old rules are left where they are. Postgres enforces a
+-- `NOT VALID` CHECK on new and modified rows; it only skips the initial
+-- full-table scan.
+--
+-- **This deployment is clean anyway**, measured 2026-08-30 before migrating:
+--
+--   SELECT count(*) FILTER (WHERE txn_settlement_instrument_id IS NOT NULL) AS asset_settled,
+--          count(*) FILTER (WHERE txn_settlement_instrument_id IS NOT NULL
+--                             AND fee_amount IS NOT NULL)                    AS settled_with_cost
+--     FROM "transaction";
+--   -- asset_settled=0  settled_with_cost=0   (of 313 rows)
+--
+-- Zero asset-settled rows at all, so nothing here is grandfathered and a later
+-- `VALIDATE CONSTRAINT` would succeed today. It is deliberately **not** run:
+-- the guarantee this file offers must not depend on one deployment's data, and
+-- the rows it would refuse to validate elsewhere are ones whose cost currency
+-- `0049` already destroyed — a data-repair question, not a constraint
+-- question.
+--
+-- ## Scope: the components come along for free
+--
+-- Only `fee_amount` is named. `transaction_cost_components_sum_to_fee_amount`
+-- (`0047`) already requires `fee_amount IS NOT NULL` whenever any of the five
+-- components is present, so forbidding the total transitively forbids a
+-- breakdown. Naming the five here as well would add five clauses that can
+-- never be the reason a row is refused, and a constraint that cannot fail on
+-- its own terms is the thing the original report was about.
+--
+-- `transaction` CHECK count: 34 after `0049` → **35** here (+1); a `NOT VALID`
+-- constraint is an ordinary row in `pg_constraint` and counts like any other.
+-- No data migration and no new table: over this file's statements,
+-- `grep -ci 'update "transaction"'` and `grep -ci 'create table'` are both 0.
+
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_settled_principal_has_no_cost" CHECK ("transaction"."txn_settlement_instrument_id" IS NULL OR "transaction"."fee_amount" IS NULL) NOT VALID;

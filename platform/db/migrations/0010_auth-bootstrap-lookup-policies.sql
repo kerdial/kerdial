@@ -1,0 +1,51 @@
+-- T-10 — the one place the tenant-scoping rule
+-- legitimately cannot apply: authenticating a login (looking up `app_user`
+-- by email) and resolving a session cookie (looking up `session` by
+-- token hash) both necessarily happen *before* `tenantId` is known — finding
+-- out the tenant is the whole point of these two lookups. `withTenant()`
+-- (T-9) cannot be used for either, because there is no tenantId yet to pass
+-- it, and migration 0007/0008's tenant-isolation policies (`tenant_id =
+-- NULLIF(current_setting('app.tenant_id', true), '')::uuid`) make `app_web`
+-- see zero rows on both tables without one.
+--
+-- REJECTED approach: querying as a role with BYPASSRLS, or as the table
+-- owner off a FORCE-exempt path. That would hand the API's normal runtime
+-- role a standing ability to read every tenant's `app_user`/`session` rows
+-- under any query shape, forever — a much bigger hole than the two lookups
+-- actually need, and the opposite of "structurally impossible", which is
+-- this schema's own stated bar for tenant isolation (see tenant-context.ts).
+--
+-- CHOSEN approach: two additional, narrow, PERMISSIVE SELECT-only policies,
+-- scoped to `app_web`, each gated on equality against a dedicated
+-- transaction-local GUC that only `platform/db`'s `withEmailLookup`/
+-- `withSessionTokenLookup` (T-10, tenant-context.ts) ever sets — the same
+-- "named, single-purpose, set_config(..., true)-scoped affordance" shape
+-- already established by `withFxCorrection`'s `app.fx_correction` flag.
+--
+-- Because these are additional PERMISSIVE policies for the same role/command
+-- as the existing tenant-isolation policy, Postgres ORs them together: a
+-- plain tenant-scoped SELECT (bootstrap GUC unset) is completely unaffected,
+-- and a bootstrap-mode SELECT is *not* "any row is visible" (that would still
+-- be a cross-tenant hole) — it is "only the row whose email/token_hash
+-- equals the exact value the transaction-local GUC was set to is visible",
+-- enforced by Postgres itself, not by trusting every call site to remember a
+-- narrow WHERE clause. A caller could issue `SELECT *` with no WHERE clause
+-- at all in bootstrap mode and it would still return at most the one row
+-- matching that GUC — see
+-- `platform/auth/src/auth-service.integration.test.ts` for the test that
+-- proves exactly this.
+--
+-- What this does NOT grant: no UPDATE/DELETE/INSERT policy is added (the
+-- existing `*_tenant_isolation` FOR ALL policy is still the only one
+-- governing writes), and no general cross-tenant SELECT — a query for a
+-- value the caller does not already know (a different tenant's email, or a
+-- session token they do not hold) returns zero rows, exactly as it does
+-- today. The token side is additionally backstopped by 0009's unique index
+-- on `session.token_hash` and the practical impossibility of guessing a
+-- 256-bit CSPRNG token; the email side is inherent to "login by email" and
+-- no narrower than what any login form already requires.
+CREATE POLICY "app_user_auth_lookup_by_email" ON "app_user" AS PERMISSIVE FOR SELECT TO app_web
+  USING ("email" = NULLIF(current_setting('app.auth_lookup_email', true), '')::citext);--> statement-breakpoint
+
+CREATE POLICY "session_auth_lookup_by_token_hash" ON "session" AS PERMISSIVE FOR SELECT TO app_web
+  USING ("token_hash" = decode(NULLIF(current_setting('app.auth_lookup_token_hash', true), ''), 'hex'));

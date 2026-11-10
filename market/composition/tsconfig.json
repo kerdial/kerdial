@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../core/api-contracts" },
+    { "path": "../../core/decimal" },
+    { "path": "../../core/reference-data" },
+    { "path": "../../platform/db" },
+    { "path": "../../platform/logging" },
+    { "path": "../ports" },
+    { "path": "../adapters" },
+    { "path": "../ingestion" },
+    { "path": "../../ledger" }
+  ]
+}

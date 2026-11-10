@@ -1,0 +1,33 @@
+-- LOW-4: `portfolio.name`
+-- had no database-level bound at all. `ledger`'s `createPortfolio` carries an
+-- application-level non-empty guard; `renamePortfolio` had none (this same
+-- fix round mirrors create's guard onto it) — but neither bounds the *upper*
+-- length, and an application-level check alone is bypassable by a future
+-- caller that forgets it (a hand-run `UPDATE`, a new internal call site that
+-- constructs `CreatePortfolioParams`/`RenamePortfolioParams` directly). The
+-- HTTP DTOs (`portfolioNameSchema`, `@kerdial/api-contracts`:
+-- `z.string().trim().min(1).max(200)`) are today's only upper bound, and only
+-- for traffic that goes through them.
+--
+-- Floor and ceiling use different expressions deliberately (confirm review,
+-- fix round 2): one-arg `btrim` strips ASCII spaces ONLY, so a name made
+-- entirely of tabs/newlines/NBSP would pass a `length(btrim(name)) >= 1`
+-- floor while containing zero real characters — `name ~ '\S'` (at least one
+-- non-[:space:] character) is the honest non-empty floor. The ceiling keeps
+-- `length(btrim(name)) <= 200`, mirroring `portfolioNameSchema`'s
+-- `.trim().max(200)` for the space-padded legacy rows described below, so
+-- nothing the HTTP boundary already accepts is newly rejected here.
+--
+-- Existing-data safety: every row already in this table was written through
+-- `createPortfolio`, which already rejects an all-whitespace name outright
+-- (`!params.name || params.name.trim() === ""`) — so no existing row's
+-- `btrim(name)` is empty. A legacy row written before `portfolioNameSchema`'s
+-- own `.trim()` existed (D11) may still carry un-trimmed leading/trailing
+-- whitespace in the stored `name` itself (that pre-trim behaviour changed the
+-- HTTP boundary's *input* handling, not this table's existing rows) — but
+-- `btrim`'s *length* is unaffected by whitespace padding either way, so a
+-- legacy padded name's `btrim(name)` length is identical to what it would
+-- have been had it been trimmed before insert, and stays `>= 1` for exactly
+-- the same reason the original guard already proved: real, non-whitespace
+-- content was present. No existing row can violate this constraint.
+ALTER TABLE "portfolio" ADD CONSTRAINT "portfolio_name_length" CHECK ("portfolio"."name" ~ '\S' AND length(btrim("portfolio"."name")) <= 200);

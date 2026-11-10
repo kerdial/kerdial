@@ -1,0 +1,28 @@
+﻿ISIN;WKN;Symbole boursier;Nom du titre;Devise;Note;Total Expense Ratio (TER);Assets under Management;Vendor;Acquisition Fee (percentage);Management Fee (percentage)
+IE00B4L5Y983;;IWDA.AS;iShares Core MSCI World UCITS ETF USD (Acc);EUR;;0,20%;;BlackRock;;
+IE00B5BMR087;;SXR8.DE;iShares Core S&P 500 UCITS ETF USD (Acc);EUR;;0,07%;;BlackRock;;
+IE00BKM4GZ66;;EMIM.AS;iShares Core MSCI EM IMI UCITS ETF USD (Acc);EUR;;0,18%;;BlackRock;;
+DE0002635307;;EXSA.DE;iShares STOXX Europe 600 UCITS ETF (DE);EUR;;0,20%;;BlackRock;;
+IE00B4ND3602;;PPFB.DE;iShares Physical Gold ETC;EUR;;;;BlackRock;;
+DE0007236101;;SIE.DE;Siemens AG;EUR;;;;;;
+DE0008404005;;ALV.DE;Allianz SE;EUR;;;;;;
+NL0011794037;;AD.AS;Koninklijke Ahold Delhaize N.V.;EUR;;;;;;
+IT0000072618;;ISP.MI;Intesa Sanpaolo S.p.A.;EUR;;;;;;
+FR0000051807;;TEP.PA;Teleperformance SE;EUR;;;;;;
+NL0000226223;;STMPA.PA;STMicroelectronics N.V.;EUR;;;;;;
+FR0000121972;;SU.PA;Schneider Electric SE;EUR;;;;;;
+US1912161007;;CCC3.DE;The Coca-Cola Company;EUR;;;;;;
+US1912161007;;KO;The Coca-Cola Company;USD;;;;;;
+US4781601046;;JNJ;Johnson & Johnson;USD;;;;;;
+US7427181091;;PG;The Procter & Gamble Company;USD;;;;;;
+US2546871060;;DIS;The Walt Disney Company;USD;;;;;;
+US4370761029;;HD;The Home Depot Inc.;USD;;;;;;
+US7134481081;;PEP;PepsiCo Inc.;USD;;;;;;
+US5801351017;;MCD;McDonald's Corporation;USD;;;;;;
+CH0038863350;;NESM.F;Nestlé S.A.;EUR;;;;;;
+DE0007030033;;RHM.F;Rheinmetall AG;EUR;;;;;;
+"";;BTC;Bitcoin;EUR;;;;;;
+"";;ETH;Ethereum;EUR;;;;;;
+"";;ADA;Cardano;USD;;;;;;
+"";;SOL;Solana;EUR;;;;;;
+"";;SCPIDEMO01;"SCPI ""Pierre Démo""";EUR;;;;;;

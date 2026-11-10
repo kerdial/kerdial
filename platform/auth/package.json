@@ -1,0 +1,21 @@
+{
+  "name": "@kerdial/platform-auth",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kerdial/platform-db": "workspace:*",
+    "argon2": "^0.45.0",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@kerdial/platform-test-support": "workspace:*",
+    "postgres": "^3.4.5"
+  }
+}

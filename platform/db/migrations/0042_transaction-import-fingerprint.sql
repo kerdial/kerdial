@@ -1,0 +1,119 @@
+-- CSV import idempotency (ID7;
+-- CI-4). Locked by the **OD-7 amendment** — the user overrode the
+-- analyst's recommendation and required real per-row idempotency in this cycle
+-- rather than a deferral, so this is the storage half of that lock, not a
+-- forward-looking placeholder.
+--
+-- drizzle-kit generated (generated name: `0042_new_agent_zero`; the file and its
+-- journal tag were renamed to the descriptive form every migration in this repo
+-- uses). The three statements below are the generator's own, in the generator's
+-- own order — which matters here, because this repo has shipped a generated
+-- migration that referenced a column *before* the `ADD COLUMN` that created it:
+-- the column is added first, then the index over it, then the CHECK on it. The
+-- snapshot (`meta/0042_snapshot.json`) is the generator's, untouched. Applied
+-- against a real Postgres from an empty database, not assumed runnable because
+-- the generator exited 0.
+--
+-- ## A column on `transaction`, not a side table
+--
+-- This is the chosen design, and its cheapness rests on one fact that is **asserted, not
+-- taken on trust** (`transaction-import-fingerprint.integration.test.ts`):
+-- `0007` (lines 74-78) grants `SELECT, INSERT, UPDATE, DELETE ON "transaction"`
+-- to `app_web` at **table** level with no column list, and neither `0036` nor
+-- `0038` narrowed it (`0036`'s column-level grant is on `instrument`, `0038`'s
+-- on `cash_account`). A new *column* is therefore covered with no new `GRANT`;
+-- a new *table* would have needed its own, which is precisely the
+-- `instrument_backfill_state` incident this repo already paid for (no grant at
+-- all, `permission denied` swallowed by a `catch`, invisible to every test
+-- because they all connected as a superuser). So the test that proves it here
+-- connects as the real `app_web` role and does a live INSERT/SELECT/UPDATE of
+-- the new column; reading this comment, or `0007`'s SQL text, proves nothing.
+--
+-- The column also needs no `tenant_id` of its own (it sits on a table that has
+-- one, `NOT NULL`, with RLS enabled and forced), no `ON DELETE CASCADE`, no
+-- `TRANSACTION_FK_HANDLING` entry, and no ADR-0013 retention answer — the
+-- fingerprint dies with its row. `tenant-column-gate` and
+-- `no-floats-schema-gate` both pass unchanged and with no allowlist edit: this
+-- migration creates no table for the former to judge, and the column is `text`.
+--
+-- ## The partial unique index, and why the key is scoped the way it is
+--
+-- **A unique index is enforced across every row regardless of RLS.** Keyed on
+-- `import_fingerprint` alone, two portfolios — or two tenants — importing the
+-- same file would collide: a correctness bug and an existence oracle for
+-- another tenant's data at the same time. Not argued but measured, in this
+-- migration's own test: over the three rows that legitimately share one
+-- fingerprint (two portfolios of one tenant plus a second tenant), a
+-- fingerprint-only unique index cannot even be built — `CREATE INDEX` fails
+-- `23505`.
+--
+-- One correction to the original reasoning, rather than a quiet
+-- reproduction: it attributed the cross-tenant half to `tenant_id`, and
+-- **`portfolio_id` is what actually delivers it** — a portfolio belongs to
+-- exactly one tenant, so it already partitions by tenant. `tenant_id` still
+-- leads the key, for the reason it leads this table's two other composite
+-- indexes (every read is tenant-scoped) and so the key stays correct even if a
+-- portfolio were ever re-parented. `portfolio_id` is in the key because
+-- importing the same file into two portfolios is a legitimate operation, as is
+-- importing it into two different cash accounts of one portfolio (that one is
+-- inside the hash, not in this key).
+--
+-- `WHERE import_fingerprint IS NOT NULL` keeps the index off every row that
+-- predates this migration and every hand-entered row after it — all NULL. (A
+-- plain unique index would already tolerate those: NULLs do not collide under
+-- the default `NULLS DISTINCT`. The predicate makes the intent explicit and
+-- keeps the index physically empty on a database that never imports.)
+--
+-- Red-confirmed behaviourally, not by its presence in a snapshot: two rows
+-- colliding on `(tenant_id, portfolio_id, import_fingerprint)` are rejected
+-- `23505` under this index's own name, while two NULL-fingerprint rows, the same
+-- fingerprint in a second portfolio, and the same fingerprint in a second tenant
+-- all insert.
+--
+-- ## The shape CHECK: ADOPTED. This table now has 24 `check(...)` calls, not 23
+--
+-- It was offered as optional and flagged **UNVERIFIED — written, not
+-- executed**. It is adopted, and the count is stated as measured rather than
+-- cited: `src/schema/transaction.ts` had **23** `check(...)` calls before this
+-- migration and has **24** after (the "13 CHECKs" figure in ADR-0012 and in
+-- several briefs is the pre-`cash-accounts` number and is stale). Measured at
+-- the database, `transaction` goes from 23 to 24 `pg_constraint` rows of
+-- `contype = 'c'`; `cash-account-backfill.integration.test.ts`'s count
+-- assertion is updated in the same commit for that reason.
+--
+-- Adopted because it is what turns ADR-0013's claim — "the fingerprint is
+-- a hash of data already in the row, so it creates no new personal-data
+-- location" — into a database fact rather than a convention held by one writer.
+-- A future caller storing the source CSV line, a raw ISIN or an account label
+-- here would be creating exactly the new personal-data location ADR-0013 would
+-- then have to answer for. It costs the one intended writer nothing:
+-- `fingerprint.ts` (CI-12) emits `"pp1:" + sha256Hex(...)`.
+--
+-- The expression uses ASCII character classes only, so it is not exposed to the
+-- collation-provider hazard `0041` records for `[:space:]`-family classes.
+-- Before this migration was generated it was
+-- run against a scratch table on `postgres:17-alpine`, thirteen cases: `NULL`
+-- and two conforming values accepted; no-version-prefix, uppercase hex, 63 and
+-- 65 hex digits, empty string, a 9-character version prefix, an uppercase
+-- prefix and a raw CSV line all rejected `23514` — and, the case worth running
+-- for, a conforming value with a **leading** or **trailing newline** also
+-- rejected, confirming `~` is not newline-sensitive here so `^`/`$` anchor the
+-- whole string rather than a line of it.
+--
+-- ## No writer-ordering hazard — stated either way, per this repo's own rule
+--
+-- `ADD CONSTRAINT ... CHECK` validates existing rows, so this migration is the
+-- kind that can fail on live data. It cannot here, and the reason is worth
+-- writing down rather than leaving to be rediscovered: the column is added by
+-- this same migration and is nullable, so **every** existing row has
+-- `import_fingerprint IS NULL` and satisfies the CHECK's `IS NULL OR` arm
+-- vacuously-but-correctly; no writer in the codebase sets the column today; and
+-- the one writer that will, `apply.ts` (CI-13), arrives three batches later in
+-- this same cycle and is built against this constraint from its first line.
+-- There is no window in which a real writer's rows could fail a check this
+-- migration turns on. The `NOT VALID` escape hatch is therefore not used, and
+-- would be wrong here for the reason `0041` gives.
+
+ALTER TABLE "transaction" ADD COLUMN "import_fingerprint" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "transaction_import_fingerprint_key" ON "transaction" USING btree ("tenant_id","portfolio_id","import_fingerprint") WHERE "transaction"."import_fingerprint" IS NOT NULL;--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_import_fingerprint_shape" CHECK ("transaction"."import_fingerprint" IS NULL OR "transaction"."import_fingerprint" ~ '^[a-z0-9]{1,8}:[0-9a-f]{64}$');

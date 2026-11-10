@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# Web (Vite)
+web/dist/
+web/.vite/
+# vite-plugin-pwa's dev-mode service worker output (`devOptions.enabled`,
+# T-42) — generated fresh on every `vite dev`/Playwright run, never checked in.
+web/dev-dist/
+
+# Env / secrets — never commit
+.env
+.env.*
+!.env.example
+# `deploy/env` — never committed.
+deploy/env
+*.pem
+*.key
+
+# Test / tooling artefacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+web/e2e/.cache/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local scratch (never committed)
+/scratch/
+
+# Local Portfolio Performance exports used for manual testing — never committed.
+/docs/samples/
+
+# Design bundle (design system + mockups) — local reference, never committed
+/.design/
+
+# Local tooling and private working files — never committed
+CLAUDE.md
+.claude/
+cleanup.md
+.dev-logs/

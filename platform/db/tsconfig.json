@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../core/decimal" },
+    // IR-6: the
+    // `instrument_sector` PG enum is generated from `SECTOR_CODES`, the one
+    // definition of the sector vocabulary — so the TS list and the database
+    // type cannot drift by construction, on top of the `pg_enum` drift test.
+    // `SECTOR_CODES` itself lives in `core/reference-data`; `core/api-contracts`
+    // is still referenced for the Zod schemas this package's gates also use.
+    { "path": "../../core/api-contracts" },
+    { "path": "../../core/reference-data" }
+  ]
+}

@@ -1,0 +1,863 @@
+/* Screen styles for the instruments restyle. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here.
+
+   The list and the detail + manual-price
+   modal. Everything below is layout and screen-specific structure; every
+   colour, size, radius and duration is a token, and the two card recipes come
+   from `<Card>`/`<Badge>`/`<StatTile>` rather than being re-cut here. */
+
+/* ─────────────────────────  list: the stat strip  ───────────────────────── */
+
+/* The "one card with hairline dividers", reused by the 4-up strip:
+   one `<Card padding="none">` holding four `<StatTile>`s, divided rather than
+   nested — four shadowed cards side by side would break the "never nest a
+   shadowed card" the same way a card-in-card does. */
+.k-inst-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.k-inst-stats > * {
+  padding: var(--space-4) var(--space-5);
+  border-right: 1px solid var(--border-subtle);
+}
+.k-inst-stats > *:last-child {
+  border-right: 0;
+}
+.k-inst-stat-hint {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+/* The value turns loss-red only when the count it carries is non-zero — a red
+   "0 à surveiller" would be the "vacuous" signal this cycle keeps refusing. */
+.k-inst-stat-alert {
+  color: var(--text-loss);
+}
+
+@media (max-width: 900px) {
+  .k-inst-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .k-inst-stats > *:nth-child(2n) {
+    border-right: 0;
+  }
+  .k-inst-stats > *:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+}
+
+/* ────────────────────────  list: filters and table  ─────────────────────── */
+
+.k-inst-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.k-inst-filter-kind {
+  min-width: 180px;
+}
+.k-inst-filter-query {
+  min-width: 260px;
+}
+
+/* Eight columns, in the design's order plus IR-13's sector column, less
+   the four a list was the wrong place for:
+   instrument · type · sector · symbol · exchange · last price · cours du ·
+   history. */
+.k-inst-grid {
+  display: grid;
+  /* The fixed columns plus their gaps come to ~1016px at their widest. Inside a 248px
+     rail and 32px page padding that exceeds a 1280px viewport, so a
+     `minmax(0, 1fr)` name column was being squeezed to zero width — and with
+     `overflow: hidden` on the text, the instrument name became genuinely
+     invisible rather than merely clipped. The e2e suite caught it as
+     "Received: hidden".
+     A floor on the name column plus a scroll container on the table is the fix:
+     the name is always readable, and the overflow is horizontal within the card
+     rather than the name disappearing. Mobile is unaffected — it renders the
+     card list, never this grid. */
+  /* The sector column (IR-13) is 116px — wide enough for the longest French
+     sector label to be recognisable at a glance, with `.k-inst-cell`'s
+     ellipsis handling the rest; the card's own horizontal scroller
+     (`.k-inst-scroll`, below) absorbs the extra width on a viewport narrower
+     than 1280px exactly as it already does for the others. */
+  /* **Eight columns.** An earlier change had made it nine by splitting the single date
+     column labelled « Mise à jour » — which was really the backfill resume
+     bookmark, so a quote refresh moved the price beside it and left the date
+     days old — into « Cours du » (the last observation) and
+     « Hist. jusqu'au » (the bookmark). Asked for on 2026-09-08, the bookmark
+     column is gone from the *list*: it is an operator-grade fact about one
+     instrument's backfill, which the instrument **detail** screen still states
+     in full, and a reader scanning eighty rows for a price never needs it.
+     The actual fix survives it — the surviving date column is the
+     observation and is labelled as one; nothing here reports the bookmark
+     under a price-freshness name again.
+     Its 88px and its 12px gap are **not** redistributed: it had paid for
+     that column by trimming four others (sector 132→116, place 116→104,
+     price 124→116, symbol 80→76) and giving those 40px back would have left
+     the grid at ~1040px, still wider than the ~998px a 1280px viewport leaves
+     beside the 248px rail. Keeping the trims puts it at ~980px — measured, and
+     the first time since the eleven-column table that this grid does **not**
+     need `.k-inst-scroll` at 1280px. That scroller stays as a floor: it is
+     what keeps a future column from squeezing the name column to nothing, the
+     failure mode the e2e suite once caught as "Received: hidden".
+     (The eight before it were themselves a reduction from eleven:
+     « Source du cours », « Couverture » and « Action » were removed, ~280px
+     plus three gaps.) */
+  /* **A ninth track, and no ninth header cell.** `watchlist` FR-371 puts a
+     `<WatchToggle>` on every row of this list, and the row is an `<a>` — a
+     nested `<button>` would be invalid HTML that swallows its own clicks
+     (`InstrumentTable.tsx`'s `showReloadAffordance` records this), so the
+     toggle is an absolutely-positioned **sibling** of the anchor. This track
+     reserves the space it sits over; the header keeps its eight cells, so the
+     column is deliberately unlabelled and the anchor's own eight cells never
+     reach it. 44px is the tap-target token's width, plus the 12px gap: ~1036px
+     total, which is back inside `.k-inst-scroll`'s remit on a 1280px viewport
+     — the floor that scroller was kept for. */
+  grid-template-columns:
+    minmax(172px, 1fr) 104px 116px 76px 104px 116px
+    88px 112px 44px;
+  gap: var(--space-3);
+  align-items: center;
+}
+/* The overlay is inert; only the control inside it takes a click, so every
+   other part of the row is still the link to the detail screen. */
+.k-inst-watch-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 var(--pad-card);
+  pointer-events: none;
+}
+.k-inst-watch-overlay > * {
+  pointer-events: auto;
+}
+.k-inst-head {
+  height: 38px;
+  padding: 0 var(--pad-card);
+  background: var(--paper-50);
+  /* The card is `padding="none"` so the header sits flush to its edge; the
+     matching top corners are what keep it inside the card's own radius
+     without an `overflow: hidden` the `<Card>` primitive has no prop for. */
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font: var(--text-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.k-inst-scroll {
+  /* **No fixed height and no vertical scrollport.** This was `height: 480px;
+     overflow: auto`, which read a long list through a letterbox and put a
+     second scrollbar on screen next to the page's own. The table is now as tall
+     as its content and the *page* scrolls; the virtualiser windows the DOM
+     against the window instead of against this element
+     (`useWindowVirtualizer`), so nothing was traded away to get there.
+
+     `overflow-x` stays: a narrow desktop viewport still scrolls the columns
+     sideways rather than collapsing one. Note this makes the element a scroll
+     container on both axes as far as CSS is concerned — `overflow-y: visible`
+     is not expressible alongside `overflow-x: auto` — but with the height
+     content-driven there is never anything to scroll vertically. */
+  overflow-x: auto;
+}
+/* Rows go to `--paper-50` on hover and **never change size**. Nothing
+   here touches height, padding or border width on hover. */
+/* The row is an `<a>` (the whole row links to the instrument, replacing the
+   « Voir » cell), so it needs the anchor defaults neutralised: inherit the
+   text colour rather than taking the link colour, and drop the underline.
+   Everything below this point styles a row exactly as it did when it was a
+   `<div>`. */
+.k-inst-row {
+  min-height: var(--row-height);
+  padding: 0 var(--pad-card);
+  border-bottom: 1px solid var(--paper-200);
+  transition: background-color var(--dur-fast) var(--ease-out);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.k-inst-row:hover {
+  background: var(--paper-50);
+}
+/* Keyboard users get the row's focus ring inset, so it is not clipped by the
+   scroll container the way an outset ring on an absolutely-positioned row is.
+   `:focus-visible`, never `:focus` — a mouse click on a row should not leave a
+   ring behind it. */
+.k-inst-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--surface-brand);
+}
+.k-inst-row[data-selected="true"]:focus-visible {
+  box-shadow:
+    inset 3px 0 0 var(--surface-brand),
+    inset 0 0 0 2px var(--surface-brand);
+}
+/* Selection (`sel`) is an inset rail, not a fill — which also keeps the row's
+   background free for the hover state, and keeps status signalling to the dot
+   alone ("a status dot — never a coloured row fill"). */
+.k-inst-row[data-selected="true"],
+.k-inst-card[data-selected="true"] > .k-card {
+  box-shadow: inset 3px 0 0 var(--surface-brand);
+}
+.k-inst-card[data-selected="true"] > .k-card {
+  box-shadow:
+    inset 3px 0 0 var(--surface-brand),
+    var(--card-shadow);
+}
+
+.k-inst-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.k-inst-name-text {
+  font: var(--text-body-m);
+  font-weight: var(--weight-bold);
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-inst-cell {
+  font: var(--text-body-s);
+  color: var(--text-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-inst-cell-muted {
+  color: var(--text-muted);
+}
+.k-inst-cell-strong {
+  font: var(--text-body-m);
+  font-weight: var(--weight-bold);
+  color: var(--text-strong);
+}
+.k-inst-cell-right {
+  text-align: right;
+  justify-self: end;
+}
+.k-inst-symbol {
+  font-size: var(--size-label);
+  color: var(--text-body);
+}
+
+/* The status dot. One 7px disc, tinted from the *same* tone the history badge
+   uses (`historyStatusTone`, one map) — so colour and text can never disagree,
+   and the colour is never the only carrier of the meaning. */
+.k-inst-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+}
+.k-inst-dot[data-tone="gain"] {
+  background: var(--gain-500);
+}
+.k-inst-dot[data-tone="brand"] {
+  background: var(--teal-500);
+}
+.k-inst-dot[data-tone="warn"] {
+  background: var(--warn-500);
+}
+.k-inst-dot[data-tone="loss"] {
+  background: var(--loss-500);
+}
+.k-inst-dot[data-tone="neutral"] {
+  background: var(--ink-300);
+}
+
+.k-inst-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--pad-card);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+/* ──────────────────────  list: the mobile card list  ────────────────────── */
+
+/* Tables become stacked cards on mobile, never a horizontal
+   scroller. There is no `overflow-x` anywhere in this block, by construction. */
+.k-inst-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.k-inst-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.k-inst-card-status {
+  margin-top: var(--space-2);
+}
+/* Kind chip, symbol and currency on one wrapping line. */
+.k-inst-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+/* The watch toggle and (when offered) the reload, one row. */
+.k-inst-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.k-inst-card-more {
+  margin-top: var(--space-2);
+}
+.k-inst-card-more > summary {
+  cursor: pointer;
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  padding: var(--space-1) 0;
+}
+.k-inst-card-defs {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0 0;
+}
+.k-inst-card-defs dt {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.k-inst-card-defs dd {
+  margin: 0;
+  font: var(--text-body-s);
+  color: var(--text-body);
+  text-align: right;
+}
+
+/* ────────────────────────────  detail screen  ───────────────────────────── */
+
+.k-inst-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+/* On a phone the six action buttons are direct flex children beside the title
+   block, and `space-between` with a 24px gap scattered them over five rows. The title takes its own row; the actions pack like every
+   other page header's. */
+@media (max-width: 639px) {
+  .k-inst-detail-head {
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+  .k-inst-detail-head > :first-child {
+    flex-basis: 100%;
+    margin-bottom: var(--space-2);
+  }
+}
+.k-inst-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+.k-inst-breadcrumb-sep {
+  color: var(--text-faint);
+}
+.k-inst-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+/* The 38px mono ticker tile from the design. Falls back to the first characters of
+   the display name when the instrument carries no symbol — frequently null for
+   SHARE/ETF/FUND. */
+.k-inst-ticker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface-brand-soft);
+  color: var(--teal-700);
+  font-size: var(--size-micro);
+  font-weight: var(--weight-semibold);
+}
+/* The pencil chip over the badge — the fiche's only icon affordance
+   since the identity card's « Gérer l'icône » button and its sub-header were
+   removed.
+
+   Declared here rather than in `components.css` beside the shared image-fill
+   rule, although `InstrumentIconTile` is shared, because only the fiche ever
+   asks for it (`onEditClick` is passed by `InstrumentDetailView.tsx` and by
+   nothing else). `components.css` is for what two screens both need; this is
+   one screen's affordance on one screen's badge, and it belongs beside the
+   `.k-inst-ticker` box it hangs off. The image-fill rule stays shared, where
+   it is, because all five surfaces do need it — and this file is asserted to
+   not so much as name it (`InstrumentIconTile.test.tsx`, the one-declaration
+   check).
+
+   Tap target: the hit area is the `<button>` and the visible chip is the span
+   inside it, which is what lets the target reach the 44px floor under a coarse
+   pointer without the chip growing to cover the 38px badge it decorates — the
+   `.k-segmented-compact` precedent, same media query, same reason. */
+.k-inst-icon-editable {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.k-inst-icon-edit {
+  position: absolute;
+  right: calc(-1 * var(--space-2));
+  bottom: calc(-1 * var(--space-2));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .k-inst-icon-edit {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+    right: calc(-1 * var(--space-5));
+    bottom: calc(-1 * var(--space-5));
+  }
+}
+.k-inst-icon-edit-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-xs);
+}
+.k-inst-icon-edit:hover .k-inst-icon-edit-chip {
+  color: var(--text-strong);
+  border-color: var(--border-strong);
+}
+.k-inst-title {
+  font: var(--text-title-l);
+}
+.k-inst-meta {
+  font-size: var(--size-label);
+  color: var(--text-faint);
+}
+
+/* The second section of the « Modifier » dialog. One rule, on the
+   section that follows another: a hairline and the space above it are what
+   say « Identité » ended and « Classification » began, inside a dialog whose
+   two forms each end in their own actions row. */
+.k-inst-edit-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Two content columns plus the manual-price modal — see
+   `InstrumentDetailView.tsx`'s own layout note. */
+.k-inst-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .k-inst-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.k-inst-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.k-inst-card-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+/* The status badge and the manual reload sit together on the right of the
+   history card's heading, so the pair wraps as one unit rather than the button
+   dropping to its own line before the badge does. */
+.k-inst-card-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.k-inst-card-title {
+  font: var(--text-title-s);
+  font-family: var(--font-text);
+}
+.k-inst-defs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  margin: 0;
+}
+.k-inst-def {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 28px;
+}
+.k-inst-def-key {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.k-inst-def-value {
+  margin: 0;
+  font: var(--text-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.k-inst-note {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-inst-note-warn {
+  font-size: var(--size-body-s);
+  color: var(--warn-700);
+}
+.k-inst-note-loss {
+  font-size: var(--size-body-s);
+  color: var(--text-loss);
+}
+
+/* ─────────────────────  detail: the price-point table  ──────────────────── */
+
+.k-inst-price-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.k-inst-price-table th {
+  font: var(--text-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: var(--weight-semibold);
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+}
+.k-inst-price-table td {
+  height: 42px;
+  padding: 0 var(--space-2) 0 0;
+  border-top: 1px solid var(--paper-200);
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+.k-inst-price-close {
+  font-weight: var(--weight-bold);
+  color: var(--text-strong);
+  text-align: right;
+}
+.k-inst-price-source {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.k-inst-price-latest {
+  font-size: var(--size-micro);
+  color: var(--text-faint);
+}
+
+/* ─────────────────────────  the chart's own block  ──────────────────────── */
+
+/* Height only — the chart's token binding (colours, axis, area fill) is bound elsewhere.
+   Raised from 188px (2026-09-08): the fiche's own chart card is the one place
+   this series is actually read, and 188px made the mid-range trend hard to
+   judge next to the two-column identity/status cards beside it. */
+.k-inst-chart {
+  position: relative;
+  width: 100%;
+  height: 360px;
+}
+
+/* The drag-to-select-a-range overlay `EchartsCanvas.tsx` draws imperatively
+   over `.k-inst-chart` while the pointer is down (2026-09-09) — its own
+   `position: relative` above is what anchors this. Never intercepts a plain
+   click: it exists only between `pointerdown` and `pointerup` of an actual
+   drag, and `pointer-events: none` keeps it out of ECharts' own hit-testing
+   even while shown. */
+.k-inst-chart-select-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--surface-brand) 16%, transparent);
+  border-left: 1px solid var(--surface-brand);
+  border-right: 1px solid var(--surface-brand);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── the period-refine range, one line with two handles on a shared track
+   (2026-09-09, asked for over the previous two-stacked-inputs layout) ──
+   Two native `<input type="range">`s absolutely stacked on one rail: each
+   keeps its own thumb draggable (`pointer-events: auto` on the thumb only,
+   `::-webkit-slider-runnable-track`/`::-moz-range-track` made transparent so
+   the two invisible tracks never double the line), and the single visible
+   rail plus its highlighted sub-range are drawn once, behind both, by
+   `.k-inst-period-slider-track`'s own background and
+   `.k-inst-period-slider-fill`. `end` sits above `start` in stacking order
+   (`z-index`) so a pinched range (start == end) still leaves the end handle
+   reachable — the same "which handle is on top when they touch" question
+   every dual-thumb slider has to answer, answered once, consistently, rather
+   than left to pointer-event luck. */
+.k-inst-period-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.k-inst-period-slider-label {
+  color: var(--text-muted);
+  font: var(--text-body-s);
+  white-space: nowrap;
+}
+.k-inst-period-slider-track {
+  position: relative;
+  flex: 1;
+  height: 24px;
+}
+.k-inst-period-slider-track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--border-subtle);
+  border-radius: 2px;
+}
+.k-inst-period-slider-fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--surface-brand);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.k-inst-period-slider-track input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+}
+.k-inst-period-slider-track input[type="range"].k-inst-period-slider-end {
+  z-index: 1;
+}
+.k-inst-period-slider-track input[type="range"]::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 4px;
+}
+.k-inst-period-slider-track input[type="range"]::-moz-range-track {
+  background: transparent;
+  height: 4px;
+  border: none;
+}
+.k-inst-period-slider-track input[type="range"]::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--surface-brand);
+  border: 2px solid var(--surface-card);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  cursor: pointer;
+}
+.k-inst-period-slider-track input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-brand);
+  border: 2px solid var(--surface-card);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  cursor: pointer;
+}
+.k-inst-period-slider-values {
+  color: var(--text-body);
+  font-size: var(--size-micro);
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* ── the trade markers: the legend above the chart ──
+   Its dots' colour is set inline from `transactionKindColor` — the one
+   `var(--token)` reference derived from the ledger's locked tone map, the same
+   way `AssetClassChip` sets its own. The annotation strip that used to sit
+   below the chart is gone (2026-09-08): the trades read in the axis tooltip,
+   whose hit target is the whole column over a date. */
+.k-inst-trade-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+.k-inst-trade-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-inst-trade-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+}
+/* The two trade swatches are the canvas markers' own shapes, not dots: a
+   triangle up for a buy and down for a sell. The chart stopped relying on
+   colour alone (a green BUY on a rising green line was the case that failed),
+   so the legend beside it cannot go on showing a colour-only dot — a reader
+   matching the legend to the chart has to see the same shape. `clip-path` over
+   the inline background colour keeps the one locked kind -> colour map as the
+   only source of the colour. */
+.k-inst-trade-up,
+.k-inst-trade-down {
+  width: 9px;
+  height: 9px;
+  border-radius: 0;
+}
+.k-inst-trade-up {
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+.k-inst-trade-down {
+  clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
+}
+/* Touch: the canvas markers are 13px, well under a 44px target, which is why
+   the axis tooltip — triggered on `mousemove|click`, over the full-height
+   column of a date — is the trade's hit target on a touch screen. No mobile
+   override remains here: the strip that needed one is gone. */
+
+/* ────────────────────────  forms inside the modals  ─────────────────────── */
+
+.k-inst-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.k-inst-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: var(--space-3);
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .k-inst-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.k-inst-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+/* A business note/error is a banner inside the owning modal, with a 3px
+   inset left bar. */
+.k-inst-banner {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--size-body-s);
+}
+.k-inst-banner-warn {
+  background: var(--warn-100);
+  color: var(--warn-700);
+  box-shadow: inset 3px 0 0 var(--warn-500);
+}
+.k-inst-banner-gain {
+  background: var(--gain-100);
+  color: var(--text-gain);
+  box-shadow: inset 3px 0 0 var(--gain-500);
+}
+.k-inst-banner-loss {
+  background: var(--loss-100);
+  color: var(--text-loss);
+  box-shadow: inset 3px 0 0 var(--loss-500);
+}
+
+/* The discovery typeahead, on the sunken ground rather than in a second card. */
+.k-inst-discovery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.k-inst-discovery-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.k-inst-discovery-option {
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-body);
+  font: var(--text-body-s);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.k-inst-discovery-option:hover {
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+.k-inst-discovery-option-meta {
+  color: var(--text-muted);
+}

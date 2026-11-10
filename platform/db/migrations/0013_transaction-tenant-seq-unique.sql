@@ -1,0 +1,30 @@
+-- T-19 — `transaction.seq` is documented as "monotonic per tenant"
+-- (and `holding_state.last_txn_seq` depends on
+-- it), and the replay reads transactions ordered by `(trade_date, seq)`.
+-- Two transactions sharing a `(tenant_id, seq)` therefore do not merely look
+-- untidy: they make the replay order undefined, which makes PMP, realized
+-- gain, and every figure downstream of them undefined too. That is a
+-- financial-correctness hazard, not a cosmetic one.
+--
+-- Until now nothing enforced it. `0003_ledger-schema.sql` created only
+-- *non-unique* indexes on `(tenant_id, portfolio_id, trade_date, seq)` and
+-- `(tenant_id, instrument_id, trade_date, seq)` — those serve the two replay
+-- orders, not uniqueness — and there is no sequence backing the column.
+-- The write service allocates `seq` as `coalesce(max(seq), 0) + 1` scoped to
+-- the tenant, taking `pg_advisory_xact_lock` so two concurrent same-tenant
+-- writes cannot read the same `max`. That lock is correct, but under READ
+-- COMMITTED it was also the *only* thing standing between a concurrent write
+-- pair and a duplicate: drop the lock, or add a second write path that forgets
+-- it, and the collision is silent and permanent.
+--
+-- This constraint makes the advisory lock an optimisation (it avoids losing a
+-- transaction to a retry) rather than the sole correctness mechanism, per the
+-- convention the rest of this schema already follows: prefer a structural
+-- guarantee the database enforces over a discipline every call site must
+-- remember. Consistent with the FX-immutability trigger, `app_ingest`'s
+-- withheld write grant, RLS FORCE, and the column-level UPDATE grants.
+--
+-- Deliberately NOT `(tenant_id, portfolio_id, seq)`: the column's documented
+-- contract is per-tenant monotonicity, and `holding_state.last_txn_seq`
+-- compares against it as a single tenant-wide watermark.
+CREATE UNIQUE INDEX "transaction_tenant_id_seq_key" ON "transaction" USING btree ("tenant_id","seq");

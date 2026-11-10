@@ -1,0 +1,42 @@
+-- Widens `app_web`'s column-level UPDATE grant on `instrument` to include
+-- `figi` (issue: instrument-detail identity edit, requested 2026-09-09).
+-- Hand-written, in the `0011`/`0018`/`0029`/`0036`/`0044` style: drizzle-kit
+-- does not model grants, so this file is authored, not generated.
+--
+-- ## What this narrows, and what it does not touch
+--
+-- Migration `0036`'s doc comment (and AC-36) state that `app_web` "may
+-- not" `UPDATE` seven identity columns, `figi` among them, and that this is
+-- what makes AC3's "the canonical id never changes for any reason" a database
+-- guarantee rather than an application convention. This migration narrows
+-- that claim for `figi` alone, from "never `app_web`-writable" to "not
+-- `app_web`-writable once set":
+--
+--   - Column-level grants have no row-conditional form in Postgres — this
+--     file cannot express "only when NULL" itself. That half is
+--     `ledger`'s `setInstrumentFigi`, whose `UPDATE ... WHERE figi IS NULL`
+--     is the actual enforcement; this grant only makes the column reachable
+--     by `app_web` at all.
+--   - `figi` is the one identity field this codebase already treats as
+--     legitimately absent at creation (`instrument-create.schema.ts`'s
+--     `figi` is `.optional()`), so filling a gap is a different claim from
+--     "the canonical id never changes" — `id`, `isin`, `exchange_mic`,
+--     `symbol`, `kind`, `primary_identifier` and `owner_tenant_id` are
+--     untouched by this file and remain exactly as immutable as `0036` left
+--     them.
+--
+-- `instrument-classification-grants.integration.test.ts`'s "figi is
+-- REJECTED" case is unaffected: it truncates the migrations folder to
+-- "0036 and earlier" to test that migration's own point-in-time effect, so it
+-- never sees this file. The current, post-0061 grant matrix (`figi` now
+-- fillable) is asserted by this migration's own suite instead.
+--
+-- Column-level grants **union** rather than replace (0036's own precedent), so
+-- `app_web` ends this migration able to update exactly seven columns:
+-- `sector_code`, `industry_label`, `domicile_country`, `display_name`,
+-- `status`, `figi`, `updated_at`.
+--
+-- `app_ingest` is not touched: the provider/backfill lane has no business
+-- filling a FIGI, which is a user-supplied cross-source anchor here, not a
+-- provider-resolved fact.
+GRANT UPDATE ("figi") ON "instrument" TO app_web;

@@ -1,0 +1,61 @@
+-- T-38 — API: transactions endpoints. The
+-- `FxRateResolver` is documented (`ledger/src/fx-rate-resolver.ts`'s
+-- `FxRateResolverDeps.baseCurrency` doc comment) as "read from
+-- `tenant.base_currency` by the caller" — but migration `0007`'s grant list
+-- never gave `app_web` any privilege on `tenant` at all (it is `OWNER TO
+-- app_owner`, migration `0007` line ~35, with no matching `GRANT`): no
+-- endpoint before this migration ever needed to construct a live
+-- `TransactionWriteService`/`FxRateResolver`, so the gap was latent.
+-- `api`'s `POST /transactions`/`PATCH /transactions/:id`/
+-- `PATCH /transactions/:id/fx-rate` handlers are the first callers that do,
+-- and they read exactly this one column
+-- (`transaction-write-service.factory.ts`).
+--
+-- SELECT-only: `tenant` rows are provisioned out of band (T-9's own
+-- seeding), never written by `app_web`. No RLS policy is added here either —
+-- `tenant` carries no `tenant_id` column to scope by (it *is* the tenant
+-- root; see `instrument-service.ts`'s identical "no tenant_id, no RLS"
+-- reasoning for other shared tables), so a plain `GRANT SELECT` is the
+-- complete, correct fix — every tenant's own row is already the only one a
+-- session's own `tenantId` can ever be used to look up (defence in depth: a
+-- session cannot resolve to a `tenantId` other than the one its own row
+-- carries).
+--
+-- F7 (T-38): the table-wide grant above was
+-- wider than `app_web` ever needs — `transaction-write-service.factory.ts`
+-- (this grant's one and only caller-in-fact) reads exactly one column,
+-- `tenant.base_currency` (via an explicit drizzle `select({ baseCurrency:
+-- ... })` projection, never `SELECT *`), filtered by `tenant.id` in its
+-- `WHERE` clause. A table-wide `GRANT SELECT` handed `app_web` read access to
+-- every other column too — including `status` (whatever lifecycle/billing
+-- state a tenant row might carry) — for no functional reason. Column-scoped
+-- here to exactly the two columns any query against this table from `app_web`
+-- actually touches: `base_currency` (the `SELECT` list) and `id` (Postgres's
+-- column-privilege model requires `SELECT` on every column a query
+-- references anywhere, including a `WHERE` clause, not only its `SELECT`
+-- list). Edited in place (not superseded by a later migration) because this
+-- migration has only ever existed on this branch and was never deployed to
+-- any real database — same rationale as `0021`'s N4/N5 in-place edits (see
+-- that migration's own doc comment for the full reasoning, including why
+-- bumping `meta/_journal.json`'s `when` would be the wrong fix instead).
+--
+-- LOW-1 (T-38): the
+-- table-wide `GRANT SELECT ON "tenant" TO app_web` this migration originally
+-- shipped (before F7's in-place edit above narrowed it to column-scoped) is
+-- not something a re-run of this file can undo on its own — drizzle
+-- deduplicates applied migrations by this file's timestamp, so a database
+-- that already ran the *old* body would silently keep the wider table-wide
+-- grant forever, never picking up F7's narrowing at all. The `REVOKE` below
+-- makes this migration's *current* body idempotent regardless of which
+-- version last ran against a given database: revoking a privilege that was
+-- never granted (or was already revoked) is specified as a no-op in
+-- PostgreSQL (a NOTICE, not an error), so this is safe to run against a
+-- database that only ever saw the already-narrow (column-scoped) version
+-- too. This does not, by itself, fix a database that already ran the old
+-- version and has this migration recorded as applied — drizzle will not
+-- re-run this file there at all, timestamp unchanged — so any dev/CI
+-- database created from an earlier commit on this branch (before F7) should
+-- be recreated from scratch rather than migrated forward; no persistent
+-- database exists yet, so this is not a live concern.
+REVOKE SELECT ON "tenant" FROM app_web;
+GRANT SELECT ("id", "base_currency") ON "tenant" TO app_web;

@@ -1,0 +1,41 @@
+-- 0048 — retire `transaction_fee_amount_currency_pairing`, and only it
+-- (`fee-tax-breakdown` phase 2; the first of four dropped objects,
+-- landing ahead of the other three).
+--
+-- **Why this one, now.** Phase 2's write path (FT-36's `CostInput`) denominates
+-- a cost by the settling account under L5, so it writes a `fee_amount` with no
+-- `fee_currency`. This CHECK — `(fee_amount IS NULL) = (fee_currency IS NULL)`
+-- — refuses exactly that shape, and it is the **only** one of the four fee
+-- objects that does. Measured, as `app_web`, against a database at `0047`:
+--
+--   fee_currency='EUR', fee_cash_account_id set (today's shape) -> ACCEPTED
+--   fee_currency=NULL,  fee_cash_account_id=NULL (Batch F shape) -> 23514
+--                                    transaction_fee_amount_currency_pairing
+--
+-- **Why the other three stay** until a later migration drops them with the columns:
+--
+--   * `transaction_fee_cash_account_pairing`
+--     (`fee_cash_account_id IS NULL OR fee_currency IS NOT NULL`) and
+--     `transaction_fee_has_cash_account`
+--     (`fee_currency IS NULL OR fee_cash_account_id IS NOT NULL`) are both
+--     **satisfied** when `fee_currency` is NULL, so neither blocks Batch F; and
+--     the first is what closes the MATCH SIMPLE hazard this file documents at
+--     length — an account id set beside a NULL currency skips the composite FK
+--     entirely, so an arbitrary uuid from any tenant would be accepted.
+--   * `transaction_fee_cash_account_fk` is MATCH SIMPLE too: with both its
+--     nullable columns NULL it is not checked at all, so it does not block the
+--     new shape either — while it still guarantees tenant, portfolio and
+--     currency for every row that *does* name a fee account.
+--
+-- Dropping all four now would therefore buy nothing and would re-open a
+-- structural guarantee for the whole window in which the columns still accept
+-- values. `0048` is one statement for that reason.
+--
+-- `transaction` CHECK count: 37 after `0047` -> **36** here. The planned 34 is the
+-- figure after a later migration drops the remaining two fee CHECKs with the
+-- columns.
+--
+-- No data migration and no new table: `grep -ci 'update "transaction"'` and
+-- `grep -ci 'create table'` over this file's statements are both 0.
+
+ALTER TABLE "transaction" DROP CONSTRAINT "transaction_fee_amount_currency_pairing";

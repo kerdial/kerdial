@@ -1,0 +1,566 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1784635621733,
+      "tag": "0000_enable-extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784635633295,
+      "tag": "0001_auth-and-reference-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784636024508,
+      "tag": "0002_seed_currencies",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784637832860,
+      "tag": "0003_ledger-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784637886034,
+      "tag": "0004_transaction-fx-immutable-trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784638257558,
+      "tag": "0005_market-reference-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784638325662,
+      "tag": "0006_seed_market_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784639939806,
+      "tag": "0007_roles-grants-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784639940806,
+      "tag": "0008_rls-fail-closed-nullif",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784645965576,
+      "tag": "0009_session-token-hash-unique-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784645980314,
+      "tag": "0010_auth-bootstrap-lookup-policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784652556775,
+      "tag": "0011_instrument-update-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784653804268,
+      "tag": "0012_provider-map-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784653805268,
+      "tag": "0013_transaction-tenant-seq-unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784790141615,
+      "tag": "0014_portfolio-daily-valuation",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1784790427738,
+      "tag": "0015_portfolio-daily-valuation-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784803581591,
+      "tag": "0016_realized-gain-transaction-cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784827806586,
+      "tag": "0017_crypto-quote-provider-fx-source",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784900000000,
+      "tag": "0018_ingestion-reference-read-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784900100000,
+      "tag": "0019_login-attempt",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784900200000,
+      "tag": "0020_login-attempt-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786294561454,
+      "tag": "0021_instrument-symbol-no-isin-dedupe",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786294562454,
+      "tag": "0022_instrument-search-trgm-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786349754863,
+      "tag": "0023_instrument-backfill-state-backfilled-from",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786349755863,
+      "tag": "0024_tenant-base-currency-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786699781580,
+      "tag": "0025_transaction-positive-amount-checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786730914590,
+      "tag": "0026_transaction-instrument-not-self-settled",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786738546486,
+      "tag": "0027_portfolio-daily-valuation-date-floor",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786881911616,
+      "tag": "0028_portfolio-name-length-check",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786887306816,
+      "tag": "0029_instrument-backfill-state-app-web-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786887409159,
+      "tag": "0030_provider-map-ingest-insert-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786887409948,
+      "tag": "0031_pgboss-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787127835857,
+      "tag": "0032_market-data-epoch",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787182023959,
+      "tag": "0033_ops-indicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787210587041,
+      "tag": "0034_app-backup-role",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787410128128,
+      "tag": "0035_instrument-classification-columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787410128129,
+      "tag": "0036_instrument-classification-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787410128130,
+      "tag": "0037_seed_instrument_catalogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787479281025,
+      "tag": "0038_cash-account-attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787480856548,
+      "tag": "0039_cash-account-backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787528088235,
+      "tag": "0040_posting-cash-account-fk-and-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787551543415,
+      "tag": "0041_name-floor-unicode-blank-class",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787684689844,
+      "tag": "0042_transaction-import-fingerprint",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1787812819255,
+      "tag": "0043_fx-tracked-pair",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1787812819256,
+      "tag": "0044_fx-tracked-pair-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1787840798593,
+      "tag": "0045_transaction-cash-leg-columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1787840886381,
+      "tag": "0046_transaction-cash-leg-backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787905861121,
+      "tag": "0047_transaction-cost-components",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787915389515,
+      "tag": "0048_retire-fee-amount-currency-pairing",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1787915449515,
+      "tag": "0049_retire-the-fee-fx-leg",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787915509515,
+      "tag": "0050_asset-settled-rows-carry-no-cost",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1787915569515,
+      "tag": "0051_drop-app-backup-role",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788253831749,
+      "tag": "0052_instrument-backfill-consecutive-failures",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788253891749,
+      "tag": "0053_provider-mapping-repair-app-web-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788274090425,
+      "tag": "0054_tenant-scope-the-catalogue-dedupe-keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1788274925031,
+      "tag": "0055_ledger-facts-carry-their-base-currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1788464148270,
+      "tag": "0056_cashless-share-distribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1788467825031,
+      "tag": "0057_transaction-user-reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1788517250235,
+      "tag": "0058_instrument-icon",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788764594389,
+      "tag": "0059_dividend-has-no-cost-leg-and-posting-flow-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788872770535,
+      "tag": "0060_drop-platform-fee",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788939697000,
+      "tag": "0061_instrument-figi-fill-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789067100464,
+      "tag": "0062_watchlist-item",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1789622822021,
+      "tag": "0063_instrument-price-gap",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1789750358125,
+      "tag": "0064_instrument-delete-grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1789802173816,
+      "tag": "0065_account-setup-guard-functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789976991107,
+      "tag": "0066_drop-user-setting-and-tenant-status",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1789992327839,
+      "tag": "0067_household-tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1790071078221,
+      "tag": "0068_portfolio-details",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1790157235746,
+      "tag": "0069_nervous_gorgon",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1790754160965,
+      "tag": "0070_security-transfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1790945000000,
+      "tag": "0071_retire-coingecko",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1792068148044,
+      "tag": "0072_portfolio-archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1792357800000,
+      "tag": "0073_fund-nav-from-yahoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1792486973184,
+      "tag": "0074_scpi",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1792576320901,
+      "tag": "0075_cash-interest",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1792653043706,
+      "tag": "0076_rate-preset-list",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793023855543,
+      "tag": "0077_portfolio-fee",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793067577780,
+      "tag": "0078_cash-in-valuation",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1793955411291,
+      "tag": "0079_net-dividend",
+      "breakpoints": true
+    }
+  ]
+}

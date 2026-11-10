@@ -1,0 +1,32 @@
+# Configuration for GitHub's automatically generated release notes
+# (`POST /repos/{owner}/{repo}/releases/generate-notes`, which `release.yml`
+# calls before creating the Release — ci-release L10).
+#
+# **These categories are keyed on pull-request *labels*, not on commit
+# messages.** The generated body lists merged PRs from the API; a
+# Conventional-Commit prefix in the title changes nothing here. Label the pull
+# request, not only the issue it closes.
+#
+# The labels are `breaking`, `enhancement`, `bug`, `security`, `documentation`
+# and `dependencies`: GitHub's default `bug`/`enhancement`/`documentation`
+# plus `breaking`, `security` and `dependencies`, which the repository defines.
+changelog:
+  categories:
+    - title: Breaking changes
+      labels: ["breaking"]
+    - title: Features
+      labels: ["enhancement"]
+    - title: Fixes
+      labels: ["bug"]
+    - title: Security
+      labels: ["security"]
+    - title: Documentation
+      labels: ["documentation"]
+    - title: Dependencies
+      labels: ["dependencies"]
+    # **Mandatory, and last.** Categories are matched in order and a PR that
+    # matches none is dropped from the notes *silently* — an unlabelled PR
+    # would simply not exist in the release. `"*"` matches everything left,
+    # so the worst case is a correct entry under a vague heading.
+    - title: Other changes
+      labels: ["*"]

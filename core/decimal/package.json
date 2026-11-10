@@ -1,0 +1,19 @@
+{
+  "name": "@kerdial/core-decimal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "eslint": "^9.19.0",
+    "fast-check": "^3.23.2"
+  }
+}

@@ -1,0 +1,4 @@
+﻿Date;Type;Valeur;Devise de l'opération;Montant brut;Montant brut en devise;Taux de change;Frais;Impôts / Taxes;Parts;ISIN;WKN;Symbole boursier;Nom du titre;Note
+2024-03-14T15:40;Transfert (Entrant);620,40;EUR;;;;;;0,01;;;BTC;Bitcoin;
+2024-04-01T10:00;Transfert (Entrant);310,00;EUR;;;;;;0,005;;;BTC;Bitcoin;
+2024-08-01T10:00;Vente;-272,50;EUR;;;;;;0,005;;;BTC;Bitcoin;

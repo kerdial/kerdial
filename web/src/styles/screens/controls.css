@@ -1,0 +1,268 @@
+/* Screen styles for the controls restyle. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here.
+
+   Every value below is a token: the two
+   exceptions are the grid fractions (a ratio, not a size) and the breakpoints,
+   which follow the same literal-px convention components.css already uses for
+   its own media queries. */
+
+.controls-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ─────────────────────────────── 5-up strip ───────────────────────────── */
+
+/* One card, hairline dividers — the same shape as the Positions strip, five up rather than four. */
+/* Four tiles since 2026-09-08 — the « Valorisation / version <n> » one went
+   with the calc-epoch display it existed for. */
+.controls-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.controls-strip-item {
+  padding: var(--pad-card);
+  border-left: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.controls-strip-item:first-child {
+  border-left: 0;
+}
+
+.controls-strip-sub {
+  color: var(--text-faint);
+  font-size: var(--size-body-s);
+}
+
+/* ──────────────────────────────── banners ─────────────────────────────── */
+
+.controls-banners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The banner treatment moved to `components.css` — it is shared with
+   the drawers and modals, not this screen's own. */
+
+/* ───────────────────────────── inline notes ───────────────────────────── */
+
+.controls-note {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+.controls-note-warn {
+  color: var(--warn-700);
+}
+
+/* ───────────────────────────── desktop table ──────────────────────────── */
+
+.controls-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr)
+    minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 2.2fr) minmax(0, 1.6fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--pad-card);
+}
+
+.controls-thead {
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.controls-scroll {
+  overflow: auto;
+}
+
+.controls-row {
+  min-height: var(--row-height);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+  /* Rows go to --paper-50 on hover and never change size. */
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.controls-row:hover {
+  background: var(--paper-50);
+}
+
+.controls-group-header {
+  padding: var(--space-2) var(--pad-card);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  font: var(--text-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.controls-group-empty {
+  padding: var(--space-3) var(--pad-card);
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+.controls-cell-instrument {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.controls-instrument-name {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controls-instrument-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.controls-held-state {
+  font-size: var(--size-label);
+  color: var(--text-faint);
+}
+
+.controls-cell-date {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.controls-cell-signal {
+  color: var(--text-muted);
+  font-size: var(--size-body-s);
+}
+
+.controls-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ────────────────────────── footer progress bar ───────────────────────── */
+
+.controls-foot {
+  padding: var(--space-4) var(--pad-card);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ───────────────────────── loading and empty state ────────────────────── */
+
+/* Skeleton rows moved to `components.css` — same reason. */
+
+.controls-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  color: var(--text-body);
+  font-size: var(--size-body-m);
+  max-width: var(--prose-max);
+}
+
+/* ────────────────────────── mobile stacked cards ──────────────────────── */
+
+/* Tables become stacked cards on mobile — never a horizontal
+   scroll. Nothing below sets a width or an overflow for that reason. */
+.controls-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.controls-cards-heading {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+  margin-bottom: var(--space-3);
+}
+
+.controls-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.controls-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.controls-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.controls-card-dates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.controls-card-dates dt {
+  color: var(--text-muted);
+}
+
+.controls-card-dates dd {
+  margin: 0;
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+@media (max-width: 1023px) {
+  .controls-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .controls-strip-item {
+    border-top: 1px solid var(--border-subtle);
+  }
+  .controls-strip-item:nth-child(odd) {
+    border-left: 0;
+  }
+  .controls-strip-item:nth-child(1),
+  .controls-strip-item:nth-child(2) {
+    border-top: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .controls-card-dates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

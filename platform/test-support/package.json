@@ -1,0 +1,28 @@
+{
+  "name": "@kerdial/platform-test-support",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./global-setup": {
+      "types": "./dist/global-setup.d.ts",
+      "default": "./dist/global-setup.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kerdial/platform-db": "workspace:*",
+    "@testcontainers/postgresql": "^10.16.0",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.5"
+  }
+}

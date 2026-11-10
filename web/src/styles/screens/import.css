@@ -1,0 +1,299 @@
+/* Screen styles for `/import` (csv-import CI-22). Owned by that
+   screen alone; shared patterns belong in components.css, not here.
+
+   Every value is a token. The two exceptions follow the convention the sibling
+   screen files already use: grid fractions (a ratio, not a size) and the
+   breakpoint literals in media queries. */
+
+.import-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ────────────────────────────  the step rail  ──────────────────────────── */
+
+/* An ordered list, because the steps genuinely are ordered and a screen reader
+   should say so. The current step is marked with `aria-current="step"` on the
+   element itself — the tint below is the visual echo of that, never its only
+   carrier. */
+.import-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: import-step;
+}
+
+.import-step {
+  counter-increment: import-step;
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  padding: var(--pad-control-y) var(--pad-control-x);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.import-step::before {
+  content: counter(import-step) ". ";
+  font-weight: var(--weight-semibold);
+}
+
+.import-step[data-current="true"] {
+  color: var(--text-on-brand);
+  background: var(--surface-brand);
+  border-color: var(--border-brand);
+}
+
+/* ──────────────────────  the two « Exporter » actions  ─────────────────── */
+
+/* Plain `<a download>` elements wearing the button skin (`portfolio-export-import`):
+   they are navigations, not actions this app performs, so they
+   must stay anchors — only their appearance is borrowed. */
+.import-export-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.import-export-link {
+  text-decoration: none;
+}
+
+/* The ceiling sentence sits under the links, not beside them: it qualifies
+   both, and a user who has to hunt for the remedy after a 413 has not been
+   told it. */
+.import-export-note {
+  margin: var(--space-3) 0 0;
+}
+
+/* ─────────────────────────────  step 1 cards  ──────────────────────────── */
+
+.import-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .import-type-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.import-card-title {
+  font: var(--text-title-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  margin: 0 0 var(--space-2);
+}
+
+.import-note {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.import-note-warn {
+  color: var(--text-loss);
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* ──────────────────────────  counts and reasons  ───────────────────────── */
+
+.import-review,
+.import-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* One card, hairline dividers — the same three-up shape the Contrôles strip
+   uses, so the two screens read as one product. */
+.import-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.import-strip-item {
+  padding: var(--pad-card);
+  border-left: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.import-strip-item:first-child {
+  border-left: 0;
+}
+
+.import-strip-sub {
+  color: var(--text-faint);
+  font: var(--text-body-s);
+}
+
+.import-reason-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-reason-row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+
+.import-reason-count {
+  text-align: right;
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+
+/* security-transfer FR-583 — one destination picker per transfer out */
+
+.import-transfer-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-transfer-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.import-transfer-summary {
+  margin: 0;
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+
+/* ───────────────────────  the two virtualised tables  ──────────────────── */
+
+.import-rows,
+.import-proposals {
+  display: flex;
+  flex-direction: column;
+}
+
+.import-rows-grid {
+  display: grid;
+  grid-template-columns: 5rem 8rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* The catalogue's per-entry table: three columns like the row table, but the
+   first one carries « section · index » rather than a line number — a JSON
+   document has no lines (`portfolio-export-import`). */
+.import-entries-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) 8rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Bounded rather than virtualised — see `ImportEntryOutcomeTable.tsx`'s header
+   for why a catalogue's entry count cannot reach a transactions file's. */
+.import-entries-scroll {
+  max-height: 420px;
+}
+
+.import-proposals-grid {
+  display: grid;
+  /* Five columns since then: the row's own title sits between the line number
+     and the nature select, because a flagged nature that only says « ligne 36 »
+     sends the reader back to the source file to act on it. */
+  grid-template-columns: 4rem minmax(0, 1fr) 10rem minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+
+.import-rows-head {
+  border-bottom: 1px solid var(--border-default);
+}
+
+.import-rows-row {
+  border-bottom: 1px solid var(--border-subtle);
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+/* The reason and the row's own content stack in the third column. The reason
+   stays the primary line; the echo of what the file said is muted and one step
+   down, so scanning the column still reads as a list of reasons rather than a
+   list of data. */
+.import-rows-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* One line, ellipsised. The full text is on the cell's `title` — the server
+   already bounds the instrument label, so this is a layout guard rather than
+   the defence against an unbounded echo. */
+.import-rows-source {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-rows-scroll {
+  overflow-y: auto;
+}
+
+/* Two stacked lines since then — where the exchange came from, then where the
+   nature came from. The nature line is the one that can carry a warning, so it
+   sits second: the eye lands on it last and it is the last thing decided. */
+.import-proposals-origin {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--text-faint);
+  font: var(--text-body-s);
+}
+
+/* Loud on purpose, and only on the rows where the default disagrees with the
+   holding's own name — on a typical export most rows are defaults, so warning
+   on all of them would warn on nothing. */
+.import-proposals-kind-warn {
+  color: var(--text-loss);
+  font-weight: var(--weight-semibold);
+}
+
+@media (max-width: 900px) {
+  .import-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .import-strip-item {
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .import-strip-item:first-child {
+    border-top: 0;
+  }
+}

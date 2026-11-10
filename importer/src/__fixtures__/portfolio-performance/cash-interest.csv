@@ -1,0 +1,6 @@
+﻿Date;Type;Valeur;Devise de l'opération;Montant brut;Montant brut en devise;Taux de change;Frais;Impôts / Taxes;Parts;ISIN;WKN;Symbole boursier;Nom du titre;Note
+2026-01-05T00:00;Dépôt;100,00;EUR;;;;;;;;;;;
+2026-01-31T00:00;Intérêts;12,34;EUR;;;;;;;;;;;
+2026-01-31T00:00;Intérêts débiteurs;-1,50;EUR;;;;;;;;;;;
+2026-02-28T00:00;Intérêts;20,00;EUR;;;;;3,00;;;;;;
+2026-03-31T00:00;Intérêts;5,00;EUR;;;;1,00;;;;;;;

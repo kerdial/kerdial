@@ -1,0 +1,796 @@
+/* Screen styles for the holdings restyle. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here. */
+
+/* Positions (desktop and mobile). Every value is a token; the file exists so this screen can be restyled
+   without touching a stylesheet another restyle issue owns.
+
+   The load-bearing rule in here is the row: `.holdings-row-main` is exactly
+   `--row-height`, and the only `:hover` declaration in the whole file is a
+   background. `HoldingsTable.test.tsx` reads this file and asserts both — a
+   hover rule that changed padding, border width or font size would move the
+   row under the pointer, which the design forbids and which no DOM assertion in
+   jsdom (no layout engine, no stylesheet) could ever catch. */
+
+/* ─────────────────────────────  the screen  ───────────────────────────── */
+
+/* 20px vertical rhythm — the same step `.k-shell-main` uses
+   between its own children. */
+.holdings-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ───────────────────────────  the stat strip  ─────────────────────────── */
+
+/* One card, four stats, hairline dividers — never four shadowed cards
+   (the design allows at most two background tones, and never a card beside a card where a
+   divider will do). */
+.holdings-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.holdings-strip-cell {
+  padding: var(--pad-card);
+  border-left: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+.holdings-strip-cell:first-child {
+  border-left: 0;
+}
+.holdings-strip-value {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .holdings-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* The dividers follow the wrap: column 1 of each row loses its rule, and the
+     second row gains a horizontal one. */
+  .holdings-strip-cell:nth-child(2n + 1) {
+    border-left: 0;
+  }
+  .holdings-strip-cell:nth-child(n + 3) {
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* After the 900px rule on purpose: it is the one this overrides. Below 400px a two-up cell is ~120px, and « 5 291,73 EUR » with its two
+   provenance glyphs beside it broke *inside the number* (`overflow-wrap:
+   anywhere` above has no better place to break). One column: the figure
+   keeps its line. */
+@media (max-width: 399px) {
+  .holdings-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .holdings-strip-cell {
+    border-left: 0;
+  }
+  .holdings-strip-cell + .holdings-strip-cell {
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* ────────────────────────────  the table  ─────────────────────────────── */
+
+/* Nine columns: asset · type · quantity · average price · current price ·
+   value · allocation % · unrealised P/L · actions. A tenth — day % —
+   has no source on `GET /portfolios/holdings`, so it is not a column (see
+   `HoldingsTable.tsx`'s header).
+
+   Every proportional column is `minmax(0, …fr)` so the table always fits its
+   container and long text truncates, rather than the grid growing a horizontal
+   scrollbar the sticky header outside the scrollport could never follow. The
+   actions column is fixed because it holds up to three 44px tap targets, which
+   the design says are never smaller. */
+.holdings-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2.6fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
+    minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1.4fr) 132px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--pad-card);
+}
+
+.holdings-head {
+  color: var(--text-muted);
+  font: var(--text-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  height: var(--row-height-compact);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* The card recipe itself comes from the kit (`k-card k-card-default
+   k-card-pad-none` on the table's root). This adds only the clip, so the first
+   and last rows follow the 18px corner instead of squaring it off. The overflow
+   menu is `position: fixed`, whose containing block is the viewport, so it is
+   not clipped by this. */
+.holdings-panel {
+  overflow: hidden;
+}
+
+.holdings-scroll {
+  /* **No fixed height and no vertical scrollport.** This was `height: 480px;
+     overflow: auto`, which read a long list through a letterbox and put a
+     second scrollbar on screen next to the page's own. The table is now as tall
+     as its content and the *page* scrolls; the virtualiser windows the DOM
+     against the window instead of against this element
+     (`useWindowVirtualizer`), so nothing was traded away to get there.
+
+     `overflow-x` stays: a narrow desktop viewport still scrolls the columns
+     sideways rather than collapsing one. Note this makes the element a scroll
+     container on both axes as far as CSS is concerned — `overflow-y: visible`
+     is not expressible alongside `overflow-x: auto` — but with the height
+     content-driven there is never anything to scroll vertically. */
+  overflow-x: auto;
+}
+.holdings-canvas {
+  position: relative;
+  width: 100%;
+}
+
+.holdings-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+/* "Table rows go to `--paper-50` and never change size". Background is
+   the only property this rule may ever set. */
+.holdings-row:hover {
+  background: var(--paper-50);
+}
+
+/* The 56px data line. Fixed, not a minimum: a figure that grows a wrap must
+   truncate rather than push its neighbours' rows down the column. */
+.holdings-row-main {
+  height: var(--row-height);
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+}
+
+/* The realised-gain signal (AC144) and the provenance expander (AC126) sit
+   under the data line, inside the row but outside its fixed height — a row
+   whose expander is open is taller by exactly what it opened. */
+.holdings-row-extra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--pad-card) var(--space-2);
+}
+.holdings-row-extra:empty {
+  display: none;
+}
+
+.holdings-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdings-cell-num {
+  text-align: right;
+  justify-self: end;
+}
+.holdings-cell-strong {
+  color: var(--text-strong);
+  font-weight: var(--weight-semibold);
+}
+
+/* Amount over percentage — the unrealised P/L cell. */
+.holdings-pl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  line-height: var(--lh-body-s);
+}
+
+/* ──────────────────────────  the asset cell  ──────────────────────────── */
+
+.holdings-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* 34px mono tile. A monogram of the display name, not a ticker: the holdings
+   read carries no symbol (see `HoldingsTable.tsx`'s header), and inventing one
+   would be a fabricated identifier on a financial row. Decorative, so it is
+   `aria-hidden` at the call site and announces nothing. */
+.holdings-asset-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: var(--size-micro);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+}
+.holdings-asset-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.holdings-asset-name {
+  font-size: var(--size-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Where an exchange would go. `HoldingResponse` has no exchange, so this
+   is the holding's own quotation currency — a fact the row already carries. */
+.holdings-asset-sub {
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+
+/* ────────────────────────────  row actions  ───────────────────────────── */
+
+.holdings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+.holdings-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+.holdings-action-link:hover {
+  background: var(--paper-50);
+}
+
+/* The overflow menu is `position: fixed` and anchored from the trigger's own
+   rect, because the table's scrollport clips on both axes — an absolutely
+   positioned menu opened from the last visible row would be cut off by it. */
+.holdings-menu {
+  position: fixed;
+  z-index: 35;
+  min-width: 232px;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+.holdings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: var(--text-body-s);
+  color: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+}
+.holdings-menu-item:hover {
+  background: var(--paper-50);
+}
+.holdings-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ─────────────────────────────  the footer  ───────────────────────────── */
+
+/* Result count only. The holdings read returns the whole set with no cursor,
+   window or total — a page control here would be describing a pagination the
+   response does not have. Deferred. */
+.holdings-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--pad-card);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+/* ──────────────────────────  the allocation tab  ──────────────────────── */
+
+.holdings-allocation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.holdings-allocation-line {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────  mobile stacked cards  ─────────────────────── */
+
+/* "Tables become stacked cards — never horizontal scroll." Everything
+   below wraps or truncates; nothing in this block sets a width in a unit the
+   390px viewport cannot honour. */
+.holdings-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* The card list's sort control: the column select grows,
+   the direction toggle keeps its width, both bottoms on one line. */
+.holdings-cards-sort {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.holdings-cards-sort > .k-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.holdings-cards-sort > .k-btn {
+  flex: 0 0 auto;
+}
+/* The card recipe comes from the kit's own classes on the `<li>`; this adds
+   only the stacking of the card's own three bands. */
+.holdings-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* Identity on the left, value and unrealised change on the right — thumb
+   height. */
+.holdings-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.holdings-card-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+/* The second line: average price, current price, quantity, allocation. */
+.holdings-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--size-body-s);
+}
+.holdings-card-term {
+  color: var(--text-muted);
+}
+.holdings-card-def {
+  margin: 0;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+.holdings-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ─────────────────────  the row's secondary disclosure  ───────────────── */
+
+.holdings-details {
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+}
+.holdings-details-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--size-body-s);
+  color: var(--text-brand);
+}
+/* An explicit author-origin visibility rule keyed off `[open]`, for the reason
+   `HoldingDetails.tsx`'s header records: the UA stylesheet's own
+   `details:not([open]) > *:not(summary)` rule loses to any author `display`
+   declaration on the same element, so the disclosure states its own. */
+.holdings-details-body {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+details[open] > .holdings-details-body {
+  display: flex;
+}
+.holdings-details-label {
+  color: var(--text-muted);
+}
+.holdings-provenance {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+
+.holdings-gains {
+  font-size: var(--size-micro);
+  color: var(--text-body);
+}
+.holdings-gains-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-top: var(--space-1);
+  padding-left: var(--space-2);
+  list-style: none;
+}
+.holdings-gain-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.holdings-gain-date {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* The collapsed realised-gain signal. Gain-green because it is money that came
+   in — the one meaning the design allows that colour to carry. */
+.holdings-gains-indicator {
+  font-size: var(--size-micro);
+  font-weight: var(--weight-semibold);
+  color: var(--text-gain);
+}
+
+/* ============================================================
+   The « Clôturées » tab (`ClosedPositionsTable.tsx`,
+   `ClosedPositionsCardList.tsx`, `ClosedPositionSaleLots.tsx` —
+   the closed-positions design).
+
+   Structurally the open table's rules, on their own selectors: the closed row
+   carries different columns (no quantity, no PMP, no price, no value, no
+   allocation) so it needs its own track, and reusing `.holdings-grid` would
+   silently bind the two screens' column counts together. Everything that is
+   genuinely the same — `.holdings-panel`, `.holdings-scroll`,
+   `.holdings-canvas`, `.holdings-asset*`, `.holdings-cell*`,
+   `.holdings-actions`, `.holdings-menu*`, `.holdings-foot`, the mobile
+   `.holdings-card*` band — is reused as-is rather than re-declared.
+   ============================================================ */
+
+/* Eight columns: asset · type · résultat réalisé · rendement % · coût
+   d'acquisition cédé · résultat natif · dont change · actions. Same
+   `minmax(0, …fr)` discipline as `.holdings-grid`, same fixed actions track
+   (three 44px tap targets). */
+.closed-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2.6fr) minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1.4fr)
+    minmax(0, 1.3fr) minmax(0, 1.2fr) 132px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--pad-card);
+}
+
+.closed-head {
+  color: var(--text-muted);
+  font: var(--text-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  height: var(--row-height-compact);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.closed-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+/* Again: background is the only property a row hover may ever set. */
+.closed-row:hover {
+  background: var(--paper-50);
+}
+
+/* The data line, fixed at `--row-height` exactly as `.holdings-row-main` is —
+   a row whose disclosure is open is taller by exactly what it opened, and by
+   nothing else. */
+.closed-row-main {
+  height: var(--row-height);
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+}
+
+/* The sale-lot disclosure sits under the data line, inside the row but outside
+   its fixed height. */
+.closed-row-extra {
+  padding: 0 var(--pad-card) var(--space-2);
+}
+
+/* The realised-result cell: the label above the figure, right-aligned like
+   every other numeric column. The **tint lives here**, keyed off the
+   `data-sign` the component derived from the raw decimal — `<Figure>` stays
+   the sole renderer of the amount itself (FR-127/AC119), so the colour cannot
+   be applied by handing a stringified `ValuedAmount` to `<DeltaValue>`.
+   `flat` is left at the body ink: the money-meaning colours are for a
+   stated gain or loss, and zero is neither. */
+.closed-realized {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  min-width: 0;
+  line-height: var(--lh-body-s);
+  font-weight: var(--weight-semibold);
+}
+.closed-realized[data-sign="gain"] {
+  color: var(--text-gain);
+}
+.closed-realized[data-sign="loss"] {
+  color: var(--text-loss);
+}
+/* The direction in words (UR-46/AC-329) — quieter than the figure it labels,
+   but never absent, so direction is never carried by colour alone. */
+.closed-result-label {
+  font-size: var(--size-micro);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ─────────────────────  the sale-lot disclosure  ──────────────────────── */
+
+.closed-lots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  list-style: none;
+  font-size: var(--size-body-s);
+}
+.closed-lot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+/* Label/value pairs that wrap on a phone rather than scrolling sideways —
+   `.holdings-card-grid`'s own rule, on this list's own selector. */
+.closed-lot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+.closed-lot-term {
+  color: var(--text-muted);
+}
+.closed-lot-def {
+  margin: 0;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   The Répartition map (`HoldingsTreemap.tsx`).
+
+   Tiles are absolutely positioned in percent of this box on both axes, so
+   the map needs no measured pixel size and no ResizeObserver — but it does
+   need the exact aspect ratio the layout was computed in, because the two
+   axes are normalised independently. `treemap-layout.ts`'s
+   MAP_ASPECT_WIDTH/MAP_ASPECT_HEIGHT and this `aspect-ratio` are one number
+   in two languages; `treemap-aspect.drift.test.ts` holds them together.
+   ============================================================ */
+.holdings-map-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.holdings-map {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+/* Tiles are inset by a hairline gap rather than separated by margins: a
+   percent-positioned box cannot carry a margin without breaking the exact
+   area the tile is claiming. `outline` draws the seam without taking space. */
+.holdings-map-tile {
+  position: absolute;
+  /* Its size comes from the inline percent box, never from its content, which
+     is what makes it a valid size container — see the query block below. */
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1);
+  overflow: hidden;
+  text-align: center;
+  text-decoration: none;
+  outline: 1px solid var(--surface-card);
+  outline-offset: -1px;
+}
+.holdings-map-tile:hover {
+  filter: brightness(1.06);
+}
+.holdings-map-tile:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+  z-index: 1;
+}
+.holdings-map-name,
+.holdings-map-share,
+.holdings-map-delta {
+  max-width: 100%;
+  overflow: hidden;
+  /* Never a hard clip: a clipped « −16.02 % » reads as « 16.02 % », which is
+     the opposite figure. The ellipsis truncates at the end, so the sign — the
+     first glyph — is the last thing to go. */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.holdings-map-name {
+  font-size: var(--size-body-s);
+  font-weight: var(--weight-semibold);
+}
+/* The weight, in the tile's own quieter register: two stacked percentages
+   would otherwise read as one figure repeated. */
+.holdings-map-share {
+  font-size: var(--size-micro);
+  opacity: 0.8;
+}
+.holdings-map-delta {
+  font-size: var(--size-micro);
+  font-weight: var(--weight-semibold);
+}
+
+/* `holdings-map.ts`'s `showLabel`/`showDetail` gate the *markup* on the tile's
+   share of the box — a relative measure, and the only one available without a
+   layout pass. It is necessarily blind to the one thing legibility actually
+   depends on: how many pixels that share works out to. The same 2 % tile is
+   comfortable on a 1400px desktop card and 30px wide on a phone, which is how
+   the first build of this map shipped clipped figures on mobile.
+   These container queries are the pixel half of the same rule. Belt and
+   braces on purpose: the TS gate is what a jsdom test can assert, the
+   container query is what the browser actually lays out. */
+.holdings-map-tile > * {
+  display: none;
+}
+@container (min-width: 60px) and (min-height: 40px) {
+  .holdings-map-name,
+  .holdings-map-share {
+    display: block;
+  }
+}
+@container (min-width: 92px) and (min-height: 66px) {
+  .holdings-map-delta {
+    display: block;
+  }
+}
+
+/* The heat ramp. Six market-semantic steps plus the muted "no cost basis to
+   measure a return against" tone — `--chart-6`, the same ink the app already
+   gives an unknown instrument kind, so grey never reads as a seventh
+   magnitude of gain. Text colour flips to `--text-on-brand` on the two
+   saturated ends only, where dark ink would fail contrast. */
+.holdings-map-tile[data-tone="loss-strong"],
+.holdings-map-swatch[data-tone="loss-strong"] {
+  background: var(--loss-700);
+}
+.holdings-map-tile[data-tone="loss"],
+.holdings-map-swatch[data-tone="loss"] {
+  background: var(--loss-500);
+}
+.holdings-map-tile[data-tone="loss-soft"],
+.holdings-map-swatch[data-tone="loss-soft"] {
+  background: var(--loss-100);
+}
+.holdings-map-tile[data-tone="flat"],
+.holdings-map-swatch[data-tone="flat"] {
+  background: var(--surface-sunken);
+}
+.holdings-map-tile[data-tone="gain-soft"],
+.holdings-map-swatch[data-tone="gain-soft"] {
+  background: var(--gain-100);
+}
+.holdings-map-tile[data-tone="gain"],
+.holdings-map-swatch[data-tone="gain"] {
+  background: var(--gain-500);
+}
+.holdings-map-tile[data-tone="gain-strong"],
+.holdings-map-swatch[data-tone="gain-strong"] {
+  background: var(--gain-700);
+}
+.holdings-map-tile[data-tone="unknown"],
+.holdings-map-swatch[data-tone="unknown"] {
+  background: var(--chart-6);
+}
+
+.holdings-map-tile[data-tone="loss-soft"],
+.holdings-map-tile[data-tone="flat"],
+.holdings-map-tile[data-tone="gain-soft"] {
+  color: var(--text-strong);
+}
+.holdings-map-tile[data-tone="loss-strong"],
+.holdings-map-tile[data-tone="loss"],
+.holdings-map-tile[data-tone="gain"],
+.holdings-map-tile[data-tone="gain-strong"],
+.holdings-map-tile[data-tone="unknown"] {
+  color: var(--text-on-brand);
+}
+
+.holdings-map-legend {
+  display: flex;
+  /* Five steps and a label; on a phone they overflowed the card by ~55px
+     rather than wrap. */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+.holdings-map-legend-label {
+  margin-right: var(--space-1);
+}
+.holdings-map-legend-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.holdings-map-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Phones: 16:9 leaves tiles too short to carry a name at all, so the map
+   squares up. The layout is still computed in 16:9 — areas stay exact and
+   only tile *shape* is affected, which is the heuristic half by design
+   (`treemap-layout.ts`'s header). */
+@media (max-width: 639px) {
+  .holdings-map {
+    aspect-ratio: 4 / 5;
+  }
+}

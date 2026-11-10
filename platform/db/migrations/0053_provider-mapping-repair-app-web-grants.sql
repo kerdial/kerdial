@@ -1,0 +1,52 @@
+-- `PUT`/`DELETE /instruments/:id/provider-mapping`, the repair path
+-- the AC 3 of the provider-mapping work needs. Two grants, each on a table `app_web` already reads and now
+-- has to write for exactly one operation.
+--
+-- **What is deliberately *not* here: `instrument_provider_map`.** Migration
+-- `0012` already granted `app_web` `INSERT, UPDATE, DELETE` on it, for the
+-- interactive-creation path. That is worth stating because the original diagnosis
+-- reads the other way — it attributes the five caller-less re-mapping functions
+-- in `ledger/src/instrument-provider-map-service.ts` to there being no role able
+-- to call them. There was: the privilege has been in place since `0012`, and the
+-- functions had no caller for the plainer reason that no endpoint was ever
+-- built. Re-granting here would have been a no-op that made the false diagnosis
+-- look confirmed.
+--
+-- **Why `app_web` and not the worker.** The repair is synchronous and
+-- user-initiated: the caller states the correct provider symbol and must be told
+-- what happened to the series before the response returns. That is the same
+-- posture — and the same role — as `POST /instruments/:id/history-reload`, whose
+-- own write to `instrument_backfill_state` runs as `app_web` under migration
+-- `0029`. Routing it through the worker instead would make the answer to "did my
+-- correction take?" arrive by side effect, which is the failure this endpoint
+-- exists to end.
+--
+-- **`instrument_price_daily` — DELETE.** The repair discards the instrument's
+-- whole automated series, because every row in it was produced by the mapping
+-- being replaced (see `correctProviderMapping`'s doc comment for why an
+-- overwrite-on-re-backfill cannot substitute: the upsert is keyed on
+-- `(instrument_id, price_date)` and silently leaves every date the new symbol
+-- does not return). No `INSERT`/`UPDATE` is granted — `app_web` still cannot
+-- write a price row, only remove a series it is repairing. That asymmetry is
+-- deliberate: writing prices stays the ingestion role's job.
+--
+-- **`market_data_epoch` — UPDATE.** Deleting price rows changes exactly the
+-- inputs `portfolio_daily_valuation` is cached against, and `attemptMaterialize`
+-- treats a cached row as fresh until this counter moves. Without the grant the
+-- repair would leave every tenant's cached valuation quoting the series it just
+-- deleted, until some unrelated ingestion job happened to bump it — and never at
+-- all if the re-backfill finds nothing to write. `0032` granted `app_web`
+-- `SELECT` here; this is the write half of the same invalidation contract
+-- `app_ingest` already holds.
+--
+-- **No RLS implications.** Both tables are shared market data and carry no
+-- `tenant_id` — `0007`'s closing comment already lists them among the tables
+-- deliberately left un-RLS'd, so no policy is added, changed, or relied upon
+-- here. Tenant scoping for this operation is enforced in the controller by the
+-- same `owner_tenant_id` check `POST /instruments/:id/history-reload` uses
+-- (IB7), not by a row policy.
+--
+-- **AC47/FR-57 untouched.** `transaction`, `transaction_posting` and
+-- `holding_state` are not named in any statement below.
+GRANT DELETE ON "instrument_price_daily" TO app_web;--> statement-breakpoint
+GRANT UPDATE ON "market_data_epoch" TO app_web;

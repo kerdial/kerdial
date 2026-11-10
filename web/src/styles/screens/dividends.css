@@ -1,0 +1,374 @@
+/* Screen styles for the Dividendes destination (`dividend-screen` DS-8/DS-9;
+   redesigned as a calendar). Shared patterns
+   belong in components.css, not here. */
+
+.dividends {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.dividends-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  /* A flex item of the page header's action row: without these its minimum
+     width is its content's (the 412px preset strip), and the strip could not
+     shrink and scroll. */
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The preset row and the two custom date fields sit side by side, not stacked:
+   stacked, the disclosure grew the page header by a whole field row every time
+   «Perso.» was open, on the screen that already carried the app's widest
+   control set. Wraps only when there is genuinely no room. */
+.dividends-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  /* As `.k-period`: let the compact preset strip shrink and scroll rather than
+     widen the page (429px measured at 390). */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dividends-period-custom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── eyebrow ──────────────────────────────────────────────────────────────── */
+
+/* The uppercase micro-label above a figure — the design system's own
+   treatment, restated here so this screen does not depend on another
+   screen's stylesheet for it. */
+.dividends-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--text-micro);
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ── hero ─────────────────────────────────────────────────────────────────── */
+
+.dividends-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.dividends-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dividends-hero-value {
+  font: var(--text-display-l);
+  letter-spacing: var(--track-display);
+  color: var(--text-strong);
+  /* A long total must wrap between the figure and its unit, never overflow
+     the card. */
+  overflow-wrap: anywhere;
+}
+
+.dividends-hero-unit {
+  font: var(--text-title-m);
+  color: var(--text-faint);
+}
+
+.dividends-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+}
+
+.dividends-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  min-width: 0;
+}
+
+.dividends-hero-stat dd {
+  margin: 0;
+}
+
+.dividends-hero-stat-value {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .dividends-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .dividends-hero-value {
+    font: var(--text-display-m);
+  }
+  .dividends-hero-stats {
+    gap: var(--space-4) var(--space-5);
+  }
+}
+
+/* ── the two panels ───────────────────────────────────────────────────────── */
+
+.dividends-panels {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* The calendar wants width (twelve columns plus a total); the payer list wants
+   height. 1.25fr / 1fr gives the grid room without starving the names. */
+@media (min-width: 900px) {
+  .dividends-panels {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+}
+
+.dividends-card {
+  min-width: 0;
+}
+
+.dividends-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 28px;
+}
+
+.dividends-card-title {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.dividends-card-unit {
+  font: var(--text-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* ── payer separator ──────────────────────────────────────────────────────── */
+
+.dividends-payer-sep {
+  color: var(--text-faint);
+  margin: 0 var(--space-2);
+}
+
+/* ── payers ───────────────────────────────────────────────────────────────── */
+
+.dividends-payers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Five grid items per row — tile, identity, gross, bar, meta — placed by
+   area, so the mobile re-flow is a template change and not a second DOM. On
+   a wide card the figures stack on the right (gross over its meta line) and
+   the bar runs under the name; on a narrow one the meta line moves under the
+   bar, which is what gives a long name its room instead of an ellipsis. The
+   figures column is `auto` + `nowrap`, so an amount never wraps under itself;
+   the middle column is `minmax(0, 1fr)`, so a very long name still ellipsises
+   rather than pushing the amount out of the card. */
+.dividends-payer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "tile identity gross"
+    "tile bar meta";
+  column-gap: var(--space-3);
+  row-gap: 6px;
+  align-items: center;
+}
+
+.dividends-payer-tile {
+  grid-area: tile;
+  display: inline-flex;
+}
+
+.dividends-payer-identity {
+  grid-area: identity;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.dividends-payer-name {
+  font-size: var(--size-body-s);
+  font-weight: var(--weight-semibold);
+  line-height: var(--lh-body-s);
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.dividends-payer-symbol {
+  flex: none;
+  font-size: var(--size-micro);
+  letter-spacing: var(--track-label);
+  color: var(--text-faint);
+}
+
+.dividends-payer-bar {
+  grid-area: bar;
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.dividends-payer-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  background: var(--chart-1);
+}
+
+.dividends-payer-gross {
+  grid-area: gross;
+  text-align: right;
+  white-space: nowrap;
+  font-size: var(--size-body-m);
+  font-weight: var(--weight-semibold);
+  line-height: var(--lh-body-s);
+  color: var(--text-strong);
+}
+
+.dividends-payer-meta {
+  grid-area: meta;
+  text-align: right;
+  white-space: nowrap;
+  font: var(--text-micro);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+.dividends-payer-meta .dividends-payer-sep {
+  margin: 0 var(--space-1);
+}
+
+.dividends-payer-rest .dividends-payer-name {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.dividends-payer-rest-tile {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+  color: var(--text-faint);
+}
+
+.dividends-payer-rest .dividends-payer-bar-fill {
+  background: var(--ink-200);
+}
+
+@media (max-width: 479px) {
+  .dividends-payer {
+    grid-template-areas:
+      "tile identity gross"
+      "tile bar bar"
+      "tile meta meta";
+    row-gap: var(--space-1);
+  }
+  .dividends-payer-meta {
+    text-align: left;
+  }
+  .dividends-payer-symbol {
+    display: none;
+  }
+}
+
+/* ── the selected month's payments ────────────────────────────────── */
+
+.dividends-month {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dividends-month-title {
+  margin: 0;
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.dividends-month-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tile · name-and-date · figures: the payer row's shape, minus the bar. */
+.dividends-month-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* The tile wrapper is the payer row's (`grid-area: tile`), so this grid
+     must name that area too, or the tile auto-places after the figures. */
+  grid-template-areas: "tile identity figures";
+  column-gap: var(--space-3);
+  align-items: center;
+}
+
+.dividends-month-identity {
+  grid-area: identity;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  min-width: 0;
+}
+
+.dividends-month-date {
+  font: var(--text-micro);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+.dividends-month-figures {
+  grid-area: figures;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-half);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dividends-month-empty,
+.dividends-month-more {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}

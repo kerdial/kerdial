@@ -1,0 +1,46 @@
+{
+  "name": "@kerdial/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/multipart": "^10.1.1",
+    "@fastify/static": "^8.3.0",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-fastify": "^11.1.28",
+    "@kerdial/api-contracts": "workspace:*",
+    "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/core-reference-data": "workspace:*",
+    "@kerdial/importer": "workspace:*",
+    "@kerdial/ledger": "workspace:*",
+    "@kerdial/market-composition": "workspace:*",
+    "@kerdial/market-ports": "workspace:*",
+    "@kerdial/platform-auth": "workspace:*",
+    "@kerdial/platform-db": "workspace:*",
+    "@kerdial/platform-logging": "workspace:*",
+    "@kerdial/valuation": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.2.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@kerdial/market-ingestion": "workspace:*",
+    "@kerdial/market-test-support": "workspace:*",
+    "@kerdial/platform-test-support": "workspace:*",
+    "@testcontainers/postgresql": "^10.16.0",
+    "@types/supertest": "^6.0.2",
+    "fast-check": "^3.23.2",
+    "postgres": "^3.4.5",
+    "supertest": "^7.0.0"
+  }
+}

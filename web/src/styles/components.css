@@ -1,0 +1,2141 @@
+/* Kerdial primitive kit — the CSS half of web/src/components/ui/.
+ *
+ * Every value here is a token. The interaction rules from the design live
+ * in this file rather than in each component's class list, so "hover lifts,
+ * press scales, focus is never removed, disabled is 45%" is written once and
+ * applies to everything that opts into `.k-btn` / `.k-iconbtn` / `.k-card`.
+ *
+ * Motion runs on the duration tokens, which the token file already collapses
+ * to 0ms under `prefers-reduced-motion: reduce` — so this file never mentions
+ * that media query and still honours it. */
+
+/* The design's focused-field ring. The token set has no alpha ramp, so
+   this is one of exactly two translucent values the app defines — see
+   `design-rules.test.ts`, which lists both and fails on a third. Declared once
+   here rather than repeated at each focusable field. */
+:root {
+  --k-ring-brand-soft: rgb(31 191 161 / 0.18);
+}
+
+/* ─────────────────────────── shared behaviour ─────────────────────────── */
+
+.k-btn,
+.k-iconbtn,
+.k-segment,
+.k-tab,
+.k-tag-remove {
+  transition: var(--transition-control);
+}
+
+.k-btn:disabled,
+.k-iconbtn:disabled,
+.k-checkbox-input:disabled,
+.k-input:disabled,
+.k-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.k-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.k-spin {
+  animation: k-spin 900ms linear infinite;
+}
+
+/* ───────────────────────────────  button  ─────────────────────────────── */
+
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-text);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+  /* Never below the mobile minimum, on any surface. */
+  min-height: var(--tap-target);
+}
+
+.k-btn-sm {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--size-body-s);
+}
+.k-btn-md {
+  padding: var(--pad-control-y) var(--pad-control-x);
+  font-size: var(--size-body-m);
+}
+.k-btn-lg {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--size-body-l);
+}
+.k-btn-full {
+  width: 100%;
+}
+
+.k-btn:not(:disabled):hover {
+  transform: translateY(var(--hover-lift));
+}
+.k-btn:not(:disabled):active {
+  transform: scale(var(--press-scale));
+  box-shadow: var(--shadow-inset-press);
+}
+
+.k-btn-primary {
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
+  box-shadow: var(--shadow-xs);
+}
+.k-btn-primary:not(:disabled):hover {
+  background: var(--teal-600);
+  box-shadow: var(--shadow-brand);
+}
+
+.k-btn-accent {
+  background: var(--apricot-400);
+  color: var(--text-on-brand);
+  box-shadow: var(--shadow-xs);
+}
+.k-btn-accent:not(:disabled):hover {
+  background: var(--apricot-500);
+  box-shadow: var(--shadow-accent);
+}
+
+.k-btn-secondary {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-xs);
+}
+.k-btn-secondary:not(:disabled):hover {
+  background: var(--paper-50);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.k-btn-ghost {
+  background: transparent;
+  color: var(--text-body);
+}
+.k-btn-ghost:not(:disabled):hover {
+  background: var(--paper-100);
+  color: var(--text-strong);
+}
+
+.k-btn-soft {
+  background: var(--surface-brand-soft);
+  color: var(--text-brand);
+}
+.k-btn-soft:not(:disabled):hover {
+  background: var(--teal-100);
+}
+
+.k-btn-danger {
+  background: var(--loss-500);
+  color: var(--text-on-brand);
+  box-shadow: var(--shadow-xs);
+}
+.k-btn-danger:not(:disabled):hover {
+  background: var(--loss-700);
+}
+
+/* ─────────────────────────────  icon button  ──────────────────────────── */
+
+.k-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  min-width: var(--tap-target);
+  min-height: var(--tap-target);
+}
+.k-iconbtn-round {
+  border-radius: var(--radius-pill);
+}
+.k-iconbtn:not(:disabled):hover {
+  color: var(--text-strong);
+  transform: translateY(var(--hover-lift));
+}
+.k-iconbtn:not(:disabled):active {
+  transform: scale(var(--press-scale));
+}
+.k-iconbtn-plain:not(:disabled):hover {
+  background: var(--paper-100);
+}
+.k-iconbtn-outline {
+  border-color: var(--border-default);
+  background: var(--surface-card);
+}
+.k-iconbtn-soft {
+  background: var(--surface-brand-soft);
+  color: var(--text-brand);
+}
+.k-iconbtn-solid {
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
+}
+
+/* ────────────────────────────────  card  ──────────────────────────────── */
+
+.k-card {
+  border-radius: var(--radius-card);
+  border: 1px solid transparent;
+}
+.k-card-pad {
+  padding: var(--pad-card);
+}
+.k-card-pad-lg {
+  padding: var(--pad-card-lg);
+}
+.k-card-pad-none {
+  padding: 0;
+}
+
+/* The card recipe. */
+.k-card-default {
+  background: var(--surface-card);
+  border-color: var(--border-subtle);
+  box-shadow: var(--card-shadow);
+}
+
+/* The alternative to nesting a shadowed card: no shadow, no border, a sunken
+   ground. Everything that would otherwise reach for a second card uses this. */
+.k-card-sunken {
+  background: var(--surface-sunken);
+}
+
+.k-card-brand {
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+.k-card-accent {
+  background: var(--surface-accent-soft);
+}
+.k-card-inverse {
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+}
+
+.k-card-interactive {
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.k-card-interactive:hover {
+  transform: translateY(var(--hover-lift));
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* ───────────────────────────  badge and tag  ──────────────────────────── */
+
+.k-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font: var(--text-label);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.k-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+.k-badge-neutral {
+  background: var(--ink-50);
+  color: var(--text-muted);
+}
+.k-badge-brand {
+  background: var(--teal-50);
+  color: var(--teal-700);
+}
+.k-badge-gain {
+  background: var(--gain-100);
+  color: var(--gain-700);
+}
+.k-badge-loss {
+  background: var(--loss-100);
+  color: var(--loss-700);
+}
+.k-badge-warn {
+  background: var(--warn-100);
+  color: var(--warn-700);
+}
+.k-badge-accent {
+  background: var(--apricot-50);
+  color: var(--apricot-700);
+}
+
+.k-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+}
+.k-tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+}
+.k-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-xs);
+}
+.k-tag-remove:hover {
+  color: var(--text-loss);
+  background: var(--loss-100);
+}
+
+/* ─────────────────────────────  stat tile  ────────────────────────────── */
+
+.k-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.k-stat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+}
+.k-stat-value {
+  font: var(--text-title-m);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+.k-stat-delta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: var(--size-body-s);
+}
+.k-stat-suffix {
+  color: var(--text-faint);
+}
+.k-stat-sunken {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.k-stat-inverse {
+  color: var(--text-on-inverse);
+}
+.k-stat-inverse .k-stat-value {
+  color: var(--text-on-inverse);
+}
+
+/* ──────────────────────────────  fields  ──────────────────────────────── */
+
+.k-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.k-field-label {
+  font: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--text-body);
+}
+.k-field-hint {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-field-error {
+  font-size: var(--size-body-s);
+  color: var(--text-loss);
+}
+
+.k-input-shell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--pad-control-x);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  transition: var(--transition-control);
+}
+.k-input-shell:focus-within {
+  border-color: var(--teal-400);
+  /* The design's focused-field treatment: a 1px teal border plus a 3px soft
+     ring. Distinct from the 2px `:focus-visible` outline, which is the
+     keyboard-navigation affordance and is never removed. */
+  box-shadow: 0 0 0 3px var(--k-ring-brand-soft);
+}
+.k-input-shell-error {
+  border-color: var(--loss-500);
+}
+.k-input-icon,
+.k-input-suffix {
+  color: var(--text-faint);
+  flex: none;
+}
+.k-input-suffix {
+  font-size: var(--size-body-s);
+}
+
+.k-input,
+.k-select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: var(--text-body-m);
+  color: var(--text-strong);
+  padding: var(--pad-control-y) 0;
+}
+.k-input-numeric {
+  text-align: right;
+}
+.k-field-sm .k-input,
+.k-field-sm .k-select {
+  font-size: var(--size-body-s);
+}
+.k-field-lg .k-input,
+.k-field-lg .k-select {
+  font-size: var(--size-body-l);
+}
+
+.k-select-shell {
+  position: relative;
+}
+.k-select {
+  appearance: none;
+  cursor: pointer;
+}
+.k-select-chevron {
+  color: var(--text-faint);
+  pointer-events: none;
+  flex: none;
+}
+
+.k-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.k-checkbox-input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--surface-brand);
+  flex: none;
+}
+.k-checkbox-label {
+  font-size: var(--size-body-m);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.k-checkbox-description {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+/* ────────────────────────  segmented control, tabs  ───────────────────── */
+
+.k-segmented {
+  display: inline-flex;
+  /* One line, always: a wrapped segmented control reads as two controls. */
+  flex-wrap: nowrap;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.k-segmented-full {
+  display: flex;
+  width: 100%;
+}
+.k-segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  /* A label broken over two lines inside a pill reads as two segments
+     (« Catalogue complet » did, at 390px). */
+  white-space: nowrap;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--size-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  cursor: pointer;
+  min-height: 36px;
+}
+.k-segmented-lg .k-segment {
+  min-height: var(--tap-target);
+}
+/* The period controls' variant (`PeriodSelector`, `DividendPeriodSelector`,
+   the instrument screen's range control). Six or seven presets sit in a page
+   header beside the two global write actions, and at the default segment
+   padding that row wrapped onto two or three extra lines — the vertical space
+   the figures below it need. Abbreviated labels ("3M", "2026") do most of the
+   work; this tightens the padding they sit in and forbids a segment breaking
+   mid-label. Tap targets: 32px is below `--tap-target`, so the coarse-pointer
+   media query below puts the 44px height back where it is the rule. */
+/* The eight presets (seven plus « Perso. ») are 384px wide at the compact
+   padding — wider than a 390px phone minus its gutters. `nowrap` is right
+   (the control's own rule, above), so the box scrolls instead: `overflow-x`
+   also zeroes the flex item's automatic minimum width, which is what used to
+   let the strip widen the **layout viewport** to 400–429px and zoom the whole
+   page out on Aperçu, Performance and Dividendes. The
+   scrollbar is hidden; the strip's own rounded ends show it continues. */
+.k-segmented-compact {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.k-segmented-compact::-webkit-scrollbar {
+  display: none;
+}
+.k-segmented-compact .k-segment {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-3);
+  min-height: 32px;
+  white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .k-segmented-compact .k-segment {
+    min-height: var(--tap-target);
+  }
+}
+/* The period control's two halves: the preset row, and the pair of date
+   fields «Perso.» reveals. Side by side, not stacked, for the reason
+   `dividends.css`'s `.dividends-period` records: stacked, the disclosure grew
+   the page header by a whole field row every time it opened, on headers that
+   already carry the widest control set in the app. Wraps only when there is
+   genuinely no room. */
+.k-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  /* A flex item's minimum is its content unless told otherwise; told
+     otherwise, so the compact strip above can shrink and scroll. */
+  min-width: 0;
+  max-width: 100%;
+}
+.k-period-custom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.k-segment[data-selected="true"] {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-xs);
+}
+/* The radio itself is the accessible control; it is positioned over the label
+   rather than display:none so `:focus-visible` still reaches it. */
+.k-segment-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.k-tabs {
+  display: flex;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.k-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-size: var(--size-body-m);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  cursor: pointer;
+  min-height: var(--tap-target);
+}
+.k-tab:hover {
+  color: var(--text-strong);
+}
+.k-tab[data-selected="true"],
+[data-selected="true"] > .k-tab {
+  color: var(--text-brand);
+  border-bottom-color: var(--surface-brand);
+}
+.k-tab-count {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────────  progress  ─────────────────────────────── */
+
+.k-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.k-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-progress-track {
+  width: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.k-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-base) var(--ease-out);
+}
+.k-progress-brand .k-progress-fill {
+  background: var(--surface-brand);
+}
+.k-progress-accent .k-progress-fill {
+  background: var(--apricot-400);
+}
+.k-progress-gain .k-progress-fill {
+  background: var(--gain-500);
+}
+.k-progress-neutral .k-progress-fill {
+  background: var(--ink-300);
+}
+
+/* ──────────────────────────  dialog and drawer  ───────────────────────── */
+
+.k-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--scrim);
+}
+
+.k-dialog {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  color: var(--text-body);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+}
+
+.k-dialog-modal {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-height: 88vh;
+  border-radius: var(--radius-panel);
+  animation: k-pop var(--dur-fast) var(--ease-out);
+}
+
+/* Slides from the right over 220ms on the shared easing. */
+.k-dialog-drawer {
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  animation: k-slide-in-right var(--dur-base) var(--ease-out);
+}
+
+@keyframes k-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.k-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--pad-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.k-dialog-title {
+  font: var(--text-title-m);
+  color: var(--text-strong);
+}
+.k-dialog-description {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-dialog-body {
+  padding: var(--pad-card);
+  overflow-y: auto;
+  flex: 1;
+}
+.k-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--pad-card);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Mobile: the design's full-height sheet, 32px top corners. */
+@media (max-width: 640px) {
+  .k-dialog-modal,
+  .k-dialog-drawer {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    max-width: 100% !important;
+    height: auto;
+    max-height: 92dvh;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    animation: k-slide-up var(--dur-base) var(--ease-out);
+    box-shadow: var(--shadow-sheet);
+  }
+}
+
+/* ─────────────────────────  tooltip and toast  ────────────────────────── */
+
+.k-tooltip {
+  z-index: 60;
+  max-width: 280px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+  font-size: var(--size-body-s);
+  line-height: var(--lh-body-s);
+  box-shadow: var(--shadow-md);
+}
+.k-tooltip-arrow {
+  fill: var(--surface-inverse);
+}
+
+/* The jargon affordance: a term, then its help trigger, on one line. */
+.k-jargon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+/* Deliberately below --tap-target, and deliberately free of :hover/:focus/
+   cursor rules — see GlossaryHint.tsx's own note on why a 44px control cannot
+   sit inline in a 38px table-header row. The focus ring is the global
+   :focus-visible one. */
+.k-glossary-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.k-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 400px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+  box-shadow: var(--shadow-lg);
+  animation: k-slide-up var(--dur-base) var(--ease-out);
+}
+/* Where a page-level confirmation sits: above the drawers' scrim (z-index of
+   `.k-update-toast` is 60), bottom-centred, never in the way of a drawer's
+   own footer on a phone. */
+.k-toast-region {
+  position: fixed;
+  inset-inline: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.k-toast-region > * {
+  pointer-events: auto;
+}
+.k-toast-icon {
+  color: var(--gain-500);
+  flex: none;
+  margin-top: 2px;
+}
+.k-toast-title {
+  font-weight: var(--weight-semibold);
+}
+.k-toast-message {
+  font-size: var(--size-body-s);
+  color: var(--ink-300);
+}
+
+/* ───────────────────────────  figure badges  ──────────────────────────── */
+
+/* `<Figure>`'s provenance markers. The design forbids an emoji standing in
+   for an icon, which is what these were — and the figure rules require the
+   manual and delayed treatments to stay structurally distinct (different glyph
+   *and* different colour, never conflated), so they keep separate tones here. */
+.k-figure-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: var(--radius-xs);
+  line-height: 1;
+}
+.k-figure-badge-delayed {
+  background: var(--ink-100);
+  color: var(--ink-600);
+}
+.k-figure-badge-pinned {
+  background: var(--sky-100);
+  color: var(--sky-700);
+}
+
+/* ═══════════════════════════  domain visuals  ═══════════════════════════ */
+
+/* ──────────────────────  asset class chip, delta  ─────────────────────── */
+
+.k-class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--paper-100);
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+  white-space: nowrap;
+}
+.k-class-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  flex: none;
+}
+
+.k-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-weight: var(--weight-semibold);
+}
+/* Gain green and loss red are the only money-meaning colours, and zero is
+   neutral grey — never green. */
+.k-delta-gain {
+  color: var(--text-gain);
+}
+.k-delta-loss {
+  color: var(--text-loss);
+}
+.k-delta-flat {
+  color: var(--text-muted);
+}
+.k-delta-sm {
+  font-size: var(--size-body-s);
+}
+.k-delta-md {
+  font-size: var(--size-body-m);
+}
+.k-delta-lg {
+  font-size: var(--size-title-s);
+}
+.k-delta-chip {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+.k-delta-chip.k-delta-gain {
+  background: var(--gain-100);
+}
+.k-delta-chip.k-delta-loss {
+  background: var(--loss-100);
+}
+.k-delta-chip.k-delta-flat {
+  background: var(--ink-50);
+}
+.k-delta-suffix {
+  font-weight: var(--weight-regular);
+  color: var(--text-faint);
+  font-size: var(--size-body-s);
+}
+
+/* ───────────────────────  allocation bar, donut  ──────────────────────── */
+
+.k-alloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.k-alloc-bar {
+  display: flex;
+  width: 100%;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+.k-alloc-segment {
+  height: 100%;
+}
+.k-alloc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-alloc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.k-alloc-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+}
+
+.k-donut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+.k-donut-graphic {
+  position: relative;
+  flex: none;
+}
+.k-donut-center {
+  position: absolute;
+  inset: 0;
+  /* The overlay spans the whole graphic, ring included. Without this it
+     sat on top of the arcs and took every pointer event — no arc was ever
+     hovered on the real page, only in jsdom, where `fireEvent` skips
+     hit-testing. */
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+.k-donut-center-value {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+/* The labelled ring. The arcs are the rows of a legend that is no
+   longer drawn, so they take a pointer where they go somewhere and dim
+   together when one of them is under the pointer or focused. Hover and
+   pointer live on `data-*` attributes React sets, not on `:hover`/a bare
+   class — an SVG arc has no box to hold a 44px tap target, and the
+   design-rules guard derives its interactive primitives from exactly those
+   two shapes. The focus ring is the global `:focus-visible` outline. */
+.k-donut-arc {
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.k-donut-arc[data-dimmed="true"] {
+  opacity: 0.35;
+}
+.k-donut-arc[data-selectable="true"] {
+  cursor: pointer;
+}
+/* The on-arc code: an HTML box centred on the arc's midpoint, letting the
+   arc underneath keep the pointer. `font-size` is set inline on the graphic
+   (DonutAllocation's CODE_FONT_PX) so the fit arithmetic and the rendered
+   glyphs share one number. */
+.k-donut-slice {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* The marker outside the ring — the icon, centred on the radial line
+   through its arc's midpoint, just beyond the outer edge. It dims with the
+   arcs it does not belong to. */
+.k-donut-marker {
+  position: absolute;
+  display: flex;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.k-donut-marker[data-dimmed="true"] {
+  opacity: 0.35;
+}
+.k-donut-slice-code {
+  font-size: inherit;
+  line-height: 14px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  text-shadow:
+    0 0 2px var(--surface-card),
+    0 0 2px var(--surface-card);
+}
+/* The 20px icon box `InstrumentIconTile size="slice"` fills — the same
+   `.k-inst-icon-img` inside it as the 34px and 38px boxes. Since then it is
+   drawn inside `.k-donut-marker`, outside the ring, not on the arc. */
+.k-donut-slice-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: var(--radius-xs);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+/* The centre while an arc is active: the slice's name over its figures. */
+.k-donut-center-detail {
+  padding-inline: 18%;
+}
+.k-donut-center-name {
+  font: var(--text-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.k-donut-center-sub {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+.k-donut-legend {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-width: 180px;
+}
+.k-donut-legend-item {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--size-body-s);
+}
+.k-donut-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+}
+.k-donut-legend-label {
+  color: var(--text-body);
+}
+.k-donut-legend-percent {
+  color: var(--text-strong);
+  font-weight: var(--weight-semibold);
+}
+.k-donut-legend-value {
+  color: var(--text-muted);
+}
+
+/* The monogram tile a ledger row shows when the instrument has no
+   uploaded logo — the Positions table's `.holdings-asset-tile`, made shared
+   because the ledger (both presentations) now leads its asset cell with it. */
+.k-monogram-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: var(--size-micro);
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+}
+
+.k-sparkline {
+  display: block;
+  max-width: 100%;
+}
+
+/* ──────────────────────────  stacked rows  ────────────────────────────── */
+
+.k-assetrow,
+.k-txrow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--pad-card);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  text-align: left;
+}
+.k-assetrow-button,
+.k-txrow-button {
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  min-height: var(--tap-target);
+}
+/* Row height never changes on hover. Only the ground moves. */
+.k-assetrow-button:hover,
+.k-txrow-button:hover {
+  background: var(--paper-50);
+}
+
+.k-assetrow-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.k-assetrow-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--paper-100);
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+.k-assetrow-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.k-assetrow-ticker {
+  font-size: var(--size-body-s);
+  color: var(--text-strong);
+  font-weight: var(--weight-semibold);
+}
+.k-assetrow-name {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-assetrow-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+}
+.k-assetrow-value {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+.k-assetrow-secondary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+.k-txrow {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.k-txrow-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.k-txrow-asset {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+.k-txrow-detail,
+.k-txrow-date {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-txrow-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex: none;
+}
+.k-txrow-amount {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+
+/* ─────────────────────────────  brand  ────────────────────────────────── */
+
+.k-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.k-brand-mark {
+  display: block;
+  border-radius: var(--radius-logo);
+}
+.k-brand-word {
+  font-family: var(--font-display);
+  font-size: var(--size-title-m);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--track-display);
+  color: var(--text-strong);
+}
+
+/* ═════════════════════════════  the shell  ══════════════════════════════ */
+
+.k-shell {
+  display: flex;
+  min-height: 100dvh;
+  background: var(--bg-app);
+}
+.k-shell-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.k-shell-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-8);
+}
+.k-shell-main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  /* 32px page padding, 1240px content column. */
+  padding: 0 var(--space-8) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ────────────────────────────  the rail  ──────────────────────────────── */
+
+/* The tablet tier: icon-only between 640 and 1024px, expanding at 1024px+.
+   Below 640px the rail is not rendered at all. `--sidebar-width-collapsed` is
+   in the token set precisely for this. */
+.k-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: var(--sidebar-width-collapsed);
+  align-items: stretch;
+  flex: none;
+  padding: var(--space-5) var(--space-3);
+  background: var(--surface-card);
+  border-right: 1px solid var(--border-subtle);
+}
+.k-rail-brand {
+  padding: 0 var(--space-2);
+}
+
+/* Visually hidden, still announced — the label must stay in the accessibility
+   tree at every tier, which is what keeps the rail navigable by name when it
+   shows only glyphs. */
+.k-rail-label-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 1023px) {
+  .k-rail-label,
+  .k-rail-section-label,
+  .k-brand-word,
+  .k-account-identity {
+    display: none;
+  }
+  .k-rail-item,
+  .k-account-trigger {
+    justify-content: center;
+  }
+}
+
+@media (min-width: 1024px) {
+  .k-rail {
+    width: var(--sidebar-width);
+  }
+  .k-rail-label-sr {
+    display: none;
+  }
+}
+.k-rail-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1;
+}
+.k-rail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.k-rail-section-label {
+  padding: 0 var(--space-2) var(--space-1);
+}
+.k-rail-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  font-size: var(--size-body-m);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  min-height: var(--tap-target);
+  transition: var(--transition-control);
+}
+.k-rail-item:hover {
+  background: var(--paper-100);
+  color: var(--text-strong);
+  text-decoration: none;
+}
+.k-rail-item.active {
+  background: var(--surface-brand-soft);
+  color: var(--text-brand);
+  font-weight: var(--weight-semibold);
+}
+.k-rail-item-disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+.k-rail-foot {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+}
+
+/* ──────────────────────────  account menu  ────────────────────────────── */
+
+.k-account {
+  position: relative;
+}
+.k-account-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  min-height: var(--tap-target);
+  text-align: left;
+  transition: var(--transition-control);
+}
+.k-account-trigger:hover {
+  background: var(--paper-100);
+}
+.k-account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
+  font-size: var(--size-body-s);
+  font-weight: var(--weight-semibold);
+}
+.k-account-identity {
+  flex: 1;
+  min-width: 0;
+}
+.k-account-email {
+  display: block;
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The ledger base currency under the email — the footer line. */
+.k-account-sub {
+  display: block;
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+.k-account-menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+}
+.k-account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-body);
+  font-size: var(--size-body-s);
+  cursor: pointer;
+  min-height: var(--tap-target);
+}
+.k-account-menu-item:hover {
+  background: var(--paper-100);
+  color: var(--text-strong);
+}
+
+/* ─────────────────────  mobile tab bar and drawer  ────────────────────── */
+
+.k-tabbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  border-top: 1px solid var(--border-subtle);
+  /* Translucent over content. */
+  background: rgb(255 255 255 / 0.88);
+  backdrop-filter: var(--blur-glass);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.k-tabbar-item {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 0;
+  background: transparent;
+  font-size: var(--size-micro);
+  font-family: var(--font-text);
+  color: var(--text-muted);
+  text-decoration: none;
+  min-height: var(--tap-target);
+  cursor: pointer;
+}
+.k-tabbar-item.active {
+  color: var(--text-brand);
+}
+.k-tabbar-item:hover {
+  text-decoration: none;
+}
+.k-tabbar-item-disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.k-navdrawer {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 80%;
+  max-width: 320px;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-3);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-lg);
+}
+.k-navdrawer-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1;
+}
+.k-navdrawer-foot {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+}
+/* The `max-width: 1023px` rule that collapses the rail to glyphs also matched
+   the account footer *inside this drawer*, which is not a collapsed rail — it is
+   288px wide and has room for the label. So the drawer showed an avatar with no
+   name beside it. Restored here rather than by narrowing that rule, because the
+   rule is correct for what it was written for. */
+.k-navdrawer-foot .k-account-identity {
+  display: block;
+}
+.k-navdrawer-foot .k-account-trigger {
+  justify-content: flex-start;
+}
+/* Same leak, same answer, for the destinations themselves: the drawer is not a
+   collapsed rail, and centred glyph+label rows read as misaligned. */
+.k-navdrawer .k-rail-item {
+  justify-content: flex-start;
+}
+
+/* Below the rail's breakpoint the content column owns the full width, and the
+   fixed tab bar needs clearance so the last row is not trapped under it. */
+@media (max-width: 639px) {
+  .k-shell-main {
+    padding: 0 var(--space-4) var(--space-16);
+    /* One element wider than the phone used to widen the layout viewport and
+       zoom every screen out. `clip`, not `hidden`:
+       it creates no scroll container, so sticky and positioned children are
+       untouched; it only stops the overflow from reaching the viewport. */
+    overflow-x: clip;
+  }
+  .k-shell-bar {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+/* ──────────────────────────  page header  ─────────────────────────────── */
+
+.k-pagehead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-top: var(--space-8);
+}
+.k-pagehead-titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.k-pagehead-title {
+  font: var(--text-title-l);
+  color: var(--text-strong);
+}
+.k-pagehead-subtitle {
+  font-size: var(--size-body-m);
+  color: var(--text-muted);
+}
+.k-pagehead-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 639px) {
+  .k-pagehead {
+    padding-top: var(--space-5);
+  }
+  .k-pagehead-actions {
+    width: 100%;
+  }
+}
+
+/* A segment rendered as a plain <button> rather than the radio-group label
+   `SegmentedControl` uses. `PeriodSelector` needs this: its `aria-pressed`
+   button semantics and `period-option-*` test ids are asserted by e2e specs,
+   so it keeps them and borrows only the appearance. Resetting the button
+   chrome here is what lets the two share `.k-segment` without one of them
+   carrying a stray border. */
+.k-segment-button {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-text);
+}
+
+/* ───────────────────────  banners and skeletons  ──────────────────────── */
+
+/* A business error, in place: a 3px inset left bar, never a
+   toast. Hoisted from the Contrôles restyle — three screens need the
+   same treatment, and a 3px bar is exactly the detail that comes out a pixel
+   different when re-implemented. */
+.k-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-card);
+  color: var(--text-body);
+  font-size: var(--size-body-s);
+}
+.k-banner-icon {
+  flex: none;
+  margin-top: 2px;
+}
+.k-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.k-banner-title {
+  font-weight: var(--weight-semibold);
+}
+.k-banner-message {
+  margin-top: var(--space-1);
+}
+.k-banner-action {
+  flex: none;
+}
+.k-banner-loss {
+  border-color: var(--loss-100);
+  border-left-color: var(--loss-500);
+  background: var(--loss-100);
+  color: var(--loss-700);
+}
+.k-banner-warn {
+  border-color: var(--warn-100);
+  border-left-color: var(--warn-500);
+  background: var(--warn-100);
+  color: var(--warn-700);
+}
+.k-banner-neutral {
+  border-color: var(--border-subtle);
+  border-left-color: var(--ink-400);
+  background: var(--ink-50);
+  color: var(--text-body);
+}
+.k-banner-brand {
+  border-color: var(--teal-100);
+  border-left-color: var(--teal-500);
+  background: var(--surface-brand-soft);
+  color: var(--teal-700);
+}
+
+/* No shimmer, deliberately: a shimmer is motion next to money. The fade down
+   the list is opacity only, so there is nothing for reduced-motion to collapse. */
+.k-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.k-skeleton-row {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-lg);
+}
+.k-skeleton-row-default {
+  height: var(--row-height);
+}
+.k-skeleton-row-compact {
+  height: var(--row-height-compact);
+}
+.k-skeleton-row:nth-child(3) {
+  opacity: 0.75;
+}
+.k-skeleton-row:nth-child(4) {
+  opacity: 0.5;
+}
+.k-skeleton-row:nth-child(5) {
+  opacity: 0.3;
+}
+.k-skeleton-row:nth-child(6) {
+  opacity: 0.15;
+}
+
+/* ─────────────────────  empty, loading, offline  ──────────────────────── */
+
+/* An empty state never blames, and is always paired with the
+   action that fills it. `empty-state-copy-audit.test.ts` enforces the copy;
+   this is only its shape. */
+.k-empty-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.k-empty-title {
+  font-size: var(--size-body-m);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+.k-empty-detail {
+  margin-top: var(--space-1);
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+}
+.k-empty-explanation {
+  margin-top: var(--space-1);
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-empty-note {
+  margin-top: var(--space-1);
+  font-size: var(--size-body-s);
+  font-style: italic;
+  color: var(--text-faint);
+}
+.k-empty-action {
+  margin-top: var(--space-3);
+}
+
+.k-panel-loading {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-panel-error {
+  font-size: var(--size-body-s);
+  color: var(--text-loss);
+}
+
+/* The service-worker update prompt. Success-adjacent rather than an error —
+   it offers an action, it does not report a failure — so it keeps the toast
+   treatment (ink ground) rather than a banner's. */
+.k-update-toast {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+  font-size: var(--size-body-s);
+}
+
+/* Warn, not loss: offline is a condition to wait out, not a failure to fix. */
+.k-offline-banner {
+  width: 100%;
+  padding: var(--space-2) var(--space-4);
+  text-align: center;
+  background: var(--warn-100);
+  color: var(--warn-700);
+  font-size: var(--size-body-s);
+  font-weight: var(--weight-semibold);
+}
+
+/* ────────────────  figure, quick search, empty variants  ──────────────── */
+
+.k-figure-value {
+  color: var(--text-strong);
+}
+/* Amber rather than loss-red: a stale price is not a loss, and the design
+   reserves red for money that actually went down. */
+.k-figure-stale {
+  color: var(--warn-700);
+}
+.k-figure-absent {
+  color: var(--text-faint);
+}
+.k-figure-badge-manual {
+  background: var(--lilac-100);
+  color: var(--lilac-700);
+  font-weight: var(--weight-bold);
+}
+
+.k-quicksearch-input {
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: var(--pad-control-y) var(--pad-control-x);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  font: var(--text-body-m);
+}
+.k-quicksearch-input:focus {
+  outline: none;
+  border-color: var(--teal-400);
+  box-shadow: 0 0 0 3px var(--k-ring-brand-soft);
+}
+.k-quicksearch-note {
+  margin-top: var(--space-1);
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.k-quicksearch-hint {
+  margin-top: var(--space-1);
+  font-size: var(--size-body-s);
+  color: var(--text-faint);
+}
+/* The ⌘K/Ctrl+K shortcut is a keyboard affordance; below the rail breakpoint
+   the screen is a phone and the hint is noise beside the button's own label. */
+@media (max-width: 639px) {
+  .k-quicksearch-kbd {
+    display: none;
+  }
+}
+
+/* An empty state the product expected (no data yet) reads as ordinary; one it
+   did not (a filter that matches nothing) is tinted warn so the two are not
+   confused — `empty-states.ts` owns which is which. */
+.k-empty-expected {
+  border-color: var(--border-subtle);
+  background: var(--surface-card);
+}
+.k-empty-unexpected {
+  border-color: var(--warn-100);
+  background: var(--warn-100);
+}
+.k-empty-badge-expected {
+  background: var(--paper-100);
+  color: var(--text-muted);
+}
+.k-empty-badge-unexpected {
+  background: var(--warn-100);
+  color: var(--warn-700);
+}
+
+.k-pagehead-breadcrumb {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────  sortable column headers  ────────────────────── */
+
+/* The header cells of the Positions and Instruments tables are grid `<span>`s,
+   not `<th>`s, so the control inside them is a real `<button>` and this strips
+   it back to looking like the label it replaced. Inherits the header's own
+   type and colour rather than restating them, so the two tables cannot drift
+   apart from their own `.holdings-head` / `.k-inst-head` rules. */
+.k-sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+/* Numeric columns are right-aligned, so their control has to align to the end
+   of the cell or the label would sit apart from the figures below it. */
+.k-sort-header-num {
+  justify-content: flex-end;
+  width: 100%;
+}
+.k-sort-header:hover {
+  color: var(--text-strong);
+}
+.k-sort-header:focus-visible {
+  outline: 2px solid var(--surface-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs, 3px);
+}
+.k-sort-header-active {
+  color: var(--text-strong);
+}
+/* Reserved, not hidden: the arrow keeps its space on every column so the label
+   does not shift sideways the moment a column becomes the sorted one. */
+.k-sort-arrow {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.k-sort-header:hover .k-sort-arrow {
+  opacity: 0.4;
+}
+.k-sort-arrow-active,
+.k-sort-header:hover .k-sort-arrow-active {
+  opacity: 1;
+}
+
+/* ── The uploaded instrument icon (`instrument-icons`, IK-12) ──
+ *
+ * `InstrumentIconTile` renders the image **inside** the existing tile box —
+ * `.holdings-asset-tile`'s 34px square (`screens/holdings.css`) on the two
+ * holdings and two instruments-list surfaces, `.k-inst-ticker`'s 38px one
+ * (`screens/instruments.css`) on the detail badge. Neither box is touched:
+ * the tile's box is the tile's, and this rule only fills it (NG8).
+ *
+ * Here rather than duplicated into `screens/holdings.css` and
+ * `screens/instruments.css`, as `styles.css`'s
+ * own rule is that "anything two screens both need belongs in components.css
+ * instead — a pattern living in one screen's file and being imported by another
+ * is the drift this split exists to prevent". One component renders on both
+ * screens, so the same selector declared twice would be two sources of truth
+ * for one geometry that only ever agree by accident.
+ *
+ * `object-fit: contain`, never `cover`: SD-3 imposes no aspect ratio and no
+ * minimum, so a wide logo is letterboxed rather than cropped — the honest
+ * rendering of a file the product deliberately refuses to re-encode (SD-4).
+ * The radius matches the fallback box so the two are visually interchangeable. */
+.k-inst-icon-img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  display: block;
+}
+
+/* ────────────────────  year × month heat calendar  ───────────────────── */
+
+/* `HeatCalendar.tsx` — the Dividendes screen's calendar, shared with the Activité screen's « Calendrier » tab. The grid is a real `<table>`; each cell's tone is
+   `data-heat="0".."5"`, one teal ramp light → dark for a magnitude. */
+
+/* `table-layout: fixed` is what keeps the twelve month columns equal and the
+   header letters centred over their cells regardless of content: the browser
+   distributes the free width after the two fixed-ish text columns and never
+   lets a long total push a column wider than its neighbours. */
+.k-heatcal {
+  width: 100%;
+  margin-top: var(--space-4);
+  border-collapse: separate;
+  border-spacing: 3px 3px;
+  table-layout: fixed;
+}
+
+.k-heatcal th,
+.k-heatcal td {
+  padding: 0;
+  vertical-align: middle;
+}
+
+.k-heatcal thead th {
+  height: 18px;
+  padding-bottom: var(--space-1);
+  font: var(--text-micro);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  color: var(--text-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.k-heatcal-yearhead {
+  width: 38px;
+}
+
+.k-heatcal-totalhead {
+  width: 74px;
+  text-align: right !important;
+}
+
+.k-heatcal-year {
+  padding-right: var(--space-2) !important;
+  font: var(--text-label);
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* The year total, right-aligned on one baseline with the year label: both are
+   `--text-label`, both `nowrap`, and the cell is wide enough for a six-figure
+   amount with a thousands separator before it would need to wrap. */
+.k-heatcal-total {
+  padding-left: var(--space-2) !important;
+  font: var(--text-label);
+  color: var(--text-strong);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.k-heatcal-slot {
+  /* Square cells: the slot is as tall as it is wide, whatever the table's
+     width resolves to. */
+  position: relative;
+}
+
+.k-heatcal-cell {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  cursor: default;
+}
+
+button.k-heatcal-cell {
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+/* One hue, light -> dark: a sequential ramp for a magnitude. `0` is the
+   sunken surface — an empty month reads as the paper showing through, not as
+   the lightest amount. */
+.k-heatcal-cell[data-heat="1"],
+.k-heatcal-swatch[data-heat="1"] {
+  background: var(--teal-100);
+}
+.k-heatcal-cell[data-heat="2"],
+.k-heatcal-swatch[data-heat="2"] {
+  background: var(--teal-200);
+}
+.k-heatcal-cell[data-heat="3"],
+.k-heatcal-swatch[data-heat="3"] {
+  background: var(--teal-300);
+}
+.k-heatcal-cell[data-heat="4"],
+.k-heatcal-swatch[data-heat="4"] {
+  background: var(--teal-500);
+}
+.k-heatcal-cell[data-heat="5"],
+.k-heatcal-swatch[data-heat="5"] {
+  background: var(--teal-700);
+}
+
+/* A month before the window's first payment (or after its last) is drawn
+   fainter than an empty month inside it, so the span itself is legible. */
+.k-heatcal-cell[data-outside="true"] {
+  opacity: 0.55;
+}
+
+/* Preview (hover) is a hairline; selection is the full ring. */
+.k-heatcal-cell[data-active="true"] {
+  box-shadow: 0 0 0 2px var(--ink-300);
+}
+
+.k-heatcal-cell[data-selected="true"],
+.k-heatcal-cell[data-selected="true"][data-active="true"] {
+  box-shadow:
+    0 0 0 2px var(--surface-card),
+    0 0 0 3px var(--ink-700);
+}
+
+.k-heatcal-cell:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.k-heatcal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.k-heatcal-detail {
+  min-height: calc(var(--size-body-s) * var(--lh-body-s));
+  font: var(--text-body-s);
+  color: var(--text-body);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.k-heatcal-detail strong {
+  color: var(--text-strong);
+  font-weight: var(--weight-semibold);
+}
+
+.k-heatcal-sep {
+  color: var(--text-faint);
+  margin: 0 var(--space-2);
+}
+
+.k-heatcal-ramp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  font: var(--text-micro);
+  letter-spacing: var(--track-label);
+  color: var(--text-faint);
+}
+
+.k-heatcal-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+@media (max-width: 479px) {
+  .k-heatcal {
+    border-spacing: 2px 2px;
+  }
+  .k-heatcal-yearhead {
+    width: 30px;
+  }
+  .k-heatcal-totalhead {
+    width: 54px;
+  }
+  .k-heatcal-year,
+  .k-heatcal-total {
+    font: var(--text-micro);
+    letter-spacing: 0;
+  }
+  .k-heatcal-year {
+    padding-right: var(--space-1) !important;
+  }
+  .k-heatcal-total {
+    padding-left: var(--space-1) !important;
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../ports" },
+    { "path": "../../platform/db" },
+    // Test-only: this package's own code never imports @kerdial/core-decimal
+    // (it never touches a Decimal value, only counts/observes them) — see
+    // fake QuoteObservation fixtures in the *.test.ts files under src/.
+    { "path": "../../core/decimal" }
+  ]
+}

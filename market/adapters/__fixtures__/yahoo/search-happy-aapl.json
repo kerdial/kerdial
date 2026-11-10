@@ -1,0 +1,15 @@
+{
+  "explains": [],
+  "count": 1,
+  "quotes": [
+    {
+      "exchange": "NMS",
+      "shortname": "Apple Inc.",
+      "quoteType": "EQUITY",
+      "symbol": "AAPL",
+      "longname": "Apple Inc.",
+      "exchDisp": "NASDAQ"
+    }
+  ],
+  "news": []
+}

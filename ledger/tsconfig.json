@@ -1,0 +1,36 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../core/api-contracts" },
+    { "path": "../platform/db" },
+    { "path": "../platform/logging" },
+    { "path": "../core/decimal" },
+    { "path": "../core/domain" },
+    // IK6: the icon
+    // service re-asserts SD-1's format set and SD-2/SD-3's byte and pixel
+    // ceilings, whose one definition lives in `core/reference-data` — the
+    // zero-dependency package `web` may also import at runtime, which is why
+    // those four numbers are there and only the row cap is a `ledger`
+    // constant with a mirror.
+    { "path": "../core/reference-data" },
+    { "path": "../market/ports" },
+    // Test-only (see `src/__tests__/fx-rate-resolver.ecb.integration.test.ts`'s
+    // header): `ledger`'s own code depends on the `market/ports` port above,
+    // never on an adapter — dependency-cruiser's `ledger-no-market-adapters`
+    // rule enforces that over every non-`__tests__` file in this package.
+    { "path": "../market/adapters" },
+    // T-37 (`transaction-write-service.ts`'s instrument-backfill trigger) made
+    // this a real production dependency, not merely the test-only composition
+    // T-35's own `src/__tests__/market-ingestion-composition.integration.test.ts`
+    // exercised. `market/ingestion` still does not reference `ledger` (no
+    // project-reference cycle — see that package's own
+    // `instrument-backfill-job.integration.test.ts` header comment for why the
+    // dependency runs in this direction only).
+    { "path": "../market/ingestion" }
+  ]
+}

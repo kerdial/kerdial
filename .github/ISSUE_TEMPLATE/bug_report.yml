@@ -1,0 +1,52 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag you run (for example `0.2.0`).
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install type
+      options:
+        - Docker
+        - Synology
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log lines. Remove personal figures (amounts, account names) first.
+      render: shell
+  - type: checkboxes
+    id: scrubbed
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed personal figures (amounts, account names) from logs and screenshots
+          required: true

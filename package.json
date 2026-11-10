@@ -1,0 +1,70 @@
+{
+  "name": "kerdial",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Kerdial \u2014 self-hosted, open-source multi-currency portfolio tracker.",
+  "author": "Nicolas Berthel <contact@kerdial.com>",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://www.kerdial.com/",
+  "repository": "github:kerdial/kerdial",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build": "pnpm run clean && pnpm -r run build",
+    "clean": "find . -maxdepth 4 -name dist -type d -not -path '*/node_modules/*' -exec rm -rf {} + && find . -name '*.tsbuildinfo' -not -path '*/node_modules/*' -delete",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "bash scripts/verify.sh",
+    "test": "pnpm run test:main",
+    "test:all": "TEST_SHARED_PG=1 vitest run",
+    "test:quick": "vitest run --exclude \"**/*.integration.test.ts\" --exclude \"**/*.e2e.test.ts\"",
+    "test:watch": "TEST_SHARED_PG=1 vitest",
+    "test:main": "TEST_SHARED_PG=1 vitest run --exclude \"web/**\" --exclude \"**/app-timeout.e2e.test.ts\" --exclude \"**/watchlist-valuation.integration.test.ts\" --exclude \"**/worker-shutdown.integration.test.ts\" --exclude \"**/queue-wiring.integration.test.ts\" --exclude \"**/startup-catch-up.integration.test.ts\"",
+    "test:web": "vitest run web/src",
+    "test:flake-lane": "TEST_SHARED_PG=1 vitest run --no-file-parallelism api/src/app-timeout.e2e.test.ts valuation/src/watchlist-valuation.integration.test.ts market/composition/src/worker-shutdown.integration.test.ts market/composition/src/queue-wiring.integration.test.ts market/composition/src/startup-catch-up.integration.test.ts",
+    "known-answers": "vitest run core/domain/src/known-answers.test.ts",
+    "test:e2e": "pnpm --filter @kerdial/web run test:e2e",
+    "test:e2e:static-tier": "pnpm --filter @kerdial/web run test:e2e:static-tier",
+    "dev:up": "bash scripts/dev-up.sh",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs core platform market ledger valuation api importer web/src",
+    "check:sparkline-chunk": "tsx scripts/check-sparkline-chunk.ts",
+    "no-floats-schema-gate": "tsx tools/gates/src/no-floats-schema/cli.ts platform/db/migrations",
+    "import-vocabulary-gate": "tsx tools/gates/src/import-vocabulary/cli.ts importer",
+    "doc-sections-gate": "tsx tools/gates/src/doc-sections/cli.ts docs",
+    "instrument-catalogue-gate": "tsx platform/db/src/seed-data/instrument-catalogue-gate-cli.ts",
+    "csp-dist-gate": "tsx tools/gates/src/csp-dist/cli.ts web/dist",
+    "unused-exports-gate": "tsx scripts/unused-exports-gate.ts",
+    "image:build": "docker build --platform linux/amd64 -f Dockerfile -t kerdial/kerdial:verify ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@kerdial/platform-auth": "workspace:*",
+    "@kerdial/platform-db": "workspace:*",
+    "@kerdial/platform-test-support": "workspace:*",
+    "@swc/core": "^1.15.47",
+    "@types/node": "^22.13.1",
+    "@typescript-eslint/utils": "^8.22.0",
+    "dependency-cruiser": "^16.9.0",
+    "eslint": "^9.19.0",
+    "eslint-config-prettier": "^10.0.1",
+    "knip": "^6.32.2",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.22.0",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^3.0.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "find-my-way@<=9.6.0": ">=9.7.0",
+      "fast-uri@>=4.0.0 <4.1.2": "4.1.2",
+      "fast-uri@>=3.0.0 <3.1.5": "3.1.5"
+    }
+  }
+}

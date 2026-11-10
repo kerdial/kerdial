@@ -1,0 +1,138 @@
+-- `cash-accounts` cycle, fix round 1 — **F2**
+-- and **F3**. Both findings land on the same column
+-- (`transaction_posting.cash_account_id`) and are fixed in one file because
+-- either one alone leaves the other's cost or hole in place.
+--
+-- drizzle-kit generated (generated name: `0040_dusty_magik`; the journal tag
+-- was renamed with the file to the descriptive form every migration in this
+-- repo uses). The generator emitted three statements; they appear below
+-- **reordered by hand**, given `IF EXISTS`/`IF NOT EXISTS` guards, and joined by
+-- one added `DROP CONSTRAINT IF EXISTS` for the new constraint's own name — all
+-- three edits in `0039`'s idiom, see "Ordering" and "Idempotence" below. The
+-- snapshot (`meta/0040_snapshot.json`) is the generator's, untouched, which is what
+-- keeps `drizzle-kit generate` reporting no pending changes afterwards: both
+-- objects below are declared in `src/schema/transaction-posting.ts`.
+--
+-- ## F2 — the missing index
+--
+-- `0038` added the posting's cash-account FK with no supporting index in
+-- `0038`, `0039` or the schema module. Every `cash_account` delete therefore
+-- forced Postgres to run, **per deleted row**, a full sequential scan of the
+-- whole all-tenants `transaction_posting`:
+--
+--     SELECT 1 FROM ONLY "public"."transaction_posting" x
+--      WHERE $1 = "cash_account_id" FOR KEY SHARE OF x
+--
+-- Measured against 200,001 postings belonging to a *different* tenant:
+-- deleting a portfolio with 21 cash accounts took **534.9 ms**, and **5.4 ms**
+-- with this index; grown to 821 accounts the un-indexed delete hit
+-- `DEFAULT_STATEMENT_TIMEOUT_MS` (15 s, `platform/db/src/client.ts`) and the
+-- portfolio became permanently undeletable — with
+-- `pg_advisory_xact_lock(hashtext(tenant_id))` held for the whole 15 s on every
+-- attempt, stalling the tenant's entire write path. Two aggravations made it a
+-- security finding rather than a slow query: the row count that matters is the
+-- **global** posting count (tenant A's delete slows as tenant B accumulates
+-- history), and account creation was uncapped.
+--
+-- The index is one half of that fix. The other half is
+-- `MAX_CASH_ACCOUNTS_PER_PORTFOLIO` (`ledger/src/cash-account-service.ts`),
+-- which bounds how many probes one delete can issue; this bounds what each
+-- probe costs. Neither is sufficient alone: the cap without the index still
+-- permits 200 sequential scans, and the index without the cap still permits an
+-- unbounded `GET /portfolios/:id/cash`.
+--
+-- One column, not the FK's four. The composite FK below makes the RI probe
+-- carry four predicates, but an account id is the selective one and the other
+-- three are free filters once its postings are located — and a four-column
+-- index costs every posting insert more for no measured gain.
+--
+-- ## F3 — the single-column FK
+--
+-- `0038` gave this column
+-- `transaction_posting_cash_account_id_cash_account_id_fk`, referencing
+-- `cash_account(id)` **only** — the odd one out among the four composite FKs on
+-- `transaction` and `cash_balance`'s own. Referential-integrity checks are not
+-- RLS-aware (this repo's own recorded F6 class), so a single-column FK carrying
+-- no `tenant_id` refuses nothing at the database level. Reproduced as the real
+-- `app_web` role with `app.tenant_id` set to tenant A:
+--
+--     --- app_web(A): posting referencing TENANT B cash account
+--     INSERT 0 1
+--      posting accepted pointing at tenant B account
+--
+-- The identical attempt against a composite sibling is rejected with `23503`.
+-- The counter-argument — that postings are a derived projection regenerated
+-- wholesale from a composite-FK-pinned parent, so no writer can produce such a
+-- row — is true of every writer today and is an *application* invariant with
+-- no database enforcement; a future partial regeneration, import or repair
+-- script inherits none of it.
+--
+-- No new column is needed: `transaction_posting` already carries `tenant_id`,
+-- `portfolio_id` and `currency`. Adding them to the FK additionally pins a
+-- posting's currency to its account's, exactly as `cash_balance_cash_account_fk`
+-- already does for the materialised balance.
+--
+-- **MATCH SIMPLE keeps the POSITION leg free.** A multi-column FK is not
+-- checked at all when any of its columns is NULL, and a POSITION posting has
+-- both `cash_account_id` and `currency` NULL — the same property
+-- `transaction`'s four leg FKs rely on. `0038`'s
+-- `transaction_posting_cash_leg_has_currency` and `0039`'s
+-- `transaction_posting_cash_leg_has_account` are what make "both NULL or both
+-- set" the only representable state, so this is a closed hazard rather than an
+-- inherited one.
+--
+-- ## What this does NOT make reachable
+--
+-- `deletePortfolio`'s defensive `23503` catch maps any FK violation to
+-- `PortfolioDeleteBlockedByLinkedTransactionError` — a 409 whose message about
+-- a cross-portfolio DRIP would be false if raised for a posting. This
+-- constraint does not make that reachable: the cascade deletes
+-- `transaction_posting` (step 5 of its eight ordered deletes) before
+-- `cash_account` (step 7), so no posting of the deleted portfolio survives to
+-- reference an account being removed. It in fact removes the *one* way that 409
+-- could have been raised falsely — a cross-tenant posting row, which is exactly
+-- what this FK now refuses. Asserted, not argued: `portfolio-delete.integration.test.ts`'s
+-- rich-portfolio cascade deletes a portfolio whose CASH postings reference its
+-- own cash accounts and requires `deleted: true` with zero rows left in all
+-- seven child tables — it runs against this constraint, not around it.
+--
+-- ## Ordering
+--
+-- The index is created **first**, before the constraint swap, and the order is
+-- deliberate: `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` validates the whole
+-- existing table, so if this migration is interrupted between statements the
+-- database is left with the *old* single-column FK plus the new index — slower
+-- to write, never slower to delete. The reverse order would leave the expensive
+-- state (new FK, no index) behind instead.
+--
+-- ## Grants
+--
+-- **None are needed, and that is checked rather than assumed.** This file
+-- creates no grantable object: an index and a table constraint carry no
+-- privileges of their own, and `0007` already grants `app_web`
+-- `SELECT, INSERT, UPDATE, DELETE` on `transaction_posting` at table level, so
+-- no column or object here is outside an existing grant. (The standing rule
+-- that a migration carries its own grants exists because every test connects as
+-- the Testcontainers superuser, which makes a missing GRANT structurally
+-- invisible — `cash-account-grants.integration.test.ts` connects as the real
+-- `app_web` role for exactly that reason, and this file adds no case to it
+-- because it adds no privilege.)
+--
+-- ## Idempotence and re-runnability
+--
+-- Drizzle's journal prevents a second run in the normal path; the guards below
+-- are for the case that happens — a hand-run during recovery, or a partial
+-- apply. `IF NOT EXISTS` on the index, and a `DROP CONSTRAINT IF EXISTS` for
+-- **both** the old and the new constraint name before the `ADD`, so a second
+-- execution re-validates the FK against whatever the data has since become
+-- rather than aborting on `42P07`/`42710`.
+--
+-- ## Gates
+--
+-- `tenant-column-gate`: no table is created. `no-floats-schema-gate`: no
+-- column is added, and `cash_account_id` is an identifier that takes part in no
+-- arithmetic anywhere in the system.
+CREATE INDEX IF NOT EXISTS "transaction_posting_cash_account_id_idx" ON "transaction_posting" USING btree ("cash_account_id");--> statement-breakpoint
+ALTER TABLE "transaction_posting" DROP CONSTRAINT IF EXISTS "transaction_posting_cash_account_id_cash_account_id_fk";--> statement-breakpoint
+ALTER TABLE "transaction_posting" DROP CONSTRAINT IF EXISTS "transaction_posting_cash_account_fk";--> statement-breakpoint
+ALTER TABLE "transaction_posting" ADD CONSTRAINT "transaction_posting_cash_account_fk" FOREIGN KEY ("tenant_id","portfolio_id","cash_account_id","currency") REFERENCES "public"."cash_account"("tenant_id","portfolio_id","id","currency") ON DELETE no action ON UPDATE no action;

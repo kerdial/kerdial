@@ -1,0 +1,30 @@
+{
+  "chart": {
+    "result": [
+      {
+        "meta": {
+          "currency": "EUR",
+          "symbol": "BTC-EUR",
+          "exchangeName": "CCC",
+          "fullExchangeName": "CCC",
+          "instrumentType": "CRYPTOCURRENCY",
+          "firstTradeDate": 1410912000,
+          "regularMarketTime": 1790950512,
+          "gmtoffset": 0,
+          "timezone": "UTC",
+          "regularMarketPrice": 76536.4,
+          "priceHint": 2
+        },
+        "timestamp": [1752364800, 1752451200, 1752537600, 1752624000],
+        "indicators": {
+          "quote": [
+            {
+              "close": [101941.6015625, 102739.2421875, 101463.3984375, 102048.3828125]
+            }
+          ]
+        }
+      }
+    ],
+    "error": null
+  }
+}

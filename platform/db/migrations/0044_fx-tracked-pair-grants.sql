@@ -1,0 +1,55 @@
+-- Ownership and grants on `fx_tracked_pair` (the Devises screen).
+-- Hand-written, deliberately separate from
+-- `0043`, which is drizzle-kit output: a hand-edit there would be reverted by
+-- the next `db:generate` (migrations `0011`, `0012`, `0018`, `0024`, `0029`,
+-- `0030`, `0036` all use this same split). `0038` chose the other side of that
+-- trade — generated SQL plus hand-appended grants in one file, so that "table
+-- exists, grant does not" is unrepresentable at any point in migration order —
+-- and its reasoning is sound; the reason it is not followed here is
+-- regenerability, and the window it protects against is closed anyway because
+-- `runMigrations` applies `0043` and `0044` in the same run.
+--
+-- ## Ownership first, and why it is not optional
+--
+-- `ALTER TABLE ... OWNER TO app_owner`, the `0032`/`0033`/`0038` idiom, for
+-- their reason: `0007` creates `app_owner` and reassigns every table that
+-- existed then, so every table created *after* it has to reassign itself.
+-- Nothing in the feature's own design mentions this, and two pre-existing
+-- suites catch its absence rather than letting it ship — this migration was
+-- written without it first, and both failed exactly as `0038`'s comment
+-- predicts: `roles-and-rls.integration.test.ts`'s "app_owner owns every
+-- tenant-owned and shared table" (the table came back owned by the migrating
+-- superuser), and `app-backup-role.integration.test.ts`'s AC-24 `pg_dump`
+-- probe, which reported `permission denied for table fx_tracked_pair` instead
+-- of the row-level-security message it asserts.
+--
+-- Two roles, each scoped to exactly what it does with the list:
+--
+--   - `app_web` — the API pool. The Devises screen reads the list
+--     (`GET /market-data/fx`), adds a pair (`POST /market-data/fx/pairs`) and
+--     removes one (`DELETE /market-data/fx/pairs/:base/:quote`). `SELECT` is
+--     required for the read *and* by `INSERT ... ON CONFLICT DO NOTHING`
+--     itself, which needs `SELECT` privilege on the target table even when no
+--     conflict occurs — the same Postgres behaviour migrations `0007` and
+--     `0029` already document, and the reason a plain `INSERT` grant is not
+--     enough. No `UPDATE`: the row *is* its key plus a creation timestamp, so
+--     there is nothing to update — changing a pair means deleting one and
+--     adding another, which is honest about `created_at`.
+--   - `app_ingest` — the worker pool. `SELECT` only: `fetchTrackedFxPairs`
+--     reads the list to build the daily pull's pair set
+--     (`fx-daily-handler.ts`). The worker never adds or removes a tracked
+--     pair; that is a user action, and a job that could write this table could
+--     silently widen its own workload.
+--
+-- No `app_backup` grant is added: `0034` closes that with
+-- `ALTER DEFAULT PRIVILEGES ... GRANT SELECT ON TABLES TO app_backup`, which
+-- covers a table created *after* it — its own `GRANT SELECT ON ALL TABLES`
+-- would not, and that is exactly why the default-privileges statement is there.
+--
+-- No RLS implications — `fx_tracked_pair` carries no `tenant_id` column
+-- (shared reference data, allowlisted in `tools/gates/src/tenant-column`), so
+-- no policy is added or changed and AC33/AC35 are unaffected. This migration
+-- names none of `transaction`, `transaction_posting`, `holding_state` (AC47).
+ALTER TABLE "fx_tracked_pair" OWNER TO app_owner;--> statement-breakpoint
+GRANT SELECT, INSERT, DELETE ON "fx_tracked_pair" TO app_web;--> statement-breakpoint
+GRANT SELECT ON "fx_tracked_pair" TO app_ingest;

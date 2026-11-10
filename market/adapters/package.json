@@ -1,0 +1,17 @@
+{
+  "name": "@kerdial/market-adapters",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/core-domain": "workspace:*",
+    "@kerdial/market-ports": "workspace:*"
+  }
+}

@@ -1,0 +1,28 @@
+-- T-34 — quote refresh jobs (equities/crypto/EOD) + staleness surfacing:
+-- read grants for `app_ingest` on reference data.
+--
+-- Migration 0007's own comment flagged this explicitly: "app_ingest is
+-- deliberately granted no read/write access to `instrument`,
+-- `instrument_provider_map`, `currency`, or `market_calendar` in this
+-- migration. Ingestion will need to read some of these once the actual
+-- fetch/backfill jobs are built (T-33-T-35) — that access is added there,
+-- scoped to what those jobs actually need, rather than granted
+-- speculatively now." This is that grant, scoped to exactly what T-34's job
+-- bodies read, no more:
+--
+--   - `instrument` — the fan-out query (`holding-fanout.ts`) needs each held
+--     instrument's `kind` (to route equity vs. crypto) and `exchange_mic`
+--     (to resolve which `market_calendar` session gates its poll window).
+--   - `instrument_provider_map` — routes a held instrument to the
+--     `provider_symbol` a `QuoteProvider` adapter understands
+--     (`quote-refresh-job.ts`, `eod-close-job.ts`).
+--   - `market_calendar` — the equity market-hours gate
+--     (`market-hours.ts`) reads exception (holiday) rows here.
+--
+-- SELECT-only: none of T-34's job bodies write to any of these three
+-- tables. `currency` is not granted here — no T-34 job body reads it
+-- directly (the FK-referenced `currency` code on `instrument_quote_latest`/
+-- `instrument_price_daily` is validated at write time by the FK constraint
+-- itself, which does not require the writing role to hold its own SELECT
+-- grant on the referenced table).
+GRANT SELECT ON "instrument", "instrument_provider_map", "market_calendar" TO app_ingest;

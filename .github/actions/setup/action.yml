@@ -1,0 +1,35 @@
+name: "Workspace setup"
+# pnpm + Node (with pnpm store cache) +
+# frozen-lockfile install — the block every job in ci.yml repeated verbatim.
+# Version bumps are now one-line edits here instead of a per-job hunt.
+# `actions/checkout` stays in each job: a composite step cannot run before
+# the checkout that provides it.
+#
+# Every third-party action in this repository is pinned to a full commit SHA
+# with the released version beside it (L17): a tag is mutable,
+# and a repointed tag runs in the same job as the workspace install. The pins
+# are kept current by `.github/dependabot.yml`; `api/src/ci-gating.test.ts`
+# fails on any `uses:` that is not 40 hex characters.
+description: "pnpm + Node (pnpm-cached) + pnpm install --frozen-lockfile"
+inputs:
+  pnpm-version:
+    description: "pnpm version — keep aligned with the root package.json packageManager field"
+    default: "9.15.9"
+  node-version:
+    description: "Node major — T-1 targets Node 22 LTS"
+    default: "22"
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "pnpm"
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

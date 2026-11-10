@@ -1,0 +1,108 @@
+-- FT-1 (Batch A) — FR-231, FR-233, FR-235, FR-236, FR-247, FR-250,
+-- FR-252, AC-261, AC-262, AC-263, AC-271, AC-275.
+--
+-- drizzle-kit generated for the two `ADD COLUMN`s and the four `ADD CONSTRAINT
+-- ... CHECK`s (generated name: `0045_damp_kitty_pryde`; the journal tag was
+-- renamed with the file to the descriptive form every migration in this repo
+-- uses). The header is hand-written, and the generator's `ADD COLUMN` /
+-- `ADD CONSTRAINT` were given the `IF NOT EXISTS` / `DROP CONSTRAINT IF EXISTS`
+-- forms below for the re-runnability guarantee at the bottom of this comment;
+-- nothing is hand-*ordered* — the generator's output is runnable as emitted,
+-- unlike `0039`'s was.
+--
+-- ## What this file does
+--
+-- Adds the principal cash leg's own denomination — `cash_currency` and
+-- `cash_amount` — so a transaction denominated in one currency can be settled
+-- from an account denominated in another (FR-230). Before this cycle the
+-- principal cash leg *borrowed* `txn_currency`/`gross_amount`; the composite FK
+-- `transaction_cash_account_fk` carried `txn_currency`, so a USD trade required
+-- a USD cash account and the user's real CTO — one EUR account, AAPL bought in
+-- USD — was not representable at all.
+--
+-- ## What this file deliberately does NOT do
+--
+-- Every statement below is **true of every row that exists on the day it runs**:
+-- both new columns are NULL on every pre-existing row, so all four CHECKs are
+-- satisfied by a NULL disjunct. The three constraints that are *false* of a
+-- pre-migration row — the account/currency pairing, the CURRENCY_EXCHANGE
+-- pinning and the fiat-principal totality — are in `0046`, after the backfill,
+-- on `0038`/`0039`'s precedent and for its stated reason
+-- (`platform/db/src/schema/transaction.ts:496-503`). Putting them here would
+-- make this migration set correct and unsatisfiable at once, which is a
+-- recorded failure of this project. The FK re-point is in `0046` too, so that
+-- at no instant is the principal leg's currency scoping absent.
+--
+-- ## `IS DISTINCT FROM`, not `<>` — and the red-confirm that does **not** redden
+--
+-- `transaction_cash_degenerate_equals_gross` compares `cash_currency` with
+-- `txn_currency`. On an asset-settled row both are NULL and `NULL <> NULL` is
+-- NULL, which a CHECK treats as satisfied. `IS DISTINCT FROM` makes that
+-- comparison total, and the constraint is written that way so it does not
+-- depend on disjunct order to be sound.
+--
+-- **An earlier version of this comment claimed the `<>` form had been "watched
+-- to fail" — that it *accepts* a row with both currencies NULL and
+-- `cash_amount <> gross_amount`, while the `IS DISTINCT FROM` form refuses the
+-- same row with `23514`. Both halves are false, measured on a migrated
+-- container (`transaction-cash-leg-constraints.integration.test.ts`, the
+-- "`<>` mutation" block), and the claim is withdrawn rather than reworded:**
+--
+--   1. That row never reaches this constraint. `cash_amount` non-NULL beside a
+--      NULL `cash_currency` violates `transaction_cash_amount_currency_pairing`,
+--      which is what refuses it — `23514`, naming *that* constraint — under
+--      both forms.
+--   2. As written here, with the leading `cash_currency IS NULL` disjunct, the
+--      two forms accept exactly the same set of rows, so **no** row discriminates
+--      them. Where `<>` yields NULL rather than TRUE, either the leading
+--      disjunct is already TRUE (`cash_currency` NULL) or the whole disjunction
+--      evaluates to NULL, which a CHECK treats as satisfied — the same verdict
+--      `IS DISTINCT FROM`'s TRUE gives. This is a mutation that cannot redden,
+--      not a check that is vacuous.
+--
+-- The form is still the right one, and the difference is real *one disjunct
+-- away*: drop the leading `cash_currency IS NULL` and the two forms diverge on
+-- a both-currencies-NULL row (`IS DISTINCT FROM` → FALSE, refused; `<>` → NULL,
+-- accepted). That divergence is asserted as a SQL truth table in the suite, so
+-- the reason for the wording is under test even though the shipped expression
+-- admits no reddening mutation of its own.
+--
+-- ## The true CHECK count this migration produces
+--
+-- Measured on a migrated container from `pg_constraint`, not carried over from
+-- the earlier arithmetic (which was unsettleable by grep — a
+-- raw `grep -c 'check('` over `src/schema/transaction.ts` returns a different
+-- number because it counts grep hits, not constraint objects): `transaction`
+-- has **24** CHECKs at `0044` and **28** after this file — re-measured
+-- independently for FT-3/FT-4 and unchanged. Asserted by a
+-- `pg_constraint` count in `transaction-cash-leg-constraints.integration.test.ts`
+-- rather than by reading this comment.
+--
+-- ## Gates
+--
+-- **This file creates no table**, so `tenant-column-gate` has nothing new to
+-- enumerate and needs no `SHARED_REFERENCE_TABLE_ALLOWLIST` entry, and there is
+-- no `ALTER TABLE ... OWNER TO app_owner` to write, no new `GRANT` to carry and
+-- no allowlist entry of any kind (FR-252 requires this to be *stated*, not
+-- merely true). `cash_amount` is `numeric(38,12)` through `decimalCol`, never a
+-- float, so `no-floats-schema-gate` passes. Neither gate's configuration is
+-- edited or exempted (FR-252, AC-275). `0007` grants `transaction` to `app_web`
+-- at **table** level, so the two new columns are covered — proved by a live
+-- `app_web` insert in the suite, not by reading `0007`'s text (the `0038`
+-- precedent, lines 145-149 there).
+--
+-- ## Re-runnability
+--
+-- Every statement is `IF NOT EXISTS` or `DROP CONSTRAINT IF EXISTS` +
+-- `ADD CONSTRAINT`. A second execution changes zero rows and re-validates every
+-- constraint rather than aborting on `42701`/`42710`.
+ALTER TABLE "transaction" ADD COLUMN IF NOT EXISTS "cash_currency" char(3);--> statement-breakpoint
+ALTER TABLE "transaction" ADD COLUMN IF NOT EXISTS "cash_amount" numeric(38, 12);--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_cash_amount_positive";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_cash_amount_positive" CHECK ("transaction"."cash_amount" IS NULL OR "transaction"."cash_amount" > 0);--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_cash_amount_currency_pairing";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_cash_amount_currency_pairing" CHECK (("transaction"."cash_amount" IS NULL) = ("transaction"."cash_currency" IS NULL));--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_cash_degenerate_equals_gross";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_cash_degenerate_equals_gross" CHECK ("transaction"."cash_currency" IS NULL OR "transaction"."cash_currency" IS DISTINCT FROM "transaction"."txn_currency" OR "transaction"."cash_amount" = "transaction"."gross_amount");--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_settled_principal_has_no_cash_leg";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_settled_principal_has_no_cash_leg" CHECK ("transaction"."txn_settlement_instrument_id" IS NULL OR ("transaction"."cash_currency" IS NULL AND "transaction"."cash_amount" IS NULL));

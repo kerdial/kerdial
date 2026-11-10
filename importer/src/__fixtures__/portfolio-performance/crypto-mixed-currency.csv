@@ -1,0 +1,5 @@
+﻿Date;Type;Valeur;Devise de l'opération;Montant brut;Montant brut en devise;Taux de change;Frais;Impôts / Taxes;Parts;ISIN;WKN;Symbole boursier;Nom du titre;Note
+2024-02-12T00:00;Achat;150,00;EUR;;;;;;0,00365412;;;BTC;Bitcoin;
+2024-03-04T14:37;Achat;325,40;USD;298,70;EUR;1,0870;0,71;;3,125;;;SOL;Solana;
+2024-04-30T00:00;Distribution (Entrante);0,32;EUR;;;;;;0,002;;;SOL;Solana;Récompense de staking
+2024-05-21T11:24;Vente;-412,34;USD;380,11;EUR;1,0860;0,46;;3,125;;;SOL;Solana;

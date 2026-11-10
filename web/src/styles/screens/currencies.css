@@ -1,0 +1,146 @@
+/* Screen styles for Devises. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here.
+
+   Every value is a token, with the two exceptions components.css and
+   controls.css already established: grid fractions (a ratio, not a size) and
+   the literal-px media-query breakpoints. */
+
+.fx-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ─────────────────────────────── 4-up strip ───────────────────────────── */
+
+/* The same one-card, hairline-divided shape as the Positions and Contrôles
+   strips, four up. */
+.fx-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.fx-strip-item {
+  padding: var(--pad-card);
+  border-left: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.fx-strip-item:first-child {
+  border-left: 0;
+}
+
+.fx-strip-sub {
+  color: var(--text-faint);
+  font-size: var(--size-body-s);
+}
+
+@media (max-width: 640px) {
+  /* Two up rather than four: at 375px a four-column strip renders every figure
+     at two characters wide. The tile order is unchanged, so nothing moves
+     between viewports beyond the wrap. */
+  .fx-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fx-strip-item:nth-child(3) {
+    border-left: 0;
+  }
+  .fx-strip-item:nth-child(n + 3) {
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* ───────────────────────────── the add-pair row ───────────────────────── */
+
+.fx-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+@media (max-width: 640px) {
+  .fx-add {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.fx-note {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+.fx-banners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ──────────────────────────────── the table ───────────────────────────── */
+
+/* A real `<table>`, unlike Positions/Contrôles' virtualized grids: the row
+   count here is bounded by the provider's published pair set (~32), so there
+   is nothing to virtualize and the semantics come for free. */
+.fx-scroll {
+  overflow-x: auto;
+}
+
+.fx-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.fx-table th {
+  font: var(--text-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: var(--weight-semibold);
+  padding: var(--space-2) var(--space-3);
+  white-space: nowrap;
+}
+
+.fx-table td {
+  height: 48px;
+  padding: 0 var(--space-3);
+  border-top: 1px solid var(--paper-200);
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+
+.fx-cell-rate {
+  font-weight: var(--weight-bold);
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+
+.fx-cell-right {
+  text-align: right;
+}
+
+.fx-cell-muted {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.fx-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* The table card's footing note — the table itself is `padding="none"`, so the
+   note supplies its own card padding rather than the card doing it for one
+   child. */
+.fx-foot {
+  padding: var(--pad-card);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fx-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

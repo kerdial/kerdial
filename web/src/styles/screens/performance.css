@@ -1,0 +1,360 @@
+/* Screen styles for the Performance destination.
+   Shared patterns belong in components.css, not here. */
+
+/* The portfolio selector and the period selector share the page
+   header's range slot, side by side; `.dividends-controls`'s own rule, for the
+   same reason it states (the preset strip must stay free to shrink and
+   scroll). */
+.perf-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.perf-returns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+.perf-absent {
+  font: var(--text-body-m);
+  color: var(--text-muted);
+}
+
+.perf-section-title {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+  margin-bottom: var(--space-3);
+}
+
+/* The method block: how the figure was arrived at, not another figure. Kept
+   visually quieter than the returns above it for that reason. */
+.perf-method {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+.perf-method dt {
+  margin-bottom: var(--space-1);
+}
+.perf-method dd {
+  margin: 0;
+  font: var(--text-body-m);
+  color: var(--text-strong);
+}
+
+@media (max-width: 639px) {
+  .perf-returns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+/* ─────────────  the chart cards' header row  ───────── */
+
+/* Title on the left, controls on the right — the card's own header row, not
+   a nested card (the design forbids those). */
+.perf-chart-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.perf-legend {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.perf-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.perf-legend-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--chart-6);
+}
+/* The contributions line's own 2px dash, mirrored in DOM so the legend and
+   the plotted line read as the same thing. */
+.perf-legend-swatch-dashed {
+  height: 0;
+  border-top: 2px dashed var(--chart-6);
+  background: none;
+  border-radius: 0;
+}
+
+.perf-note {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+}
+.perf-note-warn {
+  font-size: var(--size-body-s);
+  color: var(--warn-700);
+  margin-top: var(--space-2);
+}
+
+/* ─────────────────  the periodic % return chart  ────────────────── */
+/* Structurally the dividends time chart's own layout (`dividends.css`), not
+   shared with it: screens stay decoupled (this file's own header rule), and
+   the geometry differs anyway — bars diverge from a mid-height baseline here,
+   never all-positive from the plot floor. */
+
+.perf-ret-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.perf-ret-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-xs);
+  flex: none;
+}
+.perf-ret-legend-swatch-gain {
+  background: var(--gain-500);
+}
+.perf-ret-legend-swatch-loss {
+  background: var(--loss-500);
+  margin-right: var(--space-1);
+}
+
+.perf-ret-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.perf-ret-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.perf-ret-tick {
+  font: var(--text-micro);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.perf-ret-scroll {
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+}
+
+.perf-ret-canvas {
+  width: 100%;
+}
+
+.perf-ret-plot {
+  display: block;
+}
+
+.perf-ret-plot rect {
+  transition:
+    height var(--dur-base) var(--ease-out),
+    y var(--dur-base) var(--ease-out),
+    fill var(--dur-fast) var(--ease-out);
+}
+
+.perf-ret-plot rect[data-active="true"] {
+  fill: var(--chart-3);
+}
+
+.perf-ret-value {
+  font: var(--text-micro);
+  fill: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-ret-xaxis {
+  display: flex;
+  margin-top: var(--space-1);
+}
+
+.perf-ret-xlabel {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font: var(--text-micro);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.perf-ret-xlabel[data-active="true"] {
+  color: var(--text-strong);
+}
+
+.perf-ret-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-3);
+}
+.perf-table-scroll {
+  overflow-x: auto;
+}
+/* Below 400px the four money columns fit only at the small size and a tighter
+   cell; the scroll box above is the fallback for a wider figure. */
+@media (max-width: 399px) {
+  .perf-ret-table th,
+  .perf-ret-table td {
+    padding: var(--space-2) var(--space-1);
+    font-size: var(--size-body-s);
+  }
+}
+
+.perf-ret-table caption,
+.perf-ret-caption {
+  text-align: left;
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  padding-bottom: var(--space-2);
+}
+.perf-ret-caption {
+  margin-top: var(--space-3);
+  padding-bottom: 0;
+}
+
+.perf-ret-table th,
+.perf-ret-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: right;
+}
+
+.perf-ret-table th:first-child,
+.perf-ret-table td:first-child {
+  text-align: left;
+  /* A date never breaks in two (« 2025- / 10-31 » on a phone); the money
+     columns wrap at their unit instead, and the box scrolls past that. */
+  white-space: nowrap;
+}
+
+.perf-ret-table thead th {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.perf-ret-table tbody tr[data-active="true"] {
+  background: var(--surface-sunken);
+}
+
+.perf-ret-cell-num {
+  text-align: right;
+}
+
+@media (max-width: 639px) {
+  .perf-ret-body {
+    gap: var(--space-1);
+  }
+}
+
+/* --- Valeur et capital investi --------------------------------------
+   Two polylines in one stretched SVG (`preserveAspectRatio="none"`, strokes
+   pinned by `vector-effect`), the y-axis labels absolutely placed beside it
+   from the same `Decimal` geometry. Layout mirrors `.perf-ret-*`, not shared
+   with it: the plots differ (lines over a zero-inclusive domain here). */
+
+.perf-inv-legend {
+  margin: 0 0 var(--space-3);
+}
+
+.perf-inv-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+/* The rendered plot height — the SVG's own viewBox is 1000×200 user units
+   stretched to fit, so this is the one place the height is decided. 320 px is
+   what the base-100 chart measured before it was removed; the screen's value
+   chart should not have shrunk when it changed hands. */
+.perf-inv-yaxis,
+.perf-inv-plot {
+  height: 320px;
+}
+
+.perf-inv-yaxis {
+  position: relative;
+  min-width: 3.5em;
+}
+
+.perf-inv-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font: var(--text-micro);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.perf-inv-canvas {
+  min-width: 0;
+}
+
+.perf-inv-plot {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.perf-inv-xaxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+}
+
+.perf-inv-xlabel {
+  font: var(--text-micro);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.perf-inv-detail {
+  min-height: calc(var(--size-body-s) * var(--lh-body-s));
+  font: var(--text-body-s);
+  color: var(--text-body);
+  margin: var(--space-3) 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .perf-inv-yaxis,
+  .perf-inv-plot {
+    height: 240px;
+  }
+  .perf-inv-xlabel:nth-child(even) {
+    display: none;
+  }
+}

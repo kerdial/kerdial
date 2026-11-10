@@ -1,0 +1,25 @@
+version: 2
+
+# **`github-actions` only, deliberately.** L17 SHA-pins every
+# third-party action, and a pin that nobody advances is a pin that rots: this
+# file is the other half of that decision, not a general dependency-update
+# policy. npm updates are explicitly out of scope — they would open a pull
+# request per package against a repository whose CI minutes are paid for, which
+# is a separate decision nobody has taken.
+#
+# `directory: "/"` is the whole of it for this ecosystem: Dependabot reads
+# `.github/workflows/*.yml` **and** the composite action in
+# `.github/actions/*/action.yml` from the repository root (the `directory` key
+# is not a filter on where the workflows live).
+#
+# A Dependabot pull request is a normal pull request: it runs `ci.yml`, and
+# `api/src/ci-gating.test.ts` re-checks that every `uses:` is still a 40-hex
+# SHA after the bump.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."fx_rate_source" ADD VALUE 'QUOTE_PROVIDER';

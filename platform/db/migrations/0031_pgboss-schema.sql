@@ -1,0 +1,37 @@
+-- IC-2 — M3: creates the `pgboss` schema and hands its ownership to `app_ingest`.
+--
+-- pg-boss builds its own schema/tables on `start()` (`version`, `job`, etc.,
+-- under its default `pgboss` schema — `pg-boss@^12.26.2`'s own
+-- `plans.DEFAULT_SCHEMA`). Neither `app_web` nor `app_ingest` holds
+-- `CREATE ON DATABASE` (migration `0007` grants only `USAGE` on schema
+-- `public` to both), and granting that database-wide would be far broader
+-- than pg-boss actually needs. Owning one dedicated schema lets pg-boss
+-- create and migrate its own objects there, and nowhere else.
+--
+-- Verified directly against a real Postgres 17 instance, connected as the
+-- real `app_ingest` role (never the Testcontainers superuser):
+-- `market/ingestion/src/pgboss-schema-app-ingest-grant.integration.test.ts`
+-- confirms `app_ingest` genuinely has no database-level `CREATE` privilege,
+-- and that a `PgBoss` instance authenticated as `app_ingest` successfully
+-- builds its own tables inside the `pgboss` schema once this migration has
+-- run — **provided** it is constructed with `createSchema: false`.
+--
+-- **Finding (verified, not merely a hedge):**
+-- schema ownership alone is NOT sufficient with pg-boss's default
+-- configuration. `pg-boss`'s own `create()` step unconditionally issues
+-- `CREATE SCHEMA IF NOT EXISTS pgboss` on `start()` unless told otherwise,
+-- and PostgreSQL's `CREATE SCHEMA IF NOT EXISTS` checks `CREATE` privilege
+-- on the *database* before it ever checks whether the schema already
+-- exists — so a default-config `PgBoss` connected as `app_ingest` still
+-- fails with `permission denied for database ...`, even though `app_ingest`
+-- already owns this pre-existing `pgboss` schema outright (the same test
+-- file's second suite proves this failure directly). The fix is **not**
+-- the originally proposed fallback (`boss.start()` once as `app_owner`
+-- plus disabling pg-boss's migrations) — it is simply constructing the
+-- real `PgBoss` instance with `createSchema: false`, which skips pg-boss's
+-- own `CREATE SCHEMA` statement entirely given this migration has already
+-- created and authorized the schema. `market/composition`'s
+-- `createMarketRuntime` (IC-6) is where the real `PgBoss` instance is
+-- constructed and must apply this option — flagged here, at M3's own gate,
+-- rather than left to surface three tasks later inside IC-6/IC-7.
+CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION app_ingest;

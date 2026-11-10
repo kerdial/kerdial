@@ -1,0 +1,166 @@
+-- FT-2 (Batch A) — FR-232, FR-246, FR-248, FR-249, AC-259, AC-260,
+-- AC-272, AC-273.
+--
+-- The data-dependent half. `0045` was additive and true of existing data on the
+-- day it ran; **this file changes existing rows**, and its last four statements
+-- are the assertion that it changed all of them.
+--
+-- ## Why this file is hand-written where `0045` was generated
+--
+-- drizzle-kit generated (generated name: `0046_wild_hellion`) the FK re-point
+-- and the three `ADD CONSTRAINT ... CHECK`s below, verbatim, and the journal
+-- tag was renamed with the file to the descriptive form every migration in this
+-- repo uses. What the generator cannot model is a **backfill**: statement (1)
+-- has no counterpart in the schema file, and without it the three CHECKs it
+-- emitted are false of every existing row. So the DML is hand-written and the
+-- DDL is left in the generator's own order — `0039`'s split, for `0039`'s
+-- reason. The generated *snapshot* is kept exactly as the generator wrote it,
+-- which is what keeps `drizzle-kit generate` reporting "No schema changes
+-- detected" afterwards.
+--
+-- ## What it computes (FR-249)
+--
+-- For every row with a fiat principal leg: `cash_currency := txn_currency` and
+-- `cash_amount := gross_amount`. That is the whole backfill. It resolves
+-- nothing, re-attributes nothing and re-expands nothing: `0039` already
+-- attributed every cash leg by currency and those attributions are correct
+-- under the old rule and stay exactly as they are (NG9). An asset-settled row
+-- keeps both columns NULL (FR-236), which is what
+-- `transaction_settled_principal_has_no_cash_leg` in `0045` already forbids
+-- being otherwise. **No posting is re-expanded and no `cash_balance`
+-- recomputed** — every backfilled row is case D1 or D2, and FR-241's degenerate
+-- branch emits exactly the postings that are already stored, so a re-expansion
+-- would produce byte-identical rows at the cost of a full re-materialisation
+-- (G2/AC-256 is asserted, not assumed, by the before/after snapshot suite).
+--
+-- ## Why the FK re-point is here and not in `0045`
+--
+-- Both orders validate. This one is chosen because at no instant is the
+-- principal leg's currency scoping absent. Re-pointed in `0045`, the new FK
+-- would validate *vacuously* — `cash_currency` is NULL on every existing row and
+-- a MATCH SIMPLE FK is not checked at all when any of its columns is NULL — so
+-- between the two files every row would carry an account no constraint checks,
+-- with the old FK already dropped. Re-pointed here, after the backfill,
+-- `ADD CONSTRAINT` validates the whole table in one statement: if `0039`'s
+-- attribution and this backfill disagree for even one row, the migration aborts,
+-- in every environment including production. The constraint is the proof.
+--
+-- ## The three constraints that could only be added here
+--
+-- Each is **false of every pre-`0046` row** and becomes true only once the
+-- backfill has run:
+--
+--   - `transaction_cash_account_currency_pairing` — every fiat row already
+--     carries a `cash_account_id` (`0039`) and, until statement (1) below, a
+--     NULL `cash_currency`. This is FR-247's MATCH SIMPLE closure, and phase 1
+--     is what opens that hole on the principal leg: before the re-point,
+--     `txn_currency`'s nullability was pinned by
+--     `transaction_currency_xor_settlement_instrument` and by
+--     `transaction_settled_principal_has_no_cash_account`
+--     (`platform/db/src/schema/transaction.ts:449-453`), and `cash_currency`
+--     inherits neither protection.
+--
+--     **Watched to fail, and the earlier version of this comment overstated
+--     the result — corrected to what was measured**
+--     (`transaction-cash-leg-constraints.integration.test.ts`, the "MATCH
+--     SIMPLE hole" block): dropping **this CHECK alone** is *not* enough to
+--     let the row through. A row naming an account id beside a NULL
+--     `cash_currency` is still refused, with `23514` naming
+--     `transaction_fiat_principal_has_cash_currency` — the sibling CHECK this
+--     same file adds three statements below, which masks the break. Dropping
+--     **both** `0046` CHECKs, the row is **accepted** — for an arbitrary uuid
+--     and for a real account id belonging to **another tenant** alike, the FK
+--     skipped entirely because `cash_currency` is NULL. With both restored the
+--     same row is refused with `23514` naming *this* constraint (it sorts
+--     before the sibling, so it is the one Postgres reports).
+--
+--     The hole is therefore real and is closed by the **pair**, not by this
+--     CHECK on its own; the suite asserts all three states so the masking is
+--     recorded rather than rediscovered.
+--   - `transaction_currency_exchange_cash_leg_pinned` — FR-235/L3: a
+--     CURRENCY_EXCHANGE's source leg is inside the new constraint surface
+--     whether or not its semantics change, because `cash_account_id` is shared
+--     by every kind. This CHECK makes "CURRENCY_EXCHANGE is unchanged" a
+--     database fact. The amount half is `0045`'s
+--     `transaction_cash_degenerate_equals_gross`: with `cash_currency =
+--     txn_currency` forced here, that CHECK forces `cash_amount =
+--     gross_amount`. Two constraints, one per fact, each independently named so
+--     a violation says which one it was.
+--   - `transaction_fiat_principal_has_cash_currency` — the forward implication
+--     (`0039`'s four totality CHECKs are the same shape,
+--     `transaction.ts:509-524`). With the amount/currency pairing from `0045`,
+--     it makes `cash_amount` total too.
+--
+--     Measured, and worth stating because it is not obvious: **no DML can ever
+--     be refused naming this constraint** on the shipped schema. Every row it
+--     would reject is already rejected by an alphabetically earlier CHECK —
+--     `transaction_cash_account_currency_pairing` when the row names an
+--     account, `transaction_fiat_principal_has_cash_account` (`0039`) when it
+--     does not. Drop that second one in a rolled-back transaction and this one
+--     fires by name, so it is redundant at runtime, not dead. Its
+--     non-redundant job is the one no other constraint does: the
+--     **migration-time** totality proof. Moving it into `0045` makes
+--     `ALTER TABLE … ADD CONSTRAINT` abort with `23514` naming it, "check
+--     constraint … is violated by some row" — witnessed against the seeded
+--     fixture in `transaction-cash-leg-backfill.integration.test.ts`, which is
+--     the criterion that this file's ordering was not guessed.
+--
+-- ## The true CHECK count this migration produces
+--
+-- Measured on a migrated container from `pg_constraint`, never from
+-- the earlier arithmetic and never from a grep over the schema file:
+-- `transaction` has **28** CHECKs after `0045` and **31** after this file —
+-- re-measured independently for FT-3/FT-4 and unchanged.
+-- Asserted by a `pg_constraint` count in
+-- `transaction-cash-leg-constraints.integration.test.ts`. The composite cash FK
+-- count is unchanged at **4** — this file re-points one and touches no other
+-- (FR-237).
+--
+-- ## Idempotence and re-runnability
+--
+-- Statement (1) is `WHERE ... IS NULL`-guarded (`0039`'s idiom, lines 86-98
+-- there); every DDL statement is `DROP CONSTRAINT IF EXISTS` immediately
+-- followed by its `ADD CONSTRAINT`. A second execution changes zero rows and
+-- re-validates every constraint rather than aborting on `42710`.
+--
+-- ## Gates
+--
+-- **No table created**, so there is no `OWNER TO app_owner`, no new `GRANT` and
+-- no `SHARED_REFERENCE_TABLE_ALLOWLIST` entry to write (FR-252 requires the
+-- statement, not just the fact); `cash_amount` keeps `decimalCol(38,12)`. Both
+-- gates pass with no allowlist edit and no configuration change (AC-275).
+
+-- ---------------------------------------------------------------------------
+-- (1) The backfill (FR-249). Every backfilled row is case D1 or D2 by
+-- construction, so `transaction_cash_degenerate_equals_gross` (0045) is
+-- satisfied by every row this statement writes — which is also what makes
+-- FR-241's fast path provably safe for the entire pre-existing population.
+-- ---------------------------------------------------------------------------
+UPDATE "transaction"
+   SET cash_currency = txn_currency,
+       cash_amount   = gross_amount
+ WHERE txn_currency IS NOT NULL
+   AND cash_currency IS NULL;--> statement-breakpoint
+
+-- ---------------------------------------------------------------------------
+-- (2) Re-point the principal composite FK from `txn_currency` to
+-- `cash_currency` (FR-246). Same name, same referenced unique key
+-- (`cash_account_tenant_id_portfolio_id_id_currency_key`), one column changed.
+-- All three of the FK's structural guarantees — same tenant, same portfolio,
+-- currency actually matches the account — survive verbatim
+-- (`platform/db/src/schema/transaction.ts:385-394`); what changes is which
+-- currency it scopes by.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_cash_account_fk";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_cash_account_fk" FOREIGN KEY ("tenant_id","portfolio_id","cash_account_id","cash_currency") REFERENCES "public"."cash_account"("tenant_id","portfolio_id","id","currency") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+
+-- ---------------------------------------------------------------------------
+-- (3) The three constraints that prove (1) was total and close the hole (2)
+-- opens.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_cash_account_currency_pairing";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_cash_account_currency_pairing" CHECK ("transaction"."cash_account_id" IS NULL OR "transaction"."cash_currency" IS NOT NULL);--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_currency_exchange_cash_leg_pinned";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_currency_exchange_cash_leg_pinned" CHECK ("transaction"."kind" <> 'CURRENCY_EXCHANGE' OR ("transaction"."cash_currency" IS NOT NULL AND "transaction"."cash_currency" = "transaction"."txn_currency"));--> statement-breakpoint
+ALTER TABLE "transaction" DROP CONSTRAINT IF EXISTS "transaction_fiat_principal_has_cash_currency";--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_fiat_principal_has_cash_currency" CHECK ("transaction"."txn_currency" IS NULL OR "transaction"."cash_currency" IS NOT NULL);

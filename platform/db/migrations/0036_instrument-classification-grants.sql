@@ -1,0 +1,66 @@
+-- IR-7 (RELEASE GATE) — DD24; AC-36, FR-8, NFR-5. Hand-written, in the
+-- `0011`/`0018`/`0029` style: drizzle-kit does not model grants, so this file
+-- is authored, not generated.
+--
+-- ## Two statements this file supersedes, named explicitly
+--
+-- Migrations are never edited retroactively in this repo, so the pointers go
+-- here rather than into the files they correct:
+--
+--   1. **`0011`'s doc comment** describes its own grant as "the columns
+--      `app_web` may UPDATE at all" — `("display_name", "status",
+--      "updated_at")`. Column-level grants **union**, so that sentence becomes
+--      false in isolation the moment this file runs: `app_web` may thereafter
+--      update those three **plus** `sector_code`, `industry_label` and
+--      `domicile_country`. This file widens `0011` for classification only.
+--      Everything `0011` says about identity remains exactly true: `id`,
+--      `isin`, `exchange_mic`, `symbol`, `kind`, `figi`, `primary_identifier`
+--      and `owner_tenant_id` are still ungranted, so `AC3`'s "the canonical id
+--      never changes for any reason" is still enforced by Postgres and not by
+--      application discipline.
+--   2. **`0007`'s doc comment** states that "app_ingest is deliberately
+--      granted no read/write access to `instrument` ...". That was already
+--      partly superseded by `0018`, which granted it `SELECT` on this table;
+--      this file supersedes the write half for exactly **two** columns. The
+--      ingestion role becomes a writer on the shared catalogue, which is a
+--      real widening of its posture and is stated here rather than buried:
+--      it is what lets the backfill lane classify seeded and pre-existing
+--      rows without a human in the loop.
+--
+-- ## Why `app_ingest` does not get `domicile_country`
+--
+-- The omission is the point (DD24). The issuer's domicile is a *different fact*
+-- from the listing country, and the only writer that ever sees a MIC in this
+-- feature is the provider lane — so a worker regression that tried to default
+-- `domicile_country` from `exchange_mic` (or from an ISIN's first two
+-- characters) would fail with `permission denied for table instrument`, not
+-- silently ship wrong data into a shared catalogue. OD-3's no-auto-default
+-- rule is therefore a **database guarantee**, not a code convention a future
+-- developer can forget. `updated_at` is included for both roles because any
+-- UPDATE either performs also bumps it; it carries no identity meaning.
+--
+-- ## What this migration does not touch
+--
+-- Nothing here names `transaction`, `transaction_posting` or `holding_state`,
+-- so AC47's guarantee (no write grant on those three for any non-`app_owner`
+-- role) remains visibly intact — asserted by a negative test rather than left
+-- to inspection, because this file touches grants.
+--
+-- Neither role is granted `DELETE` on `instrument`, here or anywhere: erasure
+-- of a shared catalogue row is not an application operation (DD36). An
+-- attempted `DELETE` as `app_web` is asserted failing.
+--
+-- No table is created and no RLS policy is added or changed, so
+-- `tenant-column-gate` sees nothing new and `instrument` stays on
+-- `SHARED_REFERENCE_TABLE_ALLOWLIST` unmodified (AC-37). No numeric column is
+-- involved, so `no-floats-schema-gate` has nothing to enforce. Neither gate is
+-- edited or exempted.
+--
+-- Every one of the twelve AC-36 cases, plus the `app_ingest` matrix, the
+-- three-table negative and the absent `DELETE`, is attempted individually **as
+-- the real role** (never the Testcontainers superuser) in
+-- `platform/db/src/instrument-classification-grants.integration.test.ts` —
+-- connecting as a superuser is what hid the `0029` grant gap for a whole
+-- feature cycle.
+GRANT UPDATE ("sector_code", "industry_label", "domicile_country", "updated_at") ON "instrument" TO app_web;--> statement-breakpoint
+GRANT UPDATE ("sector_code", "industry_label", "updated_at") ON "instrument" TO app_ingest;

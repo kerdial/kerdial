@@ -1,0 +1,344 @@
+/* Screen styles for the Suivi destination (UR-48/UR-49). Layout and screen-specific structure only: every colour,
+   size, radius and duration is a token, and the card, badge, chip, delta and
+   figure recipes come from the kit rather than being re-cut here.
+
+   The asset cell deliberately reuses `.holdings-asset*` from
+   `screens/holdings.css` — those classes are the shared icon-tile + monogram +
+   identity block `ClosedPositionsTable` and `InstrumentTable` already borrow,
+   and `components.css` owns the 34px tile box itself. Nothing here redeclares
+   one. */
+
+/* ────────────────────────────  the desktop table  ───────────────────────── */
+
+/* Seven columns, in UR-49's order as amended 2026-09-11: actif · cours (last price, day change beneath) ·
+   écart au plus haut · variation sur la période · tendance · cible ·
+   actions. « Type », « Position », the 52-week range and the target/note
+   editor moved to the instrument's own analysis screen, which the name cell
+   opens; reload and « Voir l'instrument » sit behind the ⋯ menu.
+
+   The sum — 168 + 120 + 104 + 108 + 96 + 104 + 136 = 836 px, plus six 12 px
+   gaps and the card's 2 × 20 px padding — is 948 px, under the 966 px the
+   content column offers at a 1280 px viewport beside the sidebar: **no
+   horizontal scroll there** (MEASURED with a Playwright `scrollWidth` ≤
+   `clientWidth` check; the nine-column grid this replaces was ~1480 px, and a
+   first cut of this one at 1000 px still overflowed by 34 px and wrapped the
+   actions cell onto a second line). `.k-wl-scroll` stays as the floor for
+   narrower desktop windows. The trend track is the sparkline's own 96 px;
+   the actions track holds the 44 px toggle, two 36 px controls and their two
+   gaps (124 px — a 124 px track wrapped the ⋯ onto a second line, MEASURED
+   at 93 px rows; 136 px and `nowrap` hold it to one).
+
+   `minmax(0, 1fr)` on the name column with a floor, plus a horizontal scroller
+   on the card (below) — the exact pair `screens/instruments.css` records: a
+   name column squeezed to zero width becomes genuinely invisible rather than
+   merely clipped, which is a failure that file's own comment traces to an e2e
+   run. The edit column is the widest of the rest because it holds two fields
+   once opened. */
+.k-wl-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(168px, 1fr) 120px 104px 108px 96px
+    104px 136px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0 var(--pad-card);
+}
+
+.k-wl-head {
+  min-height: 38px;
+  font: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.k-wl-row {
+  border-bottom: 1px solid var(--paper-200);
+}
+.k-wl-row-main {
+  min-height: var(--row-height);
+}
+/* Hover changes the ground only. No geometry here, by rule: a row whose height
+   moved on hover would reflow the list under the pointer
+   (`styles/design-rules.test.ts` asserts this for every screen). */
+.k-wl-row:hover {
+  background: var(--surface-sunken);
+}
+
+.k-wl-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-wl-cell-right {
+  justify-self: end;
+  text-align: right;
+}
+
+/* The card is the scrollport, as on the Instruments list: a narrow desktop
+   viewport scrolls the columns sideways rather than collapsing one. Mobile
+   never renders this grid at all — it renders the card list. */
+.k-wl-scroll {
+  overflow-x: auto;
+}
+
+.k-wl-foot {
+  padding: var(--space-3) var(--pad-card);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+.k-wl-asof {
+  margin-bottom: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+/* ───────────────────────  figures, absences and notes  ──────────────────── */
+
+/* A tinted figure and its sign-aware label, stacked (UR-57). The tint lives on
+   `<DeltaValue>`'s own classes; this only places the words beside it, so
+   direction is never carried by colour alone. */
+.k-wl-change {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.k-wl-change-label {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+/* The one-line list cell: the words are `k-visually-hidden` (still read
+   aloud) and `<DeltaValue showIcon>` draws the trend icon in their place, so
+   the row stays a single text line and direction is still not colour-only. */
+.k-wl-change-compact {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* « Cours »: the last price with the day change stacked beneath it in
+   the small size — the mobile card's `.k-wl-card-primary` block, on the row.
+   Two short lines inside one 56 px row, not two columns. */
+.k-wl-price {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  line-height: 1.2;
+}
+
+/* "This figure does not exist" (W-10's absent key) — muted, never tinted:
+   a greyed absence must not read as a flat value, and must never read as a
+   loss. */
+.k-wl-unavailable {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+.k-wl-range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+/* The 52-week tile: two amounts in a `<StatTile>` value slot would
+   wrap at the tile's headline size, so the range steps down one size and
+   stays on one line; it is a pair of bounds, not the tile's one figure. */
+.k-wl-metrics .k-wl-range {
+  font: var(--text-title-s);
+  flex-wrap: wrap;
+}
+
+.k-wl-position {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.k-wl-row-note {
+  padding: 0 var(--pad-card) var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.k-wl-row-extra {
+  padding: 0 var(--pad-card) var(--space-3);
+}
+
+/* ─────────────────────────  the inline editor  ──────────────────────────── */
+
+.k-wl-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.k-wl-edit-open {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.k-wl-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+/* ─────────────────────  actions, toggle and the add panel  ──────────────── */
+
+/* Three icon-sized controls: « Analyser », the watch toggle and the ⋯
+   trigger — 132 px holds them on one line. The history this replaces: with
+   the labelled reload button in the cell, content wider than the track
+   overflowed leftwards over the editor and swallowed the pencil's hit area,
+   measured as a 30 s Playwright timeout (`watchlist.spec.ts`, AC-345). The
+   reload is a menu item now, and the menu reuses `.holdings-menu*`. */
+.k-wl-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  justify-self: end;
+  max-width: 100%;
+}
+.k-wl-row-status {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.k-wl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.k-wl-toggle-note {
+  font: var(--text-body-s);
+  color: var(--text-loss);
+}
+
+.k-wl-add {
+  max-width: 412px;
+  margin-bottom: var(--space-4);
+}
+
+/* ─────────────────────────────  the card list  ──────────────────────────── */
+
+.k-wl-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.k-wl-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+/* Thumb height: the price and the day's direction, together, at
+   the top right of the card. */
+.k-wl-card-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.k-wl-card-trend {
+  margin: var(--space-3) 0;
+}
+.k-wl-card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+}
+.k-wl-card-term {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.k-wl-card-def {
+  justify-self: end;
+  text-align: right;
+}
+.k-wl-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ─────────  the per-instrument analysis screen (UR-52 as amended)  ───── */
+
+/* `/watchlist/$instrumentId`'s heading row: breadcrumb + identity on the left
+   (the `.k-inst-*` recipes from `screens/instruments.css`, the same detail-
+   screen shape), the window selector on the right, wrapping under it on a
+   phone. Below it, one card holding the metric tiles and exactly one of the
+   two chart states. Nothing here declares a colour: the canvas resolves its
+   tokens through `chart-theme.ts` (the only module allowed a literal). */
+.k-wl-analysis-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+.k-wl-analysis {
+  margin-top: var(--space-4);
+}
+/* The target/note editor's card on the analysis screen (UR-53): the
+   heading, then the row's former inline editor, opened out on one line with
+   room to unfold its two fields. */
+.k-wl-target-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.k-wl-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.k-wl-chart-title {
+  font: var(--text-title-s);
+  font-family: var(--font-text);
+  color: var(--text-strong);
+}
+.k-wl-chart-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.k-wl-chart-note-term {
+  font: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+
+/* The canvas box. A height is mandatory: ECharts measures its container, and
+   a zero-height div draws nothing at all — the same floor `perf-chart` sets
+   for the performance screen. */
+.k-wl-chart {
+  width: 100%;
+  height: 280px;
+}
+
+/* The metric tiles the row summary has no column for, plus the position tile.
+   `auto-fit` rather than a fixed track count: six tiles fill a wide desktop
+   row and stack on a phone, with no breakpoint of this screen's own. */
+.k-wl-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}

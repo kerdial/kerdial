@@ -1,0 +1,23 @@
+-- T-11 — instrument identity service. AC3/FR-1's
+-- "the canonical id never changes for any reason" is proven at the service
+-- layer (`ledger/src/instrument-service.ts`'s `updateInstrumentDetails`
+-- never accepts or writes `id`), but this migration additionally makes it a
+-- structural, database-enforced guarantee rather than one resting on
+-- application discipline alone — the same "authorisation failure at the
+-- database, not a convention a developer can forget" philosophy migration
+-- 0007 states for AC47.
+--
+-- 0007 granted `app_web` only SELECT, INSERT on "instrument" (the one write
+-- endpoint against a shared table is
+-- `POST /instruments`). T-11 additionally needs to let the display name and
+-- lifecycle status of an existing instrument be corrected (e.g. a rename, or
+-- marking DELISTED/MERGED) without ever permitting a write to any
+-- identity-defining column. A column-level GRANT is a stronger guarantee
+-- than a table-level one here: even a buggy service call that tried
+-- `UPDATE instrument SET id = ...` (or `isin`, `exchange_mic`, `symbol`,
+-- `kind`, `primary_identifier`, `owner_tenant_id`) would be rejected by
+-- Postgres itself, not merely by the absence of such a code path.
+--
+-- `updated_at` is included because any UPDATE this service performs also
+-- bumps it; it carries no identity meaning.
+GRANT UPDATE ("display_name", "status", "updated_at") ON "instrument" TO app_web;

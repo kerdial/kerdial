@@ -1,0 +1,538 @@
+/* Screen styles for the overview restyle. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here. */
+
+/* Aperçu — re-laid-out chart-first on the owner's review of 2026-09-24.
+
+   Every value below is a token. The screen keeps to the design's two
+   background tones: the `--bg-app` ground the shell paints, and white cards.
+   No block here paints a third, and no card nests inside another — the
+   panels are siblings in a grid, not children of a wrapper card. */
+
+.ov {
+  display: flex;
+  flex-direction: column;
+  /* 20px vertical rhythm. */
+  gap: var(--space-5);
+}
+
+/* The hero plus its tile row — one block, so the route places them together. */
+.ov-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ─────────────────────────────  the hero  ─────────────────────────────── */
+
+/* The card itself carries `--pad-card-lg` (28px) via `<Card padding="lg">`;
+   this is only the arrangement inside it. One column of figures by default;
+   with a chart handed in it is two columns from the tablet width up,
+   figures 2 parts to the chart's 3. */
+.ov-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: stretch;
+}
+@media (min-width: 768px) {
+  .ov-hero[data-has-chart="true"] {
+    grid-template-columns: minmax(260px, 2fr) minmax(0, 3fr);
+    gap: var(--space-8);
+  }
+}
+.ov-hero-figs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  /* The total's size is read off this column's width. */
+  container-type: inline-size;
+}
+/* The four secondary figures — plus-value, variation du jour, TWR, MWR —
+   two by two under the total, where the tile row used to repeat two of them. */
+.ov-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-5);
+}
+.ov-hero-fig {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ov-hero-fig > .micro-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.ov-hero-value {
+  font: var(--text-display-l);
+  /* A number cannot wrap, so on a narrow card the total shrinks
+     instead of overflowing it — a seven-digit negative total plus its sign is
+     ~6.5 em wide. Capped at the display size, so wide screens are unchanged. */
+  font-size: min(var(--size-display-l), 14cqi);
+  letter-spacing: var(--track-display);
+  color: var(--text-strong);
+}
+/* An amount and its delta chip, on one baseline. */
+.ov-hero-fig-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+/* The freshness line closes the figures column, pinned to its foot so the
+   two columns end together. */
+.ov-hero-foot {
+  margin: auto 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.ov-hero-chart {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ─────────────────────  the hero's value chart  ────────────────── */
+
+/* Layout mirrors `.perf-inv-*` (the same SVG conventions: a 1000×200 viewBox
+   stretched to the card, HTML overlays placed in %), not shared with it: this
+   one is compact, has an area fill and no table. */
+.ov-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ov-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.ov-chart-legend {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.ov-chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ov-chart-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  border-top: 2px solid var(--gain-500);
+}
+.ov-chart-swatch-dashed {
+  border-top: 2px dashed var(--chart-6);
+}
+.ov-chart-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+/* The rendered plot height — the one place it is decided; the y ticks follow
+   it because they are placed in %. */
+.ov-chart-yaxis,
+.ov-chart-plot {
+  height: 220px;
+}
+.ov-chart-yaxis {
+  position: relative;
+  min-width: 3.5em;
+}
+.ov-chart-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font: var(--text-micro);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ov-chart-canvas {
+  position: relative;
+  min-width: 0;
+}
+.ov-chart-plot {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+/* The marker dots — HTML so the stretched SVG cannot draw them as ellipses.
+   `top` is a % of the plot's height, so the dot rides the plot, not the axis. */
+.ov-chart-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--surface-card);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.ov-chart-dot-contrib {
+  width: 8px;
+  height: 8px;
+  background: var(--chart-6);
+}
+.ov-chart-xaxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+}
+.ov-chart-xlabel {
+  font: var(--text-micro);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ov-chart-detail {
+  min-height: calc(var(--size-body-s) * var(--lh-body-s));
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+.ov-chart-detail strong {
+  color: var(--text-strong);
+  font-weight: var(--weight-semibold);
+}
+.ov-chart-gain-gain {
+  color: var(--text-gain);
+}
+.ov-chart-gain-loss {
+  color: var(--text-loss);
+}
+@media (max-width: 639px) {
+  .ov-chart-yaxis,
+  .ov-chart-plot {
+    height: 180px;
+  }
+  .ov-chart-xlabel:nth-child(even) {
+    display: none;
+  }
+}
+
+/* ─────────────────  the hero figures' states (were the stat tiles)  ────────── */
+
+/* A return that could not be computed states the API's own reason instead of a
+   figure. It is body text, not a value, so it never takes the value type. */
+.ov-tile-unavailable {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+/* A signed value takes the hero chip's gain/loss colour; zero stays ink
+   (the design: green and red are the only money-meaning colours). */
+.ov-tile-gain {
+  color: var(--text-gain);
+}
+.ov-tile-loss {
+  color: var(--text-loss);
+}
+/* The window a return spans, stated under the figure — a bare « 16.82% »
+   says nothing about whether it is one year or five. */
+.ov-tile-period {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+/* ──────────────────────────────  panels  ─────────────────────────────── */
+
+/* The positions card (ring + legend) takes 3 parts, the exposure bars
+   2, and the two stretch to one height — the owner's review. */
+.ov-panels {
+  display: grid;
+  gap: var(--space-5);
+  align-items: stretch;
+}
+@media (min-width: 1024px) {
+  .ov-panels {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+.ov-panels > .k-card {
+  display: flex;
+  flex-direction: column;
+}
+/* The card body that grows to fill the card's height. */
+.ov-card-fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.ov-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.ov-card-title {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+.ov-card-body {
+  margin-top: var(--space-4);
+}
+/* The "through to the full screen" affordance in a card header. */
+.ov-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  font: var(--text-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-link);
+  white-space: nowrap;
+}
+.ov-note {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+/* ─────────────────  a card whose rows run edge-to-edge  ───────────────── */
+
+/* `<Card padding="none">`: the ledger rows (`.k-txrow`) carry their own
+   `--pad-card` inset and a hairline between them, so the header and any state
+   region below have to supply the card padding themselves. */
+.ov-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--pad-card) var(--pad-card) var(--space-3);
+}
+.ov-panel-body {
+  padding: 0 var(--pad-card) var(--pad-card);
+}
+.ov-txrows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The card's own border closes the list — the design's hairline, not a
+   second rule sitting on top of it. */
+.ov-txrows > li:last-child .k-txrow {
+  border-bottom: 0;
+}
+
+/* «Dernières transactions» below the desktop breakpoint: the rows are
+   `TransactionCardList`, which brings a card per month group, so this block is
+   a plain section rather than a card — its heading therefore sits on the page
+   ground and needs no card padding. Above that breakpoint the block IS a card
+   (holding the ledger's own table) and `.ov-panel-head` applies unchanged. */
+.ov-recent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ov-recent > .ov-panel-head {
+  padding: 0;
+}
+
+/* ─────────────────────  exposure bars (was rings)  ──────────────── */
+
+/* Three stacked bars — Type · Pays · Secteur — shown at once, no control to
+   switch between them. Each segment's colour is an inline token chosen in
+   `ExposureStrip.tsx` (the class map for a kind, the ordered `--chart-*`
+   palette for a bucket), so only geometry lives here. */
+.ov-dims {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
+}
+.ov-dim {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+.ov-dim:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ov-dim:last-child {
+  padding-bottom: 0;
+}
+.ov-bar {
+  display: flex;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  /* A 2px surface gap between segments, and the track shows through where the
+     shares do not reach 100 % (an unreconciled total must look incomplete). */
+  gap: var(--space-half);
+  background: var(--surface-sunken);
+}
+.ov-bar-seg {
+  display: block;
+  height: 100%;
+}
+.ov-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+.ov-bar-legend > div,
+.ov-bar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ov-bar-legend dt,
+.ov-bar-legend dd {
+  margin: 0;
+  min-width: 0;
+}
+.ov-bar-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--radius-pill);
+}
+.ov-bar-pct {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────────  the positions ring with its legend  ──────────── */
+
+/* The ring (240px, icons outside) beside a visible legend: the top
+   rows and one « n autres positions » row. They sit side by side where the
+   card is wide enough for both — a stacked card from the tablet width up, and
+   the 3fr card once the row is 1200px or more; between 1024px and 1199px the
+   3fr card is too narrow (a 292px graphic would leave the names one letter),
+   so the legend goes under the ring there, as it does on a phone. Both are
+   vertically centred in a card that stretches to the exposure card's height.
+   Every arc colour is an inline token chosen by rank in `PositionsPieCard.tsx`,
+   so only geometry lives here. */
+.ov-pie {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: center;
+  justify-items: center;
+  flex: 1;
+}
+@media (min-width: 768px) and (max-width: 1023px), (min-width: 1200px) {
+  .ov-pie {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-6);
+    justify-items: stretch;
+  }
+}
+.ov-pie-legend {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  width: 100%;
+}
+.ov-pie-row {
+  display: grid;
+  grid-template-columns: 10px 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-xs);
+  font: var(--text-body-s);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+@media (min-width: 768px) {
+  .ov-pie-row {
+    grid-template-columns: 10px 20px minmax(0, 1fr) auto 7em;
+  }
+}
+/* The logo cell — the 20px slice box, or empty so the columns hold. */
+.ov-pie-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+/* Hover and the shared active state with the ring live on `data-active`,
+   which React sets — the same rule the arcs follow. */
+.ov-pie-row[data-active="true"] {
+  background: var(--surface-sunken);
+}
+.ov-pie-row[data-selectable="true"] {
+  cursor: pointer;
+}
+.ov-pie-dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: var(--radius-pill);
+}
+/* The identity cell: name over code, both ellipsising. */
+.ov-pie-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.ov-pie-code {
+  font: var(--text-micro);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-pie-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-body);
+}
+.ov-pie-percent {
+  color: var(--text-strong);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+.ov-pie-value {
+  display: none;
+  color: var(--text-muted);
+  text-align: right;
+}
+/* The value column shows from the tablet width up — the legend is either
+   full-width under the ring or beside it in a card wide enough for it. */
+@media (min-width: 768px) {
+  .ov-pie-value {
+    display: block;
+  }
+}
+/* The folded row — a share of the total, not a position. */
+.ov-pie-row-more .ov-pie-name,
+.ov-pie-row-more .ov-pie-code {
+  color: var(--text-muted);
+}

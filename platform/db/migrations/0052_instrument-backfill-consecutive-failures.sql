@@ -1,0 +1,25 @@
+-- a `FAILED` instrument backfill was never retried by any automated
+-- path, because `reconcilePendingInstrumentBackfills` selects `PENDING` only.
+-- The sweep now also admits `FAILED` rows, and this column is what stops that
+-- from being an unconditional retry loop: it is the number of consecutive
+-- failures for one instrument, which `status` alone cannot express.
+--
+-- With it the sweep can separate the two things a `FAILED` row can mean — a
+-- provider blipped during the backfill window (retry, with a backoff) and this
+-- instrument is permanently unfetchable (stop, and say so on the
+-- `ingestionStaleness` ops indicator) — where before, both were terminal and
+-- neither was visible: three crypto rows sat `FAILED` with zero price rows and
+-- zero further attempts for five days on the live deployment, and the only
+-- recovery was a human calling `POST /instruments/:id/history-reload` per
+-- instrument.
+--
+-- `NOT NULL DEFAULT 0` backfills every existing row to "no failures yet", which
+-- is the right reading for a `COMPLETE`/`PENDING` row and a deliberately
+-- generous one for a row already `FAILED`: those rows get the full retry budget
+-- on the first sweep after this migration, which is exactly the recovery the
+-- issue was filed for.
+--
+-- No grant work: `0007` and `0029` grant on the *table*, so `app_web` and
+-- `app_ingest` reach a new column without further statements, and `0007`
+-- already set the table's owner to `app_owner`.
+ALTER TABLE "instrument_backfill_state" ADD COLUMN "consecutive_failures" integer DEFAULT 0 NOT NULL;

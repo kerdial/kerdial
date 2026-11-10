@@ -1,0 +1,10 @@
+# kerdial-transactions v2
+date,time,type,portfolio,cash_account,cash_account_currency,isin,exchange_mic,symbol,quantity,unit_price,gross_amount,currency,fee_amount,broker_fee,fx_fee,trade_tax,other_cost,cash_currency,cash_amount,fx_rate,withholding_amount,target_currency,target_amount,exchange_rate,target_cash_account,settlement_isin,settlement_exchange_mic,settlement_symbol,settlement_amount,row_ref,drip_of,transfer_of,transfer_cost_base,transfer_cost_native,transfer_cost_currency,reference,note,import_fingerprint
+2024-01-02,,DEPOSIT,AC-529 fixture,Compte EUR,EUR,,,,,,20000,EUR,,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-01-02,,DEPOSIT,AC-529 fixture,Livret,EUR,,,,,,5000,EUR,,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-01-03,,BUY,AC-529 fixture,Compte EUR,EUR,FR0000529101,XPAR,CINSHR,10,50,,EUR,6.4,4.9,,1.5,,,,,,,,,,,,,,,,,,,,,,
+2024-01-03,,BUY,AC-529 fixture,Compte EUR,EUR,,XETR,CINETF,20,80,,EUR,,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-03-15,,DIVIDEND,AC-529 fixture,Compte EUR,EUR,FR0000529101,XPAR,CINSHR,,,12.5,EUR,,,,,,,,,,,,,,,,,,d1,,,,,,,,
+2024-06-14,,DIVIDEND,AC-529 fixture,Compte EUR,EUR,FR0000529101,XPAR,CINSHR,,,13,EUR,,,,,,,,,3.9,,,,,,,,,d2,,,,,,,,
+2024-06-20,,SELL,AC-529 fixture,Compte EUR,EUR,,XETR,CINETF,5,83.15,,EUR,1.5,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-07-01,,WITHDRAWAL,AC-529 fixture,Compte EUR,EUR,,,,,,750.25,EUR,,,,,,,,,,,,,,,,,,,,,,,,,,

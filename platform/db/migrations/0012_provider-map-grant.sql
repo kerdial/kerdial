@@ -1,0 +1,21 @@
+-- T-12 — instrument provider mapping service. FR-5,
+-- AC3, AC16; R7 (the `confidence` HEURISTIC/CONFIRMED distinction).
+--
+-- Migration 0007 granted `app_web` SELECT-only on `instrument_provider_map`
+-- (it is shared reference data, like `instrument` — no `tenant_id`, no RLS;
+-- see the doc comment in
+-- `ledger/src/instrument-provider-map-service.ts` for why `withTenant` does
+-- not apply here either). T-12's service is full CRUD over this table
+-- (create a mapping, confirm a HEURISTIC one, swap a provider by replacing
+-- the row, remove a mapping) — none of that is possible with SELECT alone.
+--
+-- Unlike migration 0011's column-level GRANT on `instrument` (there, the
+-- concern was one specific column — `id` — that must never move), every
+-- column on `instrument_provider_map` is legitimately written by this
+-- service (`instrument_id`, `provider_key`, `provider_symbol`, `confidence`,
+-- `last_verified_at`), so a table-level GRANT is the correct scope here: the
+-- structural guarantees that matter for this table are its `PRIMARY KEY
+-- (instrument_id, provider_key)` (one row per instrument+provider, T-5) and
+-- its `UNIQUE (provider_key, provider_symbol)` index (T-5) — both already
+-- enforced by the database, not by this grant.
+GRANT INSERT, UPDATE, DELETE ON "instrument_provider_map" TO app_web;

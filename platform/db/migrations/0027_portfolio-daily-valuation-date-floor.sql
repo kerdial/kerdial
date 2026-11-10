@@ -1,0 +1,18 @@
+-- H1 (T-39): `resolveReturnWindow`
+-- (`api/src/portfolios/portfolios.schema.ts`) bounded an explicit range's
+-- *span* (15 years) but not its *absolute* position in time, and
+-- `materializePortfolioValuations` (`valuation/src/materialize.ts`) persists
+-- one row per calendar date in whatever range it is asked to materialise,
+-- invalidated only from `min(trade_date)` forward — so a row dated before a
+-- portfolio's earliest trade (or before the portfolio exists at all) is
+-- never invalidated by anything. An empty portfolio plus a sweep of narrow,
+-- ancient windows could otherwise persist millions of permanent, orphaned
+-- rows. This `CHECK` is the database-level structural backstop for the
+-- application-layer fix's lower bound (`RETURN_WINDOW_EPOCH_FLOOR`,
+-- `2000-01-01`): no row can exist before the epoch floor, regardless of
+-- which code path produced it, mirroring `0025_transaction-positive-amount-
+-- checks.sql`'s own "independent enforcement layer" rationale. See that
+-- schema file's own doc comment for why there is no matching upper-bound
+-- `CHECK` (the future bound is relative to "today", which a `CHECK` cannot
+-- express).
+ALTER TABLE "portfolio_daily_valuation" ADD CONSTRAINT "portfolio_daily_valuation_date_not_before_epoch" CHECK ("portfolio_daily_valuation"."valuation_date" >= DATE '2000-01-01');

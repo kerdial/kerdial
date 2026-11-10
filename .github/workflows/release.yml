@@ -1,0 +1,612 @@
+name: Release
+
+# A release is one hand-pushed `vX.Y.Z` git tag (ci-release L2/L3) and nothing
+# else: no release bot, no `workflow_dispatch` version input, no commit written
+# back to the repository. The tag is the trigger and the identity; `package.json`
+# `"version"` is untouched by CI.
+#
+# This is **the only workflow that builds an image at all**, and the only one
+# that pushes (L19): an image is published only on release, so every image on
+# Docker Hub corresponds to a reviewed, tagged commit on `main`.
+#
+# **Three jobs** (L15):
+#
+#   guard    the tag is SemVer, and its commit is on `main`. Costs seconds,
+#            holds nothing, and stops a malformed or unreviewed tag before a
+#            single byte is built.
+#   notes    `needs: guard`. The only job that installs the workspace, and so
+#            the only job that runs third-party `postinstall` scripts. It reads
+#            `docs/release-notes.md` and uploads this version's hand-written
+#            section as an artifact. **No Docker Hub secret is referenced
+#            here** — that separation is the point of the split: a compromised
+#            transitive dev dependency used to run its lifecycle script in the
+#            same job as the plaintext registry token.
+#   release  `needs: [guard, notes]`. Builds, pushes, verifies and announces.
+#            **No `pnpm install`, no `pnpm` at all**; it downloads the artifact
+#            instead. It is the one job in the repository with a write scope.
+#
+# **Order is the atomicity mechanism** (FR-494), and it is the step order
+# *inside `release`*: the GitHub Release is created **last** — after the image
+# exists on Docker Hub and has been verified by an anonymous pull. Nothing
+# announces a release that does not exist.
+#
+# **No `paths-ignore`** (R6). Path filters apply to tag pushes too, so a
+# `v0.1.0` tag on a docs-only commit would silently skip the whole release.
+#
+# **No Playwright** (L7 as amended): browsers run in `pnpm verify` on the
+# operator's machine, before tagging, and in no workflow at all. The runbook's
+# release procedure says so.
+#
+# Every third-party action is pinned to a full commit SHA with its released
+# version beside it (L17) and kept current by
+# `.github/dependabot.yml`: this file logs in to a registry, so a repointed
+# mutable tag here would run beside the credential.
+on:
+  push:
+    tags:
+      - "v*"
+
+# A release run is never cancelled (R5): killing it between the push and
+# the Release leaves tags on Docker Hub with no Release — exactly the non-atomic
+# state FR-494 forbids.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Nothing by default; `release` below grants itself the single write scope in
+# the repository (R7 — `gh release create` under `permissions: {}` fails
+# with a 403 that reads like a broken token). `guard` and `notes` are read-only.
+permissions: {}
+
+env:
+  CANONICAL_REPO: kerdial/kerdial
+  IMAGE: docker.io/kerdial/kerdial
+
+jobs:
+  # Everything that can refuse the release before anything is built, in the
+  # cheapest job that can do it.
+  guard:
+    name: Validate the tag and its ancestry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      major_minor: ${{ steps.tag.outputs.major_minor }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      # `persist-credentials: false` here and in every other job of this file:
+      # nothing in this workflow uses git authentication, and the
+      # default leaves the job's token in `.git/config` for every later step.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # **First, before anything is built or pushed.** A malformed tag stops
+      # here, with nothing to undo: the workflow cannot delete the tag at a
+      # point where nothing has been verified, so the operator deletes and
+      # re-tags (docs/deploy-runbook.md §2).
+      #
+      # `+build` metadata is rejected although SemVer allows it: a Docker tag
+      # cannot contain `+`, so such a tag could never name its own image.
+      - name: Validate the tag (SemVer)
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$TAG is not a release tag. Expected vX.Y.Z or vX.Y.Z-prerelease (no build metadata: a Docker tag cannot contain '+'). Nothing was built or pushed; delete the tag and re-tag." >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          BASE="${VERSION%%-*}"
+          if [ "$VERSION" = "$BASE" ]; then PRERELEASE=false; else PRERELEASE=true; fi
+          {
+            echo "version=$VERSION"
+            echo "major_minor=${BASE%.*}"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+          echo "$TAG -> version=$VERSION major_minor=${BASE%.*} prerelease=$PRERELEASE"
+
+      # L16. A `v*` tag is otherwise an unconstrained publish:
+      # anyone with write access could tag *any* commit — a branch, a fork's
+      # merge-base, a commit that never saw a pull request — and this workflow
+      # would build that commit's own Dockerfile and push it as `latest`.
+      #
+      # The compare API answers "is this commit on main?" without a full clone:
+      # `identical` (it *is* the tip) and `behind` (main contains it and has
+      # moved on) are the two shapes a tagged main commit can take; `ahead` and
+      # `diverged` mean it is not on main. A non-zero `gh` exit — a missing
+      # commit, a token that cannot read the repository — fails the step too,
+      # which is the right direction for a guard.
+      #
+      # One of those non-zero exits is not a bad tag at all: on an **annotated**
+      # tag `github.sha` is the tag *object*, which `compare` does not know, so
+      # a perfectly good release 404s here. The error message says so and names
+      # the fix (a lightweight tag), which is what `docs/deploy-runbook.md`'s
+      # "Cutting a release" step 4 tells the releaser to create.
+      #
+      # This is the technical half. *Who* may create a `v*` tag at all is a
+      # GitHub tag ruleset, an owner action recorded in
+      # docs/deploy-runbook.md §2, because no workflow can gate the creation of its own trigger.
+      - name: The tagged commit must be on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if ! status="$(gh api "repos/$REPO/compare/main...$SHA" --jq .status)"; then
+            echo "::error::the compare API could not answer whether $SHA is on main. It answers 404 for a commit this repository does not have — a tag pushed from a fork or from an unpushed branch — or the tag is annotated (github.sha is then the tag object, not the commit) — use a lightweight tag: \`git tag vX.Y.Z <commit>\`. Nothing was built or pushed." >&2
+            exit 1
+          fi
+          echo "compare main...$SHA -> $status"
+          case "$status" in
+            identical | behind)
+              echo "$TAG points at $SHA, which is on main."
+              ;;
+            *)
+              echo "::error::$TAG points at $SHA, which is not on main (the compare API reports '$status'). A release is cut from a commit that went through a pull request and landed on main. Nothing was built or pushed; delete the tag, merge the work, and tag the merge commit." >&2
+              exit 1
+              ;;
+          esac
+
+  # The only job that installs the workspace — and therefore the only job that
+  # runs a third-party `postinstall` — deliberately holds no registry
+  # credential and no write scope.
+  #
+  # **It produces the hand-written section only**, not the whole notes body.
+  # GitHub's `releases/generate-notes` endpoint needs *write* access to the
+  # repository (verified 2026-09-22: with a read-capable token it answers 404 on
+  # a public repo, GitHub's usual mask for "you lack the permission"), so a
+  # `contents: read` job cannot call it. It is called in `release`, which holds
+  # `contents: write` for `gh release create` anyway; the split that matters —
+  # pnpm nowhere near the Docker Hub token — is unaffected.
+  notes:
+    name: Extract this version's release-notes section
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `node_modules` only — the extractor runs under `tsx`. The workspace is
+      # built inside the image (the Dockerfile's `pnpm build` stage), and that
+      # build fails before anything is pushed, so a host-side `pnpm build` here
+      # would be a second copy of the same check at ~1.5 runner minutes.
+      - uses: ./.github/actions/setup
+
+      # L10: this version's hand-written section from `docs/release-notes.md`,
+      # which `release` puts **above** GitHub's generated list. The section is
+      # optional — `release-notes-section.ts` exits 0 with empty output when the
+      # version has none — and a malformed file (two headings for one version)
+      # exits 2 and stops the release here, before anything is built.
+      - name: Extract the hand-written section for this version
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          set -euo pipefail
+          pnpm exec tsx scripts/release-notes-section.ts "$VERSION" > section.md
+          if [ -s section.md ]; then
+            echo "== section.md"
+            cat section.md
+          else
+            echo "::notice::docs/release-notes.md has no ## v$VERSION section; the Release will carry the generated notes only."
+          fi
+
+      - name: Upload the section for the release job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: section.md
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Build, publish and release a tagged version
+    needs: [guard, notes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `secrets` is not available in a job-level `if:`, so credential
+      # availability becomes a step output; the emitted value is a boolean, not
+      # the secret. Not a `needs:` edge either — a job-level `if:`
+      # cannot read `secrets` no matter which job evaluates it.
+      #
+      # The step id is `creds`, not `guard`, because `guard` is a *job* in this
+      # file and `steps.guard` beside `needs.guard` reads as a typo.
+      #
+      # **Both** secrets are tested: a token without a username
+      # made this true and then failed inside `login-action` with a message
+      # about malformed credentials.
+      - name: Are the Docker Hub credentials configured?
+        id: creds
+        run: echo "enabled=${{ secrets.DOCKERHUB_TOKEN != '' && secrets.DOCKERHUB_USERNAME != '' }}" >> "$GITHUB_OUTPUT"
+
+      # A release that silently published nothing is this project's recorded
+      # "vacuous green" shape, so in the canonical repository this is fatal. On
+      # a fork there is nothing to publish and nothing is wrong.
+      - name: No Docker Hub credentials
+        if: steps.creds.outputs.enabled != 'true'
+        run: |
+          set -euo pipefail
+          echo "::notice::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not configured; no image will be published and no Release will be created."
+          if [ "${{ github.repository }}" = "$CANONICAL_REPO" ]; then
+            echo "::error::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are required in $CANONICAL_REPO. Set them in Settings -> Secrets and variables -> Actions (the token is a scoped Docker Hub access token, never the account password), then delete and re-push the tag." >&2
+            exit 1
+          fi
+          echo "Fork of $CANONICAL_REPO: the release is skipped, the job succeeds."
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        if: steps.creds.outputs.enabled == 'true'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Tags (L5): `X.Y.Z` always; `X.Y` and `latest` only on a final release.
+      # **A prerelease publishes `X.Y.Z-rc.n` alone** — an operator following
+      # `latest` must never be moved onto a release candidate, and `X.Y` is a
+      # "newest patch of this minor" pointer that a candidate has not earned.
+      # The `enable=` guards are written out rather than trusting
+      # metadata-action's prerelease defaults.
+      #
+      # `flavor: latest=false` turns off the implicit `latest`, so the only
+      # `latest` is the explicit, guarded one below.
+      #
+      # `org.opencontainers.image.version` (FR-490) is `X.Y.Z` — no leading `v`,
+      # and distinct from `.revision`, which stays the commit SHA. It is set
+      # explicitly because metadata-action would otherwise derive it from
+      # whichever tag sorts first, which is not stable across two workflows.
+      - name: Tags and labels
+        if: steps.creds.outputs.enabled == 'true'
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.guard.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ needs.guard.outputs.prerelease == 'false' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.guard.outputs.version }}
+
+      # **Build → load → verify → push → verify**, two passes over one buildx
+      # cache. This pass loads the image into the runner's daemon and pushes
+      # nothing: if the content checks below fail, nothing was ever published,
+      # which is the half of AC-421 that can be guaranteed rather than repaired.
+      - name: Build the image locally
+        if: steps.creds.outputs.enabled == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+          build-args: |
+            IMAGE_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            IMAGE_REVISION=${{ github.sha }}
+
+      # Content verification against the **local** image: platform, the four
+      # OCI labels, the AGPL text inside the image, non-root runtime user. The
+      # registry half (anonymous pull) is not testable here by construction and
+      # runs after the push.
+      #
+      # Everything it needs comes from `env:` rather than `${{ }}` inside the
+      # body, so this body is runnable verbatim against a locally built image —
+      # which is how it was drilled before this workflow ever ran.
+      - name: Verify the local image
+        if: steps.creds.outputs.enabled == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          REVISION: ${{ github.sha }}
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          set -euo pipefail
+          for ref in $TAGS; do
+            echo "== $ref"
+            platform="$(docker inspect -f '{{.Os}}/{{.Architecture}}' "$ref")"
+            [ "$platform" = "linux/amd64" ] || { echo "L11 FAILED: $ref is $platform" >&2; exit 1; }
+
+            labels="$(docker inspect -f '{{json .Config.Labels}}' "$ref")"
+            echo "$labels"
+            case "$labels" in
+              *'"org.opencontainers.image.licenses":"AGPL-3.0-only"'*) ;;
+              *) echo "FR-35 FAILED: $ref has no org.opencontainers.image.licenses=AGPL-3.0-only" >&2; exit 1 ;;
+            esac
+            case "$labels" in
+              *"\"org.opencontainers.image.revision\":\"$REVISION\""*) ;;
+              *) echo "FR-35 FAILED: $ref has no org.opencontainers.image.revision=$REVISION" >&2; exit 1 ;;
+            esac
+            case "$labels" in
+              *'"org.opencontainers.image.source":"'*) ;;
+              *) echo "FR-35 FAILED: $ref has no org.opencontainers.image.source" >&2; exit 1 ;;
+            esac
+            case "$labels" in
+              *"\"org.opencontainers.image.version\":\"$VERSION\""*) ;;
+              *) echo "FR-490 FAILED: $ref has no org.opencontainers.image.version=$VERSION (it must be the release version, not the revision)" >&2; exit 1 ;;
+            esac
+
+            docker run --rm --entrypoint head "$ref" -n 2 /app/LICENSE
+            uid="$(docker run --rm --entrypoint id "$ref" -u)"
+            [ "$uid" != "0" ] || { echo "FAILED: $ref runs as root" >&2; exit 1; }
+            echo "$ref runs as uid $uid"
+          done
+
+      # Second pass, same cache — a full hit, so this is a push and little else.
+      - name: Push the image
+        if: steps.creds.outputs.enabled == 'true'
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+          build-args: |
+            IMAGE_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            IMAGE_REVISION=${{ github.sha }}
+
+      # FR-493/AC-419: the published tags pull **with no credentials on the
+      # pulling machine** — the NAS holds no registry credential, so verifying
+      # while still logged in would be a vacuous green. `docker logout` first,
+      # and the local images are removed so a "successful pull" cannot be the
+      # daemon's own cache.
+      #
+      # R9: anonymous pulls are rate-limited per IP and hosted runners
+      # share addresses, so the retry and the rate-limit-vs-private distinction
+      # are not optional.
+      - name: Verify the published image (anonymous pull)
+        if: steps.creds.outputs.enabled == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          REVISION: ${{ github.sha }}
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker logout docker.io
+          # shellcheck disable=SC2086
+          docker image rm -f $TAGS >/dev/null 2>&1 || true
+
+          pull_anonymously() {
+            ref="$1"
+            attempt=1
+            while :; do
+              if out="$(docker pull --platform linux/amd64 --quiet "$ref" 2>&1)"; then
+                printf '%s\n' "$out"
+                return 0
+              fi
+              printf '%s\n' "$out" >&2
+              if [ "$attempt" -ge 3 ]; then
+                break
+              fi
+              delay=$([ "$attempt" -eq 1 ] && echo 20 || echo 60)
+              echo "anonymous pull of $ref failed (attempt $attempt/3); retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+            done
+            case "$out" in
+              *toomanyrequests* | *"429"* | *"Too Many Requests"* | *"rate limit"* | *"pull rate"*)
+                echo "::error::Docker Hub rate-limited the anonymous pull of $ref (429 / toomanyrequests) after 3 attempts. This is a rate limit, NOT a visibility problem: the repository may well be public. The tags this run pushed are deleted below; re-push the tag once the limit resets." >&2
+                ;;
+              *)
+                echo "::error::Anonymous pull of $ref was refused and Docker Hub did not report a rate limit. The image was pushed, so the repository docker.io/kerdial/kerdial is private or the tag is missing. Fix: Docker Hub -> kerdial/kerdial -> Settings -> Make public." >&2
+                ;;
+            esac
+            return 1
+          }
+
+          for ref in $TAGS; do
+            echo "== $ref"
+            pull_anonymously "$ref"
+
+            platform="$(docker inspect -f '{{.Os}}/{{.Architecture}}' "$ref")"
+            [ "$platform" = "linux/amd64" ] || { echo "L11 FAILED: $ref is $platform" >&2; exit 1; }
+
+            labels="$(docker inspect -f '{{json .Config.Labels}}' "$ref")"
+            echo "$labels"
+            case "$labels" in
+              *'"org.opencontainers.image.licenses":"AGPL-3.0-only"'*) ;;
+              *) echo "FR-35 FAILED: $ref has no org.opencontainers.image.licenses=AGPL-3.0-only" >&2; exit 1 ;;
+            esac
+            case "$labels" in
+              *"\"org.opencontainers.image.revision\":\"$REVISION\""*) ;;
+              *) echo "FR-35 FAILED: $ref has no org.opencontainers.image.revision=$REVISION" >&2; exit 1 ;;
+            esac
+            case "$labels" in
+              *'"org.opencontainers.image.source":"'*) ;;
+              *) echo "FR-35 FAILED: $ref has no org.opencontainers.image.source" >&2; exit 1 ;;
+            esac
+            case "$labels" in
+              *"\"org.opencontainers.image.version\":\"$VERSION\""*) ;;
+              *) echo "FR-490 FAILED: $ref has no org.opencontainers.image.version=$VERSION" >&2; exit 1 ;;
+            esac
+
+            docker run --rm --entrypoint head "$ref" -n 2 /app/LICENSE
+            uid="$(docker run --rm --entrypoint id "$ref" -u)"
+            [ "$uid" != "0" ] || { echo "FAILED: $ref runs as root" >&2; exit 1; }
+            echo "$ref runs as uid $uid"
+          done
+
+      # Best-effort cleanup, and stated honestly: this deletes the **tags** this
+      # run pushed, via the Docker Hub tag API. The digest may remain reachable
+      # by digest — tags are what AC-421 tests and what an operator can address.
+      # Every command tolerates failure: this step runs on an already-failing
+      # job and must not replace the real error with its own.
+      #
+      # **Two conditions, both learned the hard way.**
+      # `steps.push.outcome == 'success'` — not `conclusion != ''`, which is
+      # also true for a *skipped* and for a *failed* push, so a failure during
+      # the **local** verification (nothing pushed at all) used to delete the
+      # previous release's `latest` and `X.Y` and break `docker compose pull`
+      # for every operator on the compose default. And a tag is deleted only
+      # when the digest Docker Hub currently serves for it **is** the digest
+      # this run pushed: `latest` and `X.Y` are moving pointers shared with
+      # other releases, and deleting someone else's image is not cleanup.
+      #
+      # **It sits here, not last, and that is a scope decision.** A step is only
+      # reached in order, so this covers a failure up to and including the
+      # verification of the pushed image — the cases where the published tags
+      # are wrong. A failure *after* it (notes assembly, `gh release create`)
+      # leaves the tags in place on purpose: they were just verified, so they
+      # are correct, and re-running the job creates the missing Release. The
+      # last step stays `gh release create` (FR-494).
+      - name: Delete the tags this run pushed (failure only)
+        if: ${{ failure() && steps.creds.outputs.enabled == 'true' && steps.push.outcome == 'success' }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          PUSHED_DIGEST: ${{ steps.push.outputs.digest }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          jwt="$(curl -sS -X POST https://hub.docker.com/v2/users/login/ \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -nc --arg u "$DOCKERHUB_USERNAME" --arg p "$DOCKERHUB_TOKEN" '{username:$u,password:$p}')" \
+            | jq -r '.token // empty')" || true
+          if [ -z "${jwt:-}" ]; then
+            echo "::warning::could not authenticate to the Docker Hub API; the tags this run pushed were left in place: $TAGS"
+            exit 0
+          fi
+          # This JWT is derived inside the job, so GitHub's masker
+          # has never seen it. Registered before it can reach any log line — a
+          # `curl -v`, a `set -x` left behind, an error body echoing the header.
+          # (It is registered *after* the emptiness test because the runner
+          # refuses to mask an empty string, and nothing has printed it yet.)
+          echo "::add-mask::$jwt"
+
+          if [ -z "${PUSHED_DIGEST:-}" ]; then
+            echo "::warning::the push step reported no digest, so no tag can be proved to be this run's; the tags are left in place: $TAGS"
+            exit 0
+          fi
+          echo "this run pushed $PUSHED_DIGEST"
+
+          # The Docker Hub API path is `<namespace>/<repository>`, which is
+          # `$IMAGE` without its registry host — derived rather than spelled
+          # again, so renaming the image in one place (`env.IMAGE`) cannot leave
+          # this step deleting tags from the previous repository.
+          repo_path="${IMAGE#docker.io/}"
+          echo "cleanup targets the Docker Hub repository $repo_path"
+
+          for ref in $TAGS; do
+            tag="${ref##*:}"
+            current="$(curl -sS -H "Authorization: JWT $jwt" \
+              "https://hub.docker.com/v2/repositories/$repo_path/tags/$tag/" \
+              | jq -r '.digest // .images[0].digest // empty')" || true
+            if [ -z "${current:-}" ]; then
+              echo "::warning::could not read the current digest of $tag from Docker Hub; it is left in place (this run pushed $PUSHED_DIGEST)"
+              continue
+            fi
+            if [ "$current" != "$PUSHED_DIGEST" ]; then
+              echo "::warning::$tag points at $current, not at the digest this run pushed ($PUSHED_DIGEST); it belongs to another release and is left untouched"
+              continue
+            fi
+            code="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
+              -H "Authorization: JWT $jwt" \
+              "https://hub.docker.com/v2/repositories/$repo_path/tags/$tag/" || echo 000)"
+            echo "delete $tag ($current) -> HTTP $code"
+          done
+          echo "::warning::the release failed after pushing; tag deletion is best effort and the image may still be reachable by digest."
+
+      - name: Download the hand-written release-notes section
+        if: steps.creds.outputs.enabled == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+
+      # L10: the `notes` job's section **above** GitHub's generated list,
+      # separated by a rule.
+      #
+      # The `generate-notes` **API** rather than `gh release create
+      # --generate-notes`: some `gh` versions reject `--generate-notes` together
+      # with `--notes-file` and others silently drop one of the two. The API
+      # returns the generated body as data, which is what "hand-written section
+      # above the generated list" needs. It lives in this job rather than in
+      # `notes` because the endpoint requires write access to the repository,
+      # which `notes` deliberately does not have.
+      - name: Assemble the release notes
+        if: steps.creds.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/releases/generate-notes" \
+            -f tag_name="$TAG" \
+            -f target_commitish="$GITHUB_SHA" \
+            --jq .body > generated.md
+          if [ -s section.md ]; then
+            cat section.md > notes.md
+            printf '\n---\n\n' >> notes.md
+          else
+            echo "::notice::docs/release-notes.md had no ## v$VERSION section; the Release carries the generated notes only."
+            : > notes.md
+          fi
+          cat generated.md >> notes.md
+          echo "== notes.md =="
+          cat notes.md
+
+      # **Last step, deliberately** (FR-494): the Release is the announcement,
+      # and it exists only once the image is built, pushed and pulled back
+      # anonymously. A prerelease tag produces a prerelease Release, so it never
+      # shows up as the repository's current version.
+      # Create-or-update, not create: a Release published from the GitHub UI
+      # *is* a tag push, so it triggers this workflow with the Release already
+      # in place, and `gh release create` then fails with "tag_name already
+      # exists" after the image was pushed and verified (v0.0.1, 2026-09-22 —
+      # twice). In that case the existing Release is updated in place: title,
+      # body (this workflow's notes replace whatever was typed in the UI) and
+      # the prerelease flag. Either way the Release is the last thing touched.
+      - name: Create the GitHub Release
+        if: steps.creds.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.guard.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --json tagName --jq .tagName >/dev/null 2>&1; then
+            echo "::notice::a GitHub Release for $TAG already exists (created outside this workflow) — updating it in place"
+            args=(--title "$TAG" --notes-file notes.md --draft=false)
+            if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); else args+=(--prerelease=false); fi
+            gh release edit "$TAG" "${args[@]}"
+          else
+            args=(--title "$TAG" --notes-file notes.md --verify-tag)
+            if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+            gh release create "$TAG" "${args[@]}"
+          fi

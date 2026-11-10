@@ -1,0 +1,385 @@
+/* Kerdial design tokens — the single source of truth for colour, type, space,
+   radius, elevation and motion. Transcribed from the design system's flattened
+   token set (`.design/`, untracked).
+
+   Never introduce a colour, size or radius that is not in this file. The
+   `no-untokenized-design-values` ESLint rule enforces that.
+
+   Two edits against the bundle's own copy, both deliberate:
+   - the Google Fonts @import is gone; the faces are self-hosted in
+     `fonts.css` because `api/src/security-headers.ts` sets font-src 'self'.
+   - the design tool's `@kind` annotations are stripped as authoring metadata.
+
+   Note the reduced-motion block at the end: every duration token collapses to
+   0ms there, so a component animating through the tokens inherits the rule for
+   free — and one that hard-codes a duration silently breaks it. */
+
+/* ============ tokens/colors.css ============ */
+:root {
+  /* ---- Base ramps ---- */
+  /* Ink: warm-cool charcoal, never pure black */
+  --ink-950: #0e1116;
+  --ink-900: #14181f;
+  --ink-800: #1d232c;
+  --ink-700: #2a323d;
+  --ink-600: #3d4854;
+  --ink-500: #5a6673;
+  --ink-400: #7c8792;
+  --ink-300: #a5aeb8;
+  --ink-200: #cbd2d9;
+  --ink-100: #e4e8ec;
+  --ink-50: #f1f4f6;
+
+  /* Paper: slightly warm off-whites, the app's default ground */
+  --paper-0: #ffffff;
+  --paper-50: #fbfaf8;
+  --paper-100: #f6f4f0;
+  --paper-200: #edeae4;
+
+  /* Teal — primary brand. Confident, calm, not corporate-navy. */
+  --teal-50: #e4fbf5;
+  --teal-100: #bff4e7;
+  --teal-200: #87e8d3;
+  --teal-300: #4ad7bb;
+  --teal-400: #1fbfa1;
+  --teal-500: #00a98f;
+  --teal-600: #028a76;
+  --teal-700: #066a5c;
+  --teal-800: #085147;
+  --teal-900: #073b34;
+
+  /* Apricot — energy, gamification, streaks, CTAs that celebrate */
+  --apricot-50: #fff3ea;
+  --apricot-100: #ffe1cb;
+  --apricot-200: #ffc29b;
+  --apricot-300: #ffa269;
+  --apricot-400: #ff7a3d;
+  --apricot-500: #f4601e;
+  --apricot-600: #d14913;
+  --apricot-700: #a33810;
+
+  /* Lilac — crypto & alt asset classes */
+  --lilac-100: #eae7fe;
+  --lilac-300: #b3a8fa;
+  --lilac-500: #7c6cf0;
+  --lilac-700: #4f3fc4;
+  /* Sky — cash, bonds, informational */
+  --sky-100: #dfeefe;
+  --sky-300: #8fc4fb;
+  --sky-500: #2e90fa;
+  --sky-700: #1364c4;
+  /* Lemon — XP, badges, highlights */
+  --lemon-100: #fef6cf;
+  --lemon-300: #fade6a;
+  --lemon-500: #efc419;
+  --lemon-700: #b08d06;
+
+  /* Market semantics */
+  --gain-100: #d8f5e5;
+  --gain-500: #12b76a;
+  --gain-700: #08794a;
+  --loss-100: #fee1e0;
+  --loss-500: #f04438;
+  --loss-700: #b3251c;
+  --warn-100: #fef0c7;
+  --warn-500: #f79009;
+  --warn-700: #b54708;
+
+  /* ---- Semantic aliases: use THESE in components ---- */
+  --bg-app: var(--paper-100);
+  --bg-canvas: var(--paper-50);
+  --surface-card: var(--paper-0);
+  --surface-sunken: var(--paper-200);
+  --surface-inverse: var(--ink-900);
+  --surface-brand: var(--teal-500);
+  --surface-brand-soft: var(--teal-50);
+  --surface-accent-soft: var(--apricot-50);
+
+  --text-strong: var(--ink-900);
+  --text-body: var(--ink-700);
+  --text-muted: var(--ink-500);
+  --text-faint: var(--ink-400);
+  --text-on-brand: #ffffff;
+  --text-on-inverse: var(--paper-50);
+  --text-brand: var(--teal-600);
+  --text-gain: var(--gain-700);
+  --text-loss: var(--loss-700);
+  --text-link: var(--teal-600);
+  --text-link-hover: var(--teal-700);
+
+  --border-subtle: var(--ink-100);
+  --border-default: var(--ink-200);
+  --border-strong: var(--ink-300);
+  --border-brand: var(--teal-300);
+  --focus-ring: var(--teal-400);
+
+  --chart-1: var(--teal-500);
+  --chart-2: var(--apricot-400);
+  --chart-3: var(--lilac-500);
+  --chart-4: var(--sky-500);
+  --chart-5: var(--lemon-500);
+  --chart-6: var(--ink-400);
+
+  /* Asset-class colors — fixed mapping, never re-assign per screen */
+  --class-stock: var(--teal-500);
+  --class-etf: var(--sky-500);
+  --class-fund: var(--lilac-500);
+  --class-scpi: var(--lemon-700);
+  --class-bond: var(--ink-400);
+  --class-crypto: var(--apricot-400);
+  --class-cash: var(--lemon-500);
+}
+
+/* ============ tokens/typography.css ============ */
+:root {
+  --font-display: "Gabarito", "Manrope", system-ui, sans-serif;
+  --font-text: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Type scale — 1.25 ratio, tuned for dense financial UI */
+  --size-display-xl: 56px;
+  --lh-display-xl: 1.02;
+  --size-display-l: 44px;
+  --lh-display-l: 1.05;
+  --size-display-m: 34px;
+  --lh-display-m: 1.1;
+  --size-title-l: 26px;
+  --lh-title-l: 1.18;
+  --size-title-m: 21px;
+  --lh-title-m: 1.24;
+  --size-title-s: 17px;
+  --lh-title-s: 1.3;
+  --size-body-l: 16px;
+  --lh-body-l: 1.55;
+  --size-body-m: 14px;
+  --lh-body-m: 1.5;
+  --size-body-s: 13px;
+  --lh-body-s: 1.45;
+  --size-label: 12px;
+  --lh-label: 1.3;
+  --size-micro: 11px;
+  --lh-micro: 1.2;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  --track-display: -0.02em;
+  --track-title: -0.01em;
+  --track-body: 0em;
+  --track-label: 0.04em;
+  --track-micro: 0.08em;
+
+  /* Numbers: always tabular + slashed zero in tables and value readouts */
+  --numeric-tabular: "tnum" 1, "zero" 1, "ss01" 1;
+
+  --text-display-xl: var(--weight-bold) var(--size-display-xl)/var(--lh-display-xl)
+    var(--font-display);
+  --text-display-l: var(--weight-bold) var(--size-display-l)/var(--lh-display-l) var(--font-display);
+  --text-display-m: var(--weight-bold) var(--size-display-m)/var(--lh-display-m) var(--font-display);
+  --text-title-l: var(--weight-bold) var(--size-title-l)/var(--lh-title-l) var(--font-display);
+  --text-title-m: var(--weight-bold) var(--size-title-m)/var(--lh-title-m) var(--font-display);
+  --text-title-s: var(--weight-semibold) var(--size-title-s)/var(--lh-title-s) var(--font-text);
+  --text-body-l: var(--weight-regular) var(--size-body-l)/var(--lh-body-l) var(--font-text);
+  --text-body-m: var(--weight-regular) var(--size-body-m)/var(--lh-body-m) var(--font-text);
+  --text-body-s: var(--weight-regular) var(--size-body-s)/var(--lh-body-s) var(--font-text);
+  --text-label: var(--weight-semibold) var(--size-label)/var(--lh-label) var(--font-text);
+  --text-micro: var(--weight-semibold) var(--size-micro)/var(--lh-micro) var(--font-mono);
+}
+
+/* ============ tokens/spacing.css ============ */
+:root {
+  /* 4px base grid. 2px half-step exists only for icon nudges + hairline insets. */
+  --space-0: 0px;
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* Component rhythm */
+  --pad-card: 20px;
+  --pad-card-lg: 28px;
+  --pad-control-x: 16px;
+  --pad-control-y: 10px;
+  --gap-stack: 12px;
+  --gap-section: 32px;
+  --row-height: 56px; /* asset table row */
+  --row-height-compact: 44px;
+  --tap-target: 44px; /* mobile minimum, never smaller */
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 64px;
+  --content-max: 1240px;
+  --prose-max: 68ch;
+  --mobile-safe-bottom: 34px;
+}
+
+/* ============ tokens/radii.css ============ */
+:root {
+  --radius-xs: 6px;
+  --radius-sm: 10px; /* inputs, chips, small buttons */
+  --radius-md: 14px; /* buttons, tiles */
+  --radius-lg: 18px; /* cards */
+  --radius-xl: 24px; /* panels, sheets, modals */
+  --radius-2xl: 32px; /* hero blocks, mobile sheets */
+  --radius-pill: 999px; /* tags, badges, segmented controls, avatars */
+  --radius-logo: 28%; /* the squircle of the Kerdial mark */
+}
+
+/* ============ tokens/elevation.css ============ */
+:root {
+  /* Shadows are soft, cool-tinted, and low-contrast. Never black at high alpha. */
+  --shadow-hairline: 0 0 0 1px var(--border-subtle);
+  --shadow-xs: 0 1px 2px rgba(20, 24, 31, 0.06);
+  --shadow-sm: 0 1px 2px rgba(20, 24, 31, 0.05), 0 2px 6px rgba(20, 24, 31, 0.05);
+  --shadow-md: 0 2px 4px rgba(20, 24, 31, 0.04), 0 8px 20px -6px rgba(20, 24, 31, 0.1);
+  --shadow-lg: 0 4px 8px rgba(20, 24, 31, 0.05), 0 20px 40px -12px rgba(20, 24, 31, 0.16);
+  --shadow-sheet: 0 -8px 40px -8px rgba(20, 24, 31, 0.2);
+  --shadow-brand: 0 6px 18px -6px rgba(0, 169, 143, 0.45);
+  --shadow-accent: 0 6px 18px -6px rgba(255, 122, 61, 0.45);
+  --shadow-inset-press: inset 0 2px 0 rgba(20, 24, 31, 0.08);
+
+  /* Card recipe: hairline border + xs shadow. Elevation only on hover/overlay. */
+  --card-border: 1px solid var(--border-subtle);
+  --card-shadow: var(--shadow-xs);
+  --card-shadow-hover: var(--shadow-md);
+
+  --blur-glass: saturate(160%) blur(14px);
+  --scrim: rgba(14, 17, 22, 0.44);
+}
+
+/* ============ tokens/motion.css ============ */
+:root {
+  --dur-instant: 90ms;
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+  --dur-celebrate: 700ms; /* XP / badge / goal-reached moments only */
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.3, 1); /* default for entrances + hovers */
+  --ease-in-out: cubic-bezier(0.6, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1); /* gamified pops, sparingly */
+
+  --press-scale: 0.97;
+  --hover-lift: -1px;
+  --transition-control:
+    background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-celebrate: 0ms;
+    --press-scale: 1;
+    --hover-lift: 0px;
+  }
+}
+
+/* ============ tokens/base.css ============ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-body);
+  font: var(--text-body-m);
+  -webkit-font-smoothing: antialiased;
+}
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  letter-spacing: var(--track-title);
+}
+p {
+  margin: 0;
+}
+a {
+  color: var(--text-link);
+  text-decoration: none;
+  font-weight: var(--weight-semibold);
+}
+a:hover {
+  color: var(--text-link-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+button {
+  font: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.k-num {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: var(--numeric-tabular);
+}
+.k-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+::selection {
+  background: var(--teal-100);
+  color: var(--ink-900);
+}
+@keyframes k-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes k-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes k-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes k-count-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

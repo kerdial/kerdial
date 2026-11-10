@@ -1,0 +1,572 @@
+/* The banner recipe lives in `components.css`. This screen's notices
+   use `.k-banner` directly; only layout-specific rules remain here. */
+/* Screen styles for the portfolios restyle. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here.
+
+   Surfaces: `/portfolios` (the list), `/portfolios/$portfolioId` (the
+   workspace), the dashboard's per-portfolio card panel, and the
+   three portfolio overlays (create/rename, delete).
+
+   Every value below is a token. The card recipe, button, tab, stat-tile,
+   dialog and allocation-bar treatments come from `components.css` via the kit
+   — this file only lays those blocks out and styles the few screen-local
+   pieces the kit has no component for. */
+
+/* ─────────────────────────────  list  ───────────────────────────── */
+
+.k-pf-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.k-pf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+/* The row is one card. Never a card inside a card — the metric block below
+   sits on the same white surface, separated by hairlines. */
+.k-pf-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* The 44px icon tile: brand-soft ground, 14px radius, the design's tile step. */
+.k-pf-tile {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border-radius: var(--radius-md);
+  background: var(--surface-brand-soft);
+  color: var(--text-brand);
+}
+
+/* portfolio-details PD-15: the box stays the box, and the accent is a **ring**
+   on it — never a fill and never the glyph's colour. The six ramp tokens are
+   vetted as marks on the app surface; a saturated fill behind the
+   `--text-brand` wallet glyph would be a foreground/background pairing nobody
+   has checked (A-4). `--k-pf-accent` is set inline by
+   `PortfolioIconTile` and the attribute is absent entirely when the accent is
+   unset, so an accent-less tile keeps the ground and glyph above byte for
+   byte (G2). The 44px box is **reused, not redeclared**: no second width /
+   height literal enters this file for the tile. */
+.k-pf-tile[data-accent] {
+  box-shadow: inset 0 0 0 2px var(--k-pf-accent, transparent);
+}
+
+/* portfolio-details FR-470: the bank/courtier secondary line, on all three
+   surfaces. Rendered only when the field is set — there is no placeholder and
+   no empty slot reserved for it (G2). */
+.k-pf-broker {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.k-pf-identity {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* The name and the base-currency badge on one line (list and workspace),
+   the badge never wrapping under the name it qualifies. */
+.k-pf-nameline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.k-pf-name {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+.k-pf-name:hover {
+  color: var(--text-link-hover);
+}
+
+.k-pf-metrics {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.k-pf-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.k-pf-metric dt {
+  margin: 0;
+}
+.k-pf-metric dd {
+  margin: 0;
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.k-pf-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ──────────────────  dashboard per-portfolio card panel  ─────────────── */
+
+.k-pf-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.k-pf-panel-title {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.k-pf-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--gap-stack);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+/* Every card in a grid row takes the row's height: the `li` is the
+   grid item (it stretches by default), the card fills it, and the body is a
+   column whose last line (freshness) is pushed to the bottom. */
+.k-pf-cards > li {
+  display: flex;
+}
+
+.k-pf-cards > li > .k-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.k-pf-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1 1 auto;
+}
+
+.k-pf-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Always stacked (owner decision): « Valeur totale » on its own
+   line, « +/− latente » below, at every width. The previous `flex-wrap:
+   wrap` row put them side by side only when both figures fit, so cards in
+   one row ended up one or two lines tall depending on the figures' width. */
+.k-pf-card-figures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.k-pf-figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.k-pf-freshness {
+  font: var(--text-body-s);
+  color: var(--text-faint);
+  /* Bottom-aligned, so a shorter neighbour's freshness line sits at
+     the same height as a taller card's. */
+  margin-top: auto;
+}
+
+.k-pf-muted {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+.k-pf-loss {
+  font: var(--text-body-s);
+  color: var(--text-loss);
+}
+
+/* ────────────────────────────  detail  ──────────────────────────── */
+
+.k-pf-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.k-pf-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+.k-pf-breadcrumb-sep {
+  color: var(--text-faint);
+}
+.k-pf-breadcrumb-current {
+  color: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+
+.k-pf-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.k-pf-detail-title {
+  font: var(--text-title-l);
+  color: var(--text-strong);
+}
+
+.k-pf-detail-subtitle {
+  font: var(--text-body-s);
+  color: var(--text-muted);
+}
+
+/* portfolio-details FR-469: the tile joins the workspace header, beside the
+   title block rather than inside it — `portfolio-detail-name` is asserted by
+   exact text and stays the name alone. */
+.k-pf-detail-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* portfolio-details FR-471/SD-1: the free-text description, **detail header
+   only**. The list row and the dashboard card share a fixed row/card height
+   budget an unbounded free-text field cannot sit in, which is why this rule
+   has no list or card counterpart. */
+.k-pf-description {
+  margin-top: var(--space-2);
+  max-width: 68ch;
+  font: var(--text-body-s);
+  color: var(--text-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Six buttons (search, the two global write actions, modifier, archiver,
+   supprimer). Without `flex-wrap` their summed width is this row's minimum
+   width, and on a phone that minimum (≈950px) became the whole page's: Chrome
+   widened the layout viewport to fit it and zoomed the screen out, with the
+   tab strip ending up under the stat cards. */
+.k-pf-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The 5-up strip: one card, hairline dividers, never five shadowed cards. */
+.k-pf-strip {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.k-pf-strip > * + * {
+  border-left: 1px solid var(--border-subtle);
+  padding-left: var(--space-5);
+}
+@media (max-width: 640px) {
+  .k-pf-strip > * + * {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+.k-pf-tabs {
+  overflow-x: auto;
+}
+
+.k-pf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.k-pf-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.k-pf-section-title {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.k-pf-grid-2 {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/* Definition rows inside the performance card. */
+.k-pf-defs {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  font: var(--text-body-s);
+}
+.k-pf-defs dt {
+  color: var(--text-muted);
+}
+.k-pf-defs dd {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+/* The footer strip a performance or allocation card ends on: sunken, never a
+   second shadowed card. */
+.k-pf-footstrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.k-pf-footstrip-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+.k-pf-footstrip-value {
+  font: var(--text-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+
+.k-pf-alloc-legend {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+.k-pf-alloc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-body-s);
+  color: var(--text-body);
+}
+
+/* The valuation-version and refresh line the allocation card ends on. */
+.k-pf-valuation-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* The condensed holdings table. Rows never change height on hover. */
+.k-pf-mini {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--text-body-s);
+}
+.k-pf-mini th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+.k-pf-mini td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  height: var(--row-height-compact);
+  color: var(--text-body);
+}
+.k-pf-mini tbody tr:hover {
+  background: var(--paper-50);
+}
+.k-pf-mini tbody tr:last-child td {
+  border-bottom: 0;
+}
+.k-pf-mini-num {
+  text-align: right;
+  color: var(--text-strong);
+}
+/* Four columns need ~380px; a phone's card has ~310. Quantity is the one
+   column « Principales positions » can lose — value and weight are what the
+   ranking is about, and the Positions tab has the full row. */
+@media (max-width: 639px) {
+  .k-pf-mini th:nth-child(2),
+  .k-pf-mini td:nth-child(2) {
+    display: none;
+  }
+}
+.k-pf-mini-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.k-pf-mini-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-pf-notfound {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* ───────────────────────────  the overlays  ──────────────────────────── */
+
+/* The form is the dialog's own body + footer, so it takes the remaining
+   height itself rather than sitting inside a second scroll container. */
+.k-pf-form-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.k-pf-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The label wraps its input and its own error, deliberately: the field error
+   is a child of the same `<label>` the input is in, which is the structure
+   `PortfolioNameForm.test.tsx` and `portfolio-crud.spec.ts` both read. That is
+   why this screen styles a field rather than mounting the kit's `<Input>`,
+   whose shell puts the message outside the label. */
+.k-pf-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--text-body);
+}
+
+.k-pf-input {
+  min-height: var(--tap-target);
+  width: 100%;
+  padding: var(--pad-control-y) var(--pad-control-x);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  font: var(--text-body-m);
+  color: var(--text-strong);
+  transition: var(--transition-control);
+}
+.k-pf-input:focus {
+  border-color: var(--teal-400);
+  outline: none;
+}
+.k-pf-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.k-pf-error {
+  font: var(--text-body-s);
+  font-weight: var(--weight-regular);
+  color: var(--text-loss);
+}
+
+/* The delete confirmation's consequence copy — a loss-tinted callout with the
+   design's 3px inset bar, not a bare red paragraph. */
+.k-pf-danger-icon {
+  flex: none;
+  color: var(--loss-500);
+}
+
+/* ───────────────  portfolio-details: the form's new controls  ─────────────── */
+
+/* Secondary text inside a field — the icon constraints line, the facts panel,
+   the "current icon kept" state. `--text-body-s` at regular weight, so it does
+   not compete with the `.k-pf-field` label it sits under. */
+.k-pf-hint {
+  font: var(--text-body-s);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+/* A control and its explanation on one line — the icon removal affordance and
+   its confirmation. */
+.k-pf-field-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The accent picker. Seven options including « Aucune », wrapping rather than
+   scrolling, each a native radio with its hue word beside it — never a swatch
+   with text drawn on top of it (PD-15: no unvetted foreground/background
+   pairing is created by this feature). */
+.k-pf-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.k-pf-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-body-s);
+  font-weight: var(--weight-regular);
+  color: var(--text-body);
+  cursor: pointer;
+}
+
+/* The colour sample itself. Its background is set inline from
+   `portfolioAccentColor(token)`, which returns a `var(--chart-N)` reference —
+   the value never leaves `kerdial.css`. */
+.k-pf-swatch-dot {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-xs);
+}

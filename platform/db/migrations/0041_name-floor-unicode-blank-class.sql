@@ -1,0 +1,127 @@
+-- the name floor's Unicode blank hole, closed on **both** tables in one
+-- file.
+--
+-- drizzle-kit generated (generated name: `0041_reflective_nicolaos`; the
+-- journal tag was renamed with the file to the descriptive form every migration
+-- in this repo uses). The generator emitted exactly the four statements below;
+-- each `DROP` has been given an `IF EXISTS` guard in `0039`/`0040`'s idiom, and
+-- the statement order is the generator's. The snapshot
+-- (`meta/0041_snapshot.json`) is the generator's, untouched, which is what keeps
+-- `drizzle-kit generate` reporting no pending changes afterwards: both
+-- constraints are declared in `src/schema/portfolio.ts` and
+-- `src/schema/cash-account.ts`.
+--
+-- ## What was wrong
+--
+-- `0028` replaced `length(btrim(name)) >= 1` with `name ~ '\S'`, recorded at
+-- the time as the fix for, among other inputs, "a non-breaking space
+-- (U+00A0)". **It was not.** `~ '\S'` is
+-- `[^[:space:]]`, and glibc deliberately does not classify U+00A0 as space — a
+-- no-break space is not a word separator. So `0028` closed the tab/newline half
+-- and never closed the other, because U+00A0 was reasoned about rather than
+-- tested. `0038` mirrored the expression into `cash_account`, inherited the
+-- hole, and characterised it (asserting the codepoints *accepted*) rather than
+-- hiding it — which is why this was fixable by measurement instead of being
+-- rediscovered by a user.
+--
+-- ## The hole is ten codepoints, not the three previously named
+--
+-- Swept against `postgres:17`, `datlocprovider='c'`, `datcollate='en_US.utf8'`
+-- — the dev and CI configuration — over every Unicode space separator,
+-- line/paragraph separator and zero-width format character, `~ '\S'` admits
+-- **ten**:
+--
+--   U+00A0 NO-BREAK SPACE          U+200C ZERO WIDTH NON-JOINER
+--   U+1680 OGHAM SPACE MARK        U+200D ZERO WIDTH JOINER
+--   U+180E MONGOLIAN VOWEL SEP.    U+202F NARROW NO-BREAK SPACE
+--   U+2007 FIGURE SPACE            U+2060 WORD JOINER
+--   U+200B ZERO WIDTH SPACE        U+FEFF ZERO WIDTH NO-BREAK SPACE
+--
+-- ## Why the fix extends the character class, and not what was first proposed
+--
+-- The original report suggested *replacing* the regex with
+-- `btrim(name, E' \t\n\r\v\f<U+00A0>') <> ''`. Two measured problems, and the
+-- second is the interesting one:
+--
+--   1. It is a **regression**. An explicit trim set strips only what it lists,
+--      so swapping it in closes U+00A0 while **opening** U+0085 (NEL), U+2000
+--      (EN QUAD) and U+3000 (IDEOGRAPHIC SPACE) — three the regex already
+--      rejects, because libc *does* classify those as space. (`0038`'s claim
+--      that such a set "closes all three" is false for the same reason: it
+--      closes only the one codepoint it names.)
+--
+--   2. **ANDing the two halves is still not enough**, which is what a first
+--      attempt at this migration got wrong. `name ~ '\S' AND btrim(name,
+--      <the ten>) <> ''` passes for a name **mixing** the two families:
+--      `U+00A0` satisfies the regex half (libc says it is not space), and
+--      `U+3000` survives the trim set (it is not in the list) and so satisfies
+--      the other. Both halves see a "real" character; neither sees that every
+--      character is blank. Measured: `U+00A0`+`U+3000` was admitted.
+--
+-- The formulation that holds is a single **extended negated class**: the name
+-- must contain at least one character that is neither in the collation's space
+-- class nor one of the ten.
+--
+--     name ~ '[^[:space:]<the ten>]'
+--
+-- This is correct by construction rather than by enumeration of cases — "there
+-- exists a character that is not blank" cannot be defeated by mixing blanks.
+-- Verified exhaustively over the thirty-one blank codepoints: no single one is
+-- admitted, and none of the 961 ordered pairs is either.
+--
+-- It also degrades better. `[:space:]` is inherited from the collation
+-- provider, so a space codepoint libc adds later is covered with no edit; only
+-- the ten it is known *not* to classify are listed by hand.
+--
+-- The bound is on names made **entirely** of blanks. A name that merely
+-- *contains* one is untouched — `'Cash<U+00A0>EUR'` is accepted, as are
+-- `'Courant EUR'`, `'  Courant EUR  '`, `'Compte n°2'` and `'Épargne'`. That
+-- matters for U+200C/U+200D specifically, which are meaningful joiners inside
+-- Persian, Devanagari and emoji sequences: only a name consisting of nothing
+-- else is refused.
+--
+-- The `length(btrim(name)) <= 200` ceiling is unchanged, one-argument `btrim`
+-- included. Its job is to stop ASCII padding hiding the bound, and widening it
+-- here would be an unrelated behaviour change.
+--
+-- ## Both tables, one file — deliberately
+--
+-- `cash_account_name_length` mirrors `portfolio_name_length` expression for
+-- expression so the two stay reviewable side by side, and `0038` recorded that
+-- strengthening one alone "would put two sibling tables out of step with each
+-- other ... for a decision nobody has taken yet". The decision is taken here,
+-- and it lands on both in one statement group so the drift this rule exists to
+-- prevent cannot simply move. `name-floor-unicode-blank.integration.test.ts`
+-- asserts the two rendered CHECK definitions are identical, so a future edit to
+-- one alone fails.
+--
+-- ## Existing rows
+--
+-- `ADD CONSTRAINT ... CHECK` **validates existing rows** — deliberately not
+-- `NOT VALID`, since a floor that skips the data already stored is the kind of
+-- guard this repo records as worse than none. On a fresh install and in CI
+-- there is nothing to validate. On a live database this migration fails loudly
+-- rather than silently admitting a bad row; the offenders, if any, are:
+--
+--     SELECT id, name FROM "portfolio"
+--      WHERE name !~ '[^[:space:]\u00A0\u1680\u180E\u2007\u200B\u200C\u200D\u202F\u2060\uFEFF]';
+--     SELECT id, name FROM "cash_account"
+--      WHERE name !~ '[^[:space:]\u00A0\u1680\u180E\u2007\u200B\u200C\u200D\u202F\u2060\uFEFF]';
+--
+-- Rename them, then re-run. A blank-looking name is unusable in the UI
+-- regardless, so there is no case for keeping one.
+--
+-- ## Collation provider
+--
+-- The space class is provider-dependent, so every claim above is pinned to libc
+-- by an assertion in `name-floor-unicode-blank.integration.test.ts`
+-- (`datlocprovider='c'`, `datcollate='en_US.utf8'`). An ICU-collated target
+-- would move which codepoints `[:space:]` covers; because the ten are listed
+-- explicitly *in addition* to the class, such a move can only ever make this
+-- floor stricter, never reopen one of the ten. Verifying an ICU target remains
+-- an open item.
+
+ALTER TABLE "portfolio" DROP CONSTRAINT IF EXISTS "portfolio_name_length";--> statement-breakpoint
+ALTER TABLE "cash_account" DROP CONSTRAINT IF EXISTS "cash_account_name_length";--> statement-breakpoint
+ALTER TABLE "portfolio" ADD CONSTRAINT "portfolio_name_length" CHECK ("portfolio"."name" ~ '[^[:space:]\u00A0\u1680\u180E\u2007\u200B\u200C\u200D\u202F\u2060\uFEFF]' and length(btrim("portfolio"."name")) <= 200);--> statement-breakpoint
+ALTER TABLE "cash_account" ADD CONSTRAINT "cash_account_name_length" CHECK ("cash_account"."name" ~ '[^[:space:]\u00A0\u1680\u180E\u2007\u200B\u200C\u200D\u202F\u2060\uFEFF]' and length(btrim("cash_account"."name")) <= 200);

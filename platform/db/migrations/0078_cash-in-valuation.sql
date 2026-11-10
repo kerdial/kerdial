@@ -1,0 +1,36 @@
+-- PC-T8 (Batch B3b) — FR-683, AC-575, AC-576, PC-L1, PC-L2.
+--
+-- drizzle-kit generated (generated name: `0078_nifty_night_thrasher`; file and
+-- journal tag renamed to the descriptive form every migration here uses), and
+-- `meta/0078_snapshot.json` is byte-identical to what the generator wrote.
+-- One hand edit only: the `TRUNCATE` appended as the last statement (a data
+-- statement the schema diff cannot express). `db:generate` re-run afterwards
+-- reports "No schema changes".
+--
+-- **What.** `V(d) = H(d) + C(d)` (PC-L1): `portfolio_daily_valuation` now
+-- stores holdings **and cash**, pre-flow. `total_value_base` keeps its meaning
+-- ("the portfolio's total") and now includes cash; `cash_value_base` is the
+-- cash component of it; `cash_unconverted` lists the currencies excluded on
+-- that date for lack of a market rate (PC-L2 — exclude and flag, never fail).
+-- Both defaults make the `ADD COLUMN` a no-rewrite operation.
+--
+-- **Why `TRUNCATE`.** Every existing row is a holdings-only
+-- value: kept, it would silently read `cash_value_base = 0` forever (nothing
+-- invalidates a row whose transactions did not change). The table is a lazy
+-- cache — `materializePortfolioValuations` rebuilds any missing date on the
+-- next read, inside its `calc_epoch`/`market_epoch` guards — so emptying it
+-- is the whole re-materialisation. Rejected: (a) a backfill job or one-shot
+-- script, a second write path to this table duplicating the materialiser and
+-- its guards for a cost the lazy path already budgets;
+-- (b) bumping `market_data_epoch` here, the same effect but it misstates why
+-- the rows are stale and leaves them readable with defaulted cash columns
+-- until each is touched.
+--
+-- `TRUNCATE` is not subject to RLS (a `DELETE` by `app_owner` under FORCE RLS
+-- would delete 0 rows). It takes ACCESS EXCLUSIVE; the deploy runs migrations
+-- before the API starts. No `GRANT` (`0015` grants the table to `app_web`, so
+-- new columns need none), no `OWNER TO` (existing table), RLS unchanged, and
+-- no statement names a `transaction_kind` literal.
+ALTER TABLE "portfolio_daily_valuation" ADD COLUMN "cash_value_base" numeric(38, 12) DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "portfolio_daily_valuation" ADD COLUMN "cash_unconverted" char(3)[] DEFAULT '{}' NOT NULL;--> statement-breakpoint
+TRUNCATE "portfolio_daily_valuation";

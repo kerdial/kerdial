@@ -1,0 +1,47 @@
+-- `app_web` may delete an instrument. Hand-written, in the
+-- `0011`/`0018`/`0029`/`0036`/`0044`/`0061` style: drizzle-kit does not model
+-- grants, so this file is authored, not generated.
+--
+-- ## Why a table-level grant and not a column-level one
+--
+-- `0036` and `0061` narrowed `app_web`'s reach on this table to seven
+-- updatable columns precisely because AC3 wants "the canonical id never
+-- changes for any reason" to be a database guarantee. A `DELETE` grant does
+-- not weaken that claim: it is the removal of a whole row, never the mutation
+-- of an identity column, so `id`/`isin`/`exchange_mic`/`symbol`/`kind`/
+-- `primary_identifier`/`owner_tenant_id` remain exactly as immutable as `0036`
+-- left them. Postgres has no column-level `DELETE` to narrow anyway.
+--
+-- ## What stops a referenced instrument being deleted
+--
+-- **Not a missing grant.** `app_web` already holds `DELETE` on
+-- `holding_state`, `realized_gain` and `transaction_posting` — the ledger
+-- write path needs it — so nothing about role privileges protects an
+-- instrument with history. The protection is the five `NO ACTION` foreign
+-- keys (`transaction` on both `instrument_id` and
+-- `txn_settlement_instrument_id`, `transaction_posting`, `holding_state`,
+-- `realized_gain`), which make the parent delete raise `23503` while any of
+-- them holds a row, and `deleteInstrument`'s explicit pre-check, which turns
+-- that into a 409 naming the counts instead of a 500.
+--
+-- So this grant widens exactly one thing: `app_web` may now attempt the
+-- delete. Whether it succeeds is decided by the referential graph, which is
+-- where that decision belongs.
+--
+-- ## The eight ON DELETE CASCADE children are reached, RLS notwithstanding
+--
+-- Three of them FORCE row-level security: `manual_price_point`,
+-- `watchlist_item`, `instrument_icon`. Measured 2026-09-18 against the live
+-- schema, in a rolled-back transaction: a *direct*
+-- `DELETE FROM manual_price_point` as `app_owner` reports `DELETE 0` (the
+-- policy is `TO app_web`, so the owner matches no policy and FORCE denies it),
+-- while deleting the parent `instrument` removes that row and the
+-- `watchlist_item` and `instrument_price_daily` rows with it.
+--
+-- That asymmetry is Postgres running referential-action triggers with RLS not
+-- enforced, and it is the reason `deleteInstrument` deletes **only the parent
+-- row** and lets the cascade do the rest: an implementation that tidied the
+-- children up itself first would silently delete none of the three FORCEd
+-- ones and then fail on the FK. `instrument-service.integration.test.ts`
+-- asserts all eight are gone, so this stays proven rather than remembered.
+GRANT DELETE ON "instrument" TO app_web;

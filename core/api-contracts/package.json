@@ -1,0 +1,17 @@
+{
+  "name": "@kerdial/api-contracts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/core-reference-data": "workspace:*",
+    "zod": "^4.4.3"
+  }
+}

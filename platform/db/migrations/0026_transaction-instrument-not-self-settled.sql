@@ -1,0 +1,21 @@
+-- C (final narrow fix round, feature/api-transactions): defence in depth for
+-- FR-66/AC52's "a trade cannot be settled in the instrument it acquires" —
+-- `recordSettledBuy` rejects this shape at creation (own `TypeError`), and
+-- `editTransaction` now rejects an edit that would reach it too
+-- (`TransactionSelfSettledError`), but neither of those is a database
+-- constraint, so an out-of-band writer (a hand-run `UPDATE`, a future call
+-- site that forgets the application-level check) was not stopped — a row
+-- with `instrument_id = txn_settlement_instrument_id` represents net free
+-- units acquired at zero cost basis. Guarded
+-- `txn_settlement_instrument_id IS NULL OR` (rather than an unconditional
+-- `IS DISTINCT FROM`): every other kind, and every fiat-priced BUY/SELL/DRIP,
+-- always has `txn_settlement_instrument_id` NULL, and this check must stay a
+-- no-op for all of them; whenever it is non-NULL, `instrument_id` is always
+-- non-NULL too (`transaction_buy_sell_shape` plus
+-- `transaction_currency_xor_settlement_instrument`'s XOR force `kind = 'BUY'`
+-- with a real acquired instrument), so no equivalent `instrument_id IS NULL
+-- OR` guard is needed on that side. Every existing writer already only ever
+-- produces a row that satisfies this, so this is purely additive — verified
+-- against this package's own integration test fixtures/seed data, none of
+-- which write `transaction` rows directly.
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_instrument_not_self_settled" CHECK ("transaction"."txn_settlement_instrument_id" IS NULL OR "transaction"."instrument_id" <> "transaction"."txn_settlement_instrument_id");

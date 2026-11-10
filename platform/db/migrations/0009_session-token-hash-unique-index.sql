@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "session_token_hash_key" ON "session" USING btree ("token_hash");

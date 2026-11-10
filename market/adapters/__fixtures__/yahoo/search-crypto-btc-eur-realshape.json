@@ -1,0 +1,16 @@
+{
+  "quotes": [
+    {
+      "exchange": "CCC",
+      "shortname": "Bitcoin EUR",
+      "quoteType": "CRYPTOCURRENCY",
+      "symbol": "BTC-EUR",
+      "index": "quotes",
+      "score": 11020000.0,
+      "typeDisp": "Cryptocurrency",
+      "longname": "Bitcoin EUR",
+      "exchDisp": "CCC",
+      "isYahooFinance": true
+    }
+  ]
+}

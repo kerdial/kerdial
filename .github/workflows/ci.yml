@@ -1,0 +1,508 @@
+name: CI
+
+# The pull-request gate. Two workflows replace the single one this file used to
+# be: `ci.yml` (pull request) and `release.yml` (a pushed `vX.Y.Z` tag). There
+# is no third — nothing is built and nothing is published on a merge to `main`.
+#
+#   changes                 did this PR touch anything but docs? (PR files API)
+#                           — and, when it did not, the docs gate itself
+#   build ──┬── static      lint, format:check, typecheck, the eight static
+#           │               gates, known-answers, the timing-sensitive lane
+#           └── test-main   matrix: two shards (`--shard=N/2`)
+#   ci-complete             needs: [changes, build, static, test-main],
+#                           if: always() — the single required status check
+#
+# The three gating jobs carry `needs: changes` and run only when `changes` says
+# the pull request touched something outside `docs/**` and `*.md` (L14).
+#
+# **No image is built here.** An image is published only on release (L19), so
+# no image is built before merge and nothing is published on a push to `main`.
+# The Dockerfile is proved by `pnpm image:build` in a full local
+# `pnpm verify`, and after that only by `release.yml`, which is now the one place
+# an image is built or pushed at all. `tools/deploy-tests`'s static parse still
+# fails on the class of a workspace package missing from the Dockerfile in
+# milliseconds, inside `test-main`.
+#
+# `build` runs `pnpm build` once and uploads the `dist` trees; `static` and both
+# shards download them instead of each rebuilding (that was four builds of the
+# same tree).
+#
+# **Runner time.** The jobs are kept few and short so a pull request gets a
+# quick answer: target **wall ≤ 14 min**. A code pull request is six job runs
+# over five keys — `changes`, `build`, `static`, `test-main` ×2, `ci-complete`.
+# To re-measure, sum per-job `completed_at - started_at` over
+# `/actions/runs/<id>/jobs`. A **docs-only** pull request still runs
+# `ci-complete` plus a `changes` job that, on that path only, checks out,
+# installs and runs `pnpm doc-sections-gate`: see `ci-complete`'s
+# comment for why skipping it entirely was not an option.
+#
+# **Nothing under `web/` is tested here.** Browser end-to-end tests run only
+# in `pnpm verify`, locally, before the pull request (L1/L7), and since L18
+# (owner decision) the `web/src` vitest suites do too: `test:main`
+# excludes `web/**` and `verify.sh` runs `test:web`. No browser lane exists in
+# this workflow or in any other,
+# which is why the tool's own name greps to nothing in this file.
+#
+# **Every** pull request, with no `paths-ignore` (L14). A
+# path-filtered *workflow* produces no run at all, so the required `CI complete`
+# check stayed *Expected* for ever on a docs-only pull request and it could
+# never be merged — and the release procedure's step 2 is a docs-only edit. The
+# filtering moved one level down, to the `changes` job below, where a *skipped
+# job still reports*.
+on:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only for the whole workflow: nothing here publishes, logs in, or holds a
+# secret. The one write scope in the repository is on `release.yml`'s `release`
+# job, which creates the GitHub Release.
+permissions:
+  contents: read
+
+env:
+  # Node/pnpm versions live in .github/actions/setup.
+  # Ryuk (Testcontainers' cleanup sidecar) adds a startup failure mode on
+  # ephemeral GitHub runners while providing nothing — the runner VM is
+  # destroyed after the job, so orphaned containers cannot outlive it.
+  # Observed 2026-08-17: a whole suite failed on "Failed to connect to
+  # Reaper" under parallel container startup, with zero code defects.
+  # Workflow-wide so every Testcontainers job gets the same behavior.
+  TESTCONTAINERS_RYUK_DISABLED: "true"
+
+jobs:
+  # Is there anything in this pull request but documentation? (L14.)
+  #
+  # It answers from the **pull request files API** rather than from a git diff:
+  # a `git diff origin/main...HEAD` needs `fetch-depth: 0`, which is a full
+  # clone of the repository on every pull request — minutes and bandwidth to
+  # learn one boolean. `GITHUB_TOKEN` is read-only here and the endpoint works
+  # on a fork's pull request, so the classification below holds nothing, reads
+  # no working tree and takes seconds.
+  #
+  # **Fail-safe by construction**: `code=false` is concluded only from a file
+  # list the step can show is *complete* — as many entries as the pull request's
+  # own `changed_files`, and below the files endpoint's silent 3000-entry cap —
+  # in which **every** path is under `docs/` or ends in `.md`, counting the
+  # *old* path of a rename as well as the new one. Anything else — a truncated
+  # list, an empty one, one unrecognised path — comes out as `code=true` and
+  # runs the whole suite. The expensive answer is the safe one. (Once,
+  # reading only `filename` meant `git mv tools/gates/src/doc-sections/cli.ts
+  # docs/old.ts` classified as docs-only and skipped every gate.)
+  #
+  # It also **runs the documentation gate itself** on the docs-only path.
+  # `pnpm doc-sections-gate` is a step of `static`, which is precisely
+  # the job that does not run on a documentation-only pull request — so the one
+  # gate that reads `docs/*.md` was skipped on the pull requests that change
+  # them, and the break surfaced on the next code pull request instead. The
+  # checkout, install and gate below are guarded on `code == 'false'` and cost
+  # ≈ 1.5 runner minutes on that path only; a code pull request still gets the
+  # gate from `static`.
+  changes:
+    name: Does this pull request touch anything but docs?
+    runs-on: ubuntu-latest
+    # Was 5 while this job only called an API; the docs-only path now installs
+    # the workspace and runs a gate.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # `pull-requests: read` is what the pulls endpoints need under
+      # GITHUB_TOKEN — with `contents: read` alone the classifier's
+      # `gh api repos/…/pulls/N/files` call fails with HTTP 403 "Resource not
+      # accessible by integration" (measured on the first real run). Still read-only,
+      # still granted to a fork pull request's token.
+      pull-requests: read
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      - name: Classify the pull request's changed files
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # Both halves of a rename. The API returns one entry per file,
+          # whose `filename` is the *new* path and whose `previous_filename` —
+          # present only for a rename — is the old one. Classifying the new path
+          # alone lets a source file be renamed *into* `docs/` and read as
+          # documentation.
+          files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
+          # The same endpoint caps at 3000 entries and truncates in silence, so
+          # the number of file entries is compared with the pull request's own
+          # `changed_files`. A second call rather than a count of the
+          # line list above, which holds two lines for a renamed file.
+          listed="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' | wc -l | tr -d ' ')"
+          declared="$(gh api "repos/$REPO/pulls/$PR" --jq .changed_files)"
+          echo "== changed files (new and, for a rename, previous paths)"
+          printf '%s\n' "$files"
+          echo "== $listed file entries listed, changed_files=$declared"
+
+          code=true
+          if [ -z "$files" ]; then
+            echo "::warning::the pull request files API returned nothing; treating this as a code change and running every gate."
+          elif [ "$listed" != "$declared" ]; then
+            echo "::warning::the pull request files API listed $listed file(s) but the pull request reports changed_files=$declared, so the list is not the whole pull request; treating this as a code change and running every gate."
+          elif [ "$listed" -ge 3000 ]; then
+            echo "::warning::the pull request files API listed $listed file(s) (changed_files=$declared) and that endpoint truncates at 3000 without saying so, so the list is not provably complete; treating this as a code change and running every gate."
+          else
+            code=false
+            while IFS= read -r file; do
+              [ -n "$file" ] || continue
+              case "$file" in
+                docs/*) continue ;;
+                *.md) continue ;;
+              esac
+              echo "code change: $file"
+              code=true
+              break
+            done <<< "$files"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code"
+
+      # The three steps that buy the documentation gate back on the
+      # only pull requests `static` never sees. Nothing above this point reads
+      # the repository, so the checkout is here rather than at the top of the
+      # job: a code pull request must not pay for it.
+      - name: Check out the repository (docs-only pull request)
+        if: steps.classify.outputs.code == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The setup block every job repeated lives in
+      # .github/actions/setup (pnpm + node + frozen-lockfile install).
+      - name: Set up node and pnpm (docs-only pull request)
+        if: steps.classify.outputs.code == 'false'
+        uses: ./.github/actions/setup
+
+      - name: Check docs/*.md section numbering on a docs-only pull request, where the static job does not run
+        if: steps.classify.outputs.code == 'false'
+        run: pnpm doc-sections-gate
+
+  # `pnpm build` once, for everyone downstream. Packages typecheck with plain
+  # `tsc --noEmit` (no `-b`) and resolve cross-package imports through the
+  # dependency's gitignored `dist/*.d.ts`; `vitest.global-setup.ts` resolves
+  # `@kerdial/platform-test-support/global-setup` the same way. A fresh
+  # checkout has none of it, and `pnpm install` does not build it.
+  build:
+    name: Build the workspace
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The setup block every job repeated lives in
+      # .github/actions/setup (pnpm + node + frozen-lockfile install).
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        run: pnpm build
+
+      # Two distinct top-level path segments on purpose: `upload-artifact@v4`
+      # roots the archive at the least common ancestor of what it matched, so a
+      # single-prefix list would flatten the tree on download and every
+      # consumer would fail at module resolution instead of at the upload.
+      #
+      # `!node_modules/**` is load-bearing: `*/*/dist` matches
+      # `node_modules/<pkg>/dist` too, and the store is ~1 GB.
+      #
+      # `if-no-files-found: error` because an empty artifact is the vacuous
+      # green shape — the downstream jobs would fail later, further away.
+      - name: Upload the built dist trees
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: |
+            */dist
+            */*/dist
+            web/dist
+            !node_modules/**
+          if-no-files-found: error
+          retention-days: 1
+
+  # Everything that reads source or built output and finishes in seconds to a
+  # couple of minutes. These were four jobs (lint/typecheck/build/test, gates,
+  # known-answers-gate, flake-lane), each paying checkout + install + build and
+  # each with its own runner start-up.
+  #
+  # Every step after `lint` carries `if: ${{ !cancelled() }}`, so one failing
+  # check does not hide the verdict of the checks after it — the per-check
+  # signal survives as step names, which is all the separate jobs bought.
+  static:
+    name: Static gates (lint, format, typecheck, schema, catalogue, boundaries, unused exports, CSP, chunk budget, known answers, timing-sensitive suites)
+    needs:
+      - build
+      - changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The setup block every job repeated lives in
+      # .github/actions/setup (pnpm + node + frozen-lockfile install).
+      - uses: ./.github/actions/setup
+
+      # The `build` job's output, restored at the workspace root. `depcruise`,
+      # the known-answer suite, the catalogue gate and the CSP/chunk gates all
+      # read it; so does typecheck, for the `dist/*.d.ts` reason above.
+      - name: Download the built dist trees
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: .
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        if: ${{ !cancelled() }}
+        run: pnpm format:check
+
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: pnpm typecheck
+
+      # UR-29/NFR-21's 180 KB-gzip echarts-chunk budget had a
+      # root script but no CI wiring — an unenforced budget is this repo's own
+      # recorded "vacuous green" pattern. Its input is `web/dist`, downloaded above.
+      - name: Check the sparkline echarts chunk against its 180 KB gzip budget (UR-29, NFR-21)
+        if: ${{ !cancelled() }}
+        run: pnpm check:sparkline-chunk
+
+      - name: Grep generated migration SQL for float-ish types (money and quantities are never floats)
+        if: ${{ !cancelled() }}
+        run: pnpm no-floats-schema-gate
+
+      # A clean merge — no conflict, nothing red — once replaced two runbook
+      # sections with one while another branch appended a third, and left §11
+      # followed by §13. A citation then pointed at a section number that
+      # existed only because of that collision. The only signal was a human
+      # counting; this is that count.
+      - name: Check docs/*.md section numbering is contiguous and every §N resolves
+        if: ${{ !cancelled() }}
+        run: pnpm doc-sections-gate
+
+      # csv-import CI-8 (IMP-3, RC7). OD-6(a) requires the
+      # Portfolio Performance parsing logic to stay behind a format-neutral
+      # interface; an interface asserts that, only a scan checks it. The gate
+      # fails on any of the eleven format literals in `importer/src/types.ts` or
+      # `importer/src/pipeline/**`, and — the half that stops it going blind —
+      # also fails unless all eleven are still *found* in
+      # `importer/src/formats/portfolio-performance/`. It reports both
+      # cardinalities on success, so a scan that stops seeing its subject is
+      # legible in this log rather than reading as "no violations". Same slot as
+      # `scripts/verify.sh`, per that file's own ordering rule.
+      - name: Check the neutral importer layer carries no Portfolio Performance vocabulary (OD-6(a))
+        if: ${{ !cancelled() }}
+        run: pnpm import-vocabulary-gate
+
+      # IR-19/IR-29 (DD32). The 51 hand-authored
+      # ISINs in `platform/db/src/seed-data/instrument-catalogue.ts` are
+      # distributed source: a bad edit to one of them ships. DD32 required this
+      # gate in **both** `scripts/verify.sh` and here, and only the former
+      # landed. Placed between `import-vocabulary-gate` and `depcruise` because
+      # verify.sh runs it in exactly that slot and the two orders must not drift
+      # (verify.sh's header records a 2026-08-21 double failure from that class).
+      #
+      # It needs the downloaded `dist`: the validator imports
+      # `@kerdial/api-contracts` (CURATED_EXCHANGE_MICS, isValidIsinCheckDigit)
+      # and resolves it through that package's gitignored `dist/`. Probed with
+      # `core/api-contracts/dist` removed, it exits 1 with ERR_MODULE_NOT_FOUND
+      # rather than passing vacuously. It reports its own cardinality ("51 seeded
+      # instrument row(s) … satisfy all 11 rules"), so a dataset that stops being
+      # visible to the gate is legible in the log.
+      - name: Validate the 51 seeded instrument rows against all 11 catalogue rules (FR-16–FR-19, AC-19)
+        if: ${{ !cancelled() }}
+        run: pnpm instrument-catalogue-gate
+
+      - name: Check module-boundary rules
+        if: ${{ !cancelled() }}
+        run: pnpm depcruise
+
+      # The five packages whose barrels had
+      # grown 4x their consumed surface — an unconsumed public name is where
+      # dead code hides (the deleted T-34 engine chain was invisible precisely
+      # because the barrel exported it). knip.jsonc documents the setup.
+      - name: Check for unused exports in the five over-exporting packages
+        if: ${{ !cancelled() }}
+        run: pnpm unused-exports-gate
+
+      # A Tailwind utility, a Vite plugin default or a workbox bump can introduce
+      # a `data:` background or a remote runtime import with no change to this
+      # repo's own source — and the CSP is enforced from day one, so that shows up
+      # as a blank app, not a failing test (T-3a FR-4, FR-8; U4/V1).
+      - name: Verify the built output against the cited CSP directive set
+        if: ${{ !cancelled() }}
+        run: pnpm csp-dist-gate
+
+      # A step of its own name, not folded into `test:main`: the
+      # known-answer suite is deliberately a named, independently
+      # visible release gate. It recomputes every checked-in case
+      # (core/domain/src/__fixtures__/known-answers) with the real engine and
+      # fails on >0.01% deviation from its documented hand-calculated value
+      # (NFR-4, AC41).
+      - name: Recompute every known-answer case and fail on >0.01% deviation
+        if: ${{ !cancelled() }}
+        run: pnpm known-answers
+
+      # The five suites in `test:flake-lane` depend on real wall-clock timing
+      # margins (ms-precision socket timeouts, bursts that must overlap a low
+      # in-flight cap, pg-boss lifecycle waits). They run serially
+      # (`--no-file-parallelism`) and are excluded from `test:main`, so the
+      # shards' contention cannot redden them. Never sharded: a sharded
+      # no-parallelism run serialises the whole shard and the two savings cancel.
+      - name: Test (serial — timing-sensitive suites only)
+        if: ${{ !cancelled() }}
+        run: pnpm run test:flake-lane
+
+  # The long pole, halved. vitest applies `test:main`'s five `--exclude`
+  # patterns first and shards the surviving file list, so the timing-sensitive
+  # suites stay out of both shards. Each shard is its own vitest process and
+  # `TEST_SHARED_PG=1` boots one Postgres + migrated template per process, so
+  # the two shards share no state.
+  #
+  # Two shards, not three: three is better on wall clock and worse on the bill,
+  # and the bill is what binds. If the shards ever drift more than
+  # ~2 minutes apart, revisit — vitest shards by file after collection, not by
+  # measured duration.
+  test-main:
+    name: Test shard ${{ matrix.shard }}/2 (Vitest — unit, property, Testcontainers, Supertest)
+    needs:
+      - build
+      - changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      # Both shards report. A cancelled sibling would hide half the failures,
+      # which is the same reason every step in `static` carries `!cancelled()`.
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The setup block every job repeated lives in
+      # .github/actions/setup (pnpm + node + frozen-lockfile install).
+      - uses: ./.github/actions/setup
+
+      # Testcontainers (platform/db) needs a Docker daemon; GitHub-hosted
+      # ubuntu runners provide one by default — no `services:` block needed.
+      - name: Download the built dist trees
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: .
+
+      # No `--` between the script and the flag: pnpm 9 forwards `--`
+      # literally and vitest files everything after it under its ignored
+      # trailing arguments, so `-- --shard=` runs the whole lane in both
+      # jobs. `api/src/ci-gating.test.ts` pins this shape.
+      - name: Test (Vitest — unit, property, Testcontainers, Supertest)
+        run: pnpm run test:main --shard=${{ matrix.shard }}/2 --reporter=default
+
+  # ---------------------------------------------------------------------------
+  # The single required status check on `main`.
+  #
+  # **Why one aggregate job rather than requiring the three directly.** Because
+  # of what GitHub does with a check that never reports. A workflow filtered
+  # away by `paths-ignore` produces **no run and no check at all**, so a
+  # required check on it stays *Expected* for ever and the pull request can
+  # never be merged — GitHub's own documentation says not to path-filter a
+  # required workflow, and branch protection on `main` requires `CI complete`.
+  # A *skipped job*, by contrast, does report: it reports as skipped, which
+  # branch protection accepts. That is the whole difference, and this file used
+  # to claim the opposite. So the path filter moved from the
+  # workflow to the `changes` job, `ci-complete` runs on every pull request,
+  # and the docs-only case is decided here rather than by not existing.
+  #
+  # `if: always()` is load-bearing. Without it this job inherits the default
+  # "all `needs` succeeded" condition and is *skipped* when one fails — and a
+  # skipped required check reads as pending, not failing, so the PR sits there
+  # looking merely unfinished. With it, the job runs and fails loudly.
+  #
+  # The job key and the display name `CI complete` are branch protection's
+  # required check: renaming either silently unprotects `main`.
+  #
+  # Adding a job above means adding it to `needs` here — a job missing from
+  # this list is a job that cannot block a merge. `api/src/ci-gating.test.ts`
+  # enforces that, because a comment saying so is what failed before.
+  #
+  # One consequence, stated rather than discovered later: on a docs-only pull
+  # request `static` does not run, so none of the gates listed in its name run
+  # either. The one of them whose subject *is* `docs/*.md` —
+  # `pnpm doc-sections-gate` — was therefore skipped on exactly the pull
+  # requests that change those files, and a §-numbering break merged and
+  # reddened the next code pull request. It is not bought back by running
+  # `build` + `static` (~8 runner minutes on every documentation typo): instead
+  # the `changes` job runs that single gate itself, guarded on its own
+  # `code == 'false'` output. The other gates stay skipped, and `ci-complete`'s
+  # verdict below is unchanged — `changes` is not one of the jobs it requires
+  # to have skipped.
+  ci-complete:
+    name: CI complete
+    if: always()
+    needs:
+      - changes
+      - build
+      - static
+      - test-main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every gating job succeeded
+        env:
+          # The whole `needs` context, so a new job that someone forgets to
+          # handle below still shows up in the log.
+          RESULTS: ${{ toJSON(needs) }}
+          CODE: ${{ needs.changes.outputs.code }}
+        run: |
+          set -uo pipefail
+          echo "$RESULTS"
+          echo "code=$CODE"
+
+          # `changes` decides which rule applies below, so its own verdict is
+          # checked first and separately: if it did not succeed, the docs-only
+          # question has no answer and nothing may be accepted on its word.
+          changes_result="$(printf '%s' "$RESULTS" | jq -r '.changes.result')"
+          if [ "$changes_result" != "success" ]; then
+            echo "::error::the changes job did not succeed (result: $changes_result), so whether this is a docs-only pull request is unknown"
+            exit 1
+          fi
+
+          gates="$(printf '%s' "$RESULTS" | jq -r 'to_entries | map(select(.key != "changes")) | .[] | "\(.key)=\(.value.result)"')"
+          echo "$gates"
+          [ -n "$gates" ] || { echo "::error::no gating job in the needs context"; exit 1; }
+
+          if [ "$CODE" = "false" ]; then
+            # Docs-only: every gate must have been skipped *by this rule*, not
+            # by a broken `needs` edge, so "skipped" is required of all of them
+            # rather than merely tolerated — a job that ran here would mean the
+            # `if:` conditions and this verdict disagree.
+            ran="$(printf '%s' "$gates" | grep -v '=skipped$' || true)"
+            if [ -n "$ran" ]; then
+              # One line: GitHub renders only the first line of an annotation.
+              echo "::error::docs-only pull request, but a code gate did not skip: $(printf '%s' "$ran" | tr '\n' ' ')"
+              exit 1
+            fi
+            echo "docs-only PR — code gates skipped by design"
+            exit 0
+          fi
+
+          # The code path, unchanged: `success` is the only acceptable result.
+          # `skipped` is NOT accepted here — every gate runs on every code pull
+          # request, so a skip means something was disabled or a `needs` edge
+          # broke, which is precisely the silent de-gating this job exists to
+          # prevent.
+          failed="$(printf '%s' "$gates" | grep -v '=success$' || true)"
+          if [ -n "$failed" ]; then
+            echo "::error::a gating job did not succeed: $(printf '%s' "$failed" | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "every gating job succeeded"

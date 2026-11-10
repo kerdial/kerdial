@@ -1,0 +1,67 @@
+-- the transaction's **user reference**: a broker's order number,
+-- a statement line, whatever the person reconciling this ledger by hand against
+-- a document actually quotes. The transaction drawer opens its General
+-- section with it, and the field did not exist.
+--
+-- ## What was decided this column is NOT
+--
+--   * **not generated.** A reference this product mints reconciles against
+--     nothing — the whole value of the field is that it matches a string on a
+--     document the product never sees. So there is no sequence, no default, and
+--     no server-side derivation: the column is filled by the user or not at all;
+--   * **not unique.** Two brokers' numbering schemes may collide, and a unique
+--     index would reject the user's real data. Deliberately no `uniqueIndex`,
+--     unlike `transaction_import_fingerprint_key` — that one exists *because*
+--     collisions are the thing it must catch, and this one must tolerate them;
+--   * **not an account.** A per-transaction account field was considered and
+--     dropped: the portfolio is this product's only grouping (account
+--     wrappers are out of scope), so there is no second column here.
+--
+-- What is left is one nullable free-text column and one CHECK. No new table, so
+-- no `ALTER ... OWNER TO app_owner` and no new GRANT: `0007` grants
+-- `transaction` to `app_web` at **table** level, so this column is reachable by
+-- the application role the moment it exists — the same reasoning
+-- `import_fingerprint` (`0042`) recorded for choosing a column over a side
+-- table.
+--
+-- ## The CHECK, and the two ways it deliberately differs from its siblings
+--
+-- `IS NULL OR` leads, exactly as on `transaction_import_fingerprint_shape`:
+-- every row that exists when this migration runs carries NULL, and so does
+-- every row whose author never fills the field. That is what makes this
+-- additive — `ALTER TABLE … ADD CONSTRAINT` validates the whole table, and here
+-- it validates it against a column that is uniformly NULL.
+--
+--   (1) **the blank floor is `portfolio_name_length`'s expression, character
+--       for character** (`0041`). A bare `~ '\S'` admits ten
+--       codepoints libc does not classify as space (U+00A0, U+200B, U+FEFF and
+--       seven more), each of which renders as an *empty* reference row in the
+--       drawer — data that is not there, displayed as though it were.
+--       `core/api-contracts`' `transactionReferenceSchema` maps every string
+--       blank under this same floor to "absent" before it can reach here
+--       (through `isBlankUnderDatabaseFloor`, the predicate
+--       `name-floor-unicode-blank.integration.test.ts` proves agrees with this
+--       character class), so this CHECK is the out-of-band writer's backstop
+--       rather than a reachable 500;
+--   (2) **`length(...)`, not `length(btrim(...))`** — unlike
+--       `portfolio_name_length`. The boundary stores a `.trim()`-ed value, so
+--       the raw length *is* the trimmed length for every row this product
+--       writes, and bounding the raw one is the strictly stronger statement. It
+--       also closes a gap the `btrim` form leaves: `btrim` strips ASCII spaces
+--       only, so a value padded with tabs can pass a JS-side `.trim().max(n)`
+--       and fail `length(btrim(x)) <= n` — a 500 for input the boundary had
+--       just accepted.
+--
+-- `120` is generous for every real numbering scheme (ISO 20022's
+-- `EndToEndIdentification` is 35) and short enough to stay one line in the
+-- drawer. It is stated literally here and read back out of
+-- `pg_get_constraintdef` by `transaction-reference.integration.test.ts`, which
+-- asserts it equals `TRANSACTION_REFERENCE_MAX_LENGTH` — the both-directions
+-- drift guard `INDUSTRY_LABEL_MAX_LENGTH`'s own comment records as the only
+-- kind that holds.
+--
+-- Net CHECK count on `transaction`: **36 -> 37** (`transaction-check-count.ts`
+-- carries the ledger).
+
+ALTER TABLE "transaction" ADD COLUMN "reference" text;--> statement-breakpoint
+ALTER TABLE "transaction" ADD CONSTRAINT "transaction_reference_shape" CHECK ("transaction"."reference" IS NULL OR ("transaction"."reference" ~ '[^[:space:]\u00A0\u1680\u180E\u2007\u200B\u200C\u200D\u202F\u2060\uFEFF]' and length("transaction"."reference") <= 120));

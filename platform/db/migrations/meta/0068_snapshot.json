@@ -1,0 +1,3998 @@
+{
+  "id": "30dd0194-baf6-46b3-afd2-295824a29220",
+  "prevId": "b9d9a796-d22d-456e-bcac-7962fcd54796",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.currency": {
+      "name": "currency",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "char(3)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minor_unit": {
+          "name": "minor_unit",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tenant": {
+      "name": "tenant",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "base_currency": {
+          "name": "base_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EUR'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tenant_base_currency_currency_code_fk": {
+          "name": "tenant_base_currency_currency_code_fk",
+          "tableFrom": "tenant",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "base_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.app_user": {
+      "name": "app_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "citext",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_instance_admin": {
+          "name": "is_instance_admin",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "email_verified_at": {
+          "name": "email_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "app_user_email_key": {
+          "name": "app_user_email_key",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "app_user_tenant_id_tenant_id_fk": {
+          "name": "app_user_tenant_id_tenant_id_fk",
+          "tableFrom": "app_user",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
+          "type": "inet",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "session_token_hash_key": {
+          "name": "session_token_hash_key",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "session_tenant_id_tenant_id_fk": {
+          "name": "session_tenant_id_tenant_id_fk",
+          "tableFrom": "session",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "session_user_id_app_user_id_fk": {
+          "name": "session_user_id_app_user_id_fk",
+          "tableFrom": "session",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.instrument": {
+      "name": "instrument",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "instrument_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "listing_currency": {
+          "name": "listing_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exchange_mic": {
+          "name": "exchange_mic",
+          "type": "char(4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isin": {
+          "name": "isin",
+          "type": "char(12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "figi": {
+          "name": "figi",
+          "type": "char(12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "primary_identifier": {
+          "name": "primary_identifier",
+          "type": "primary_identifier",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quote_policy": {
+          "name": "quote_policy",
+          "type": "quote_policy",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_tenant_id": {
+          "name": "owner_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "instrument_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ACTIVE'"
+        },
+        "sector_code": {
+          "name": "sector_code",
+          "type": "instrument_sector",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "industry_label": {
+          "name": "industry_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "domicile_country": {
+          "name": "domicile_country",
+          "type": "char(2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "instrument_isin_exchange_mic_key": {
+          "name": "instrument_isin_exchange_mic_key",
+          "columns": [
+            {
+              "expression": "isin",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "exchange_mic",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument\".\"isin\" IS NOT NULL AND \"instrument\".\"owner_tenant_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "instrument_tenant_isin_exchange_mic_key": {
+          "name": "instrument_tenant_isin_exchange_mic_key",
+          "columns": [
+            {
+              "expression": "owner_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "isin",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "exchange_mic",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument\".\"isin\" IS NOT NULL AND \"instrument\".\"owner_tenant_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "instrument_symbol_crypto_key": {
+          "name": "instrument_symbol_crypto_key",
+          "columns": [
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument\".\"kind\" = 'CRYPTO' AND \"instrument\".\"owner_tenant_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "instrument_tenant_symbol_crypto_key": {
+          "name": "instrument_tenant_symbol_crypto_key",
+          "columns": [
+            {
+              "expression": "owner_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument\".\"kind\" = 'CRYPTO' AND \"instrument\".\"owner_tenant_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "instrument_symbol_no_isin_key": {
+          "name": "instrument_symbol_no_isin_key",
+          "columns": [
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument\".\"kind\" <> 'CRYPTO' AND \"instrument\".\"isin\" IS NULL AND \"instrument\".\"symbol\" IS NOT NULL AND \"instrument\".\"owner_tenant_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "instrument_tenant_symbol_no_isin_key": {
+          "name": "instrument_tenant_symbol_no_isin_key",
+          "columns": [
+            {
+              "expression": "owner_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument\".\"kind\" <> 'CRYPTO' AND \"instrument\".\"isin\" IS NULL AND \"instrument\".\"symbol\" IS NOT NULL AND \"instrument\".\"owner_tenant_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "instrument_listing_currency_currency_code_fk": {
+          "name": "instrument_listing_currency_currency_code_fk",
+          "tableFrom": "instrument",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "listing_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "instrument_owner_tenant_id_tenant_id_fk": {
+          "name": "instrument_owner_tenant_id_tenant_id_fk",
+          "tableFrom": "instrument",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "owner_tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "instrument_domicile_country_charset": {
+          "name": "instrument_domicile_country_charset",
+          "value": "\"instrument\".\"domicile_country\" ~ '^[A-Z]{2}$'"
+        },
+        "instrument_industry_label_length": {
+          "name": "instrument_industry_label_length",
+          "value": "char_length(\"instrument\".\"industry_label\") <= 120"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.instrument_provider_map": {
+      "name": "instrument_provider_map",
+      "schema": "",
+      "columns": {
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_key": {
+          "name": "provider_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_symbol": {
+          "name": "provider_symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "provider_map_confidence",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_verified_at": {
+          "name": "last_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_tenant_id": {
+          "name": "owner_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "instrument_provider_map_provider_symbol_key": {
+          "name": "instrument_provider_map_provider_symbol_key",
+          "columns": [
+            {
+              "expression": "provider_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument_provider_map\".\"owner_tenant_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "instrument_provider_map_tenant_provider_symbol_key": {
+          "name": "instrument_provider_map_tenant_provider_symbol_key",
+          "columns": [
+            {
+              "expression": "owner_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"instrument_provider_map\".\"owner_tenant_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "instrument_provider_map_instrument_id_instrument_id_fk": {
+          "name": "instrument_provider_map_instrument_id_instrument_id_fk",
+          "tableFrom": "instrument_provider_map",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "instrument_provider_map_owner_tenant_id_tenant_id_fk": {
+          "name": "instrument_provider_map_owner_tenant_id_tenant_id_fk",
+          "tableFrom": "instrument_provider_map",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "owner_tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "instrument_provider_map_instrument_id_provider_key_pk": {
+          "name": "instrument_provider_map_instrument_id_provider_key_pk",
+          "columns": [
+            "instrument_id",
+            "provider_key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.instrument_icon": {
+      "name": "instrument_icon",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bytes": {
+          "name": "bytes",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "instrument_icon_content_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "byte_length": {
+          "name": "byte_length",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "width_px": {
+          "name": "width_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height_px": {
+          "name": "height_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "instrument_icon_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MANUAL'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "instrument_icon_tenant_id_tenant_id_fk": {
+          "name": "instrument_icon_tenant_id_tenant_id_fk",
+          "tableFrom": "instrument_icon",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "instrument_icon_instrument_id_instrument_id_fk": {
+          "name": "instrument_icon_instrument_id_instrument_id_fk",
+          "tableFrom": "instrument_icon",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "instrument_icon_tenant_id_instrument_id_pk": {
+          "name": "instrument_icon_tenant_id_instrument_id_pk",
+          "columns": [
+            "tenant_id",
+            "instrument_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "instrument_icon_byte_length_is_real": {
+          "name": "instrument_icon_byte_length_is_real",
+          "value": "\"instrument_icon\".\"byte_length\" = octet_length(\"instrument_icon\".\"bytes\")"
+        },
+        "instrument_icon_byte_length_bound": {
+          "name": "instrument_icon_byte_length_bound",
+          "value": "\"instrument_icon\".\"byte_length\" between 1 and 262144"
+        },
+        "instrument_icon_dimensions_bound": {
+          "name": "instrument_icon_dimensions_bound",
+          "value": "\"instrument_icon\".\"width_px\" between 1 and 512 and \"instrument_icon\".\"height_px\" between 1 and 512"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.watchlist_item": {
+      "name": "watchlist_item",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_price": {
+          "name": "target_price",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "watchlist_item_tenant_id_tenant_id_fk": {
+          "name": "watchlist_item_tenant_id_tenant_id_fk",
+          "tableFrom": "watchlist_item",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "watchlist_item_instrument_id_instrument_id_fk": {
+          "name": "watchlist_item_instrument_id_instrument_id_fk",
+          "tableFrom": "watchlist_item",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "watchlist_item_tenant_id_instrument_id_pk": {
+          "name": "watchlist_item_tenant_id_instrument_id_pk",
+          "columns": [
+            "tenant_id",
+            "instrument_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "watchlist_item_note_length": {
+          "name": "watchlist_item_note_length",
+          "value": "char_length(\"watchlist_item\".\"note\") <= 500"
+        },
+        "watchlist_item_target_price_positive": {
+          "name": "watchlist_item_target_price_positive",
+          "value": "\"watchlist_item\".\"target_price\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fx_rate_daily": {
+      "name": "fx_rate_daily",
+      "schema": "",
+      "columns": {
+        "base_currency": {
+          "name": "base_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quote_currency": {
+          "name": "quote_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate_date": {
+          "name": "rate_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate": {
+          "name": "rate",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ingested_at": {
+          "name": "ingested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fx_rate_daily_base_currency_currency_code_fk": {
+          "name": "fx_rate_daily_base_currency_currency_code_fk",
+          "tableFrom": "fx_rate_daily",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "base_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fx_rate_daily_quote_currency_currency_code_fk": {
+          "name": "fx_rate_daily_quote_currency_currency_code_fk",
+          "tableFrom": "fx_rate_daily",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "quote_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fx_rate_daily_base_currency_quote_currency_rate_date_pk": {
+          "name": "fx_rate_daily_base_currency_quote_currency_rate_date_pk",
+          "columns": [
+            "base_currency",
+            "quote_currency",
+            "rate_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fx_rate_user": {
+      "name": "fx_rate_user",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_currency": {
+          "name": "base_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quote_currency": {
+          "name": "quote_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate_date": {
+          "name": "rate_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate": {
+          "name": "rate",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fx_rate_user_tenant_id_tenant_id_fk": {
+          "name": "fx_rate_user_tenant_id_tenant_id_fk",
+          "tableFrom": "fx_rate_user",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fx_rate_user_base_currency_currency_code_fk": {
+          "name": "fx_rate_user_base_currency_currency_code_fk",
+          "tableFrom": "fx_rate_user",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "base_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fx_rate_user_quote_currency_currency_code_fk": {
+          "name": "fx_rate_user_quote_currency_currency_code_fk",
+          "tableFrom": "fx_rate_user",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "quote_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fx_rate_user_tenant_id_base_currency_quote_currency_rate_date_pk": {
+          "name": "fx_rate_user_tenant_id_base_currency_quote_currency_rate_date_pk",
+          "columns": [
+            "tenant_id",
+            "base_currency",
+            "quote_currency",
+            "rate_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fx_tracked_pair": {
+      "name": "fx_tracked_pair",
+      "schema": "",
+      "columns": {
+        "base_currency": {
+          "name": "base_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quote_currency": {
+          "name": "quote_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fx_tracked_pair_base_currency_currency_code_fk": {
+          "name": "fx_tracked_pair_base_currency_currency_code_fk",
+          "tableFrom": "fx_tracked_pair",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "base_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fx_tracked_pair_quote_currency_currency_code_fk": {
+          "name": "fx_tracked_pair_quote_currency_currency_code_fk",
+          "tableFrom": "fx_tracked_pair",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "quote_currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fx_tracked_pair_base_currency_quote_currency_pk": {
+          "name": "fx_tracked_pair_base_currency_quote_currency_pk",
+          "columns": [
+            "base_currency",
+            "quote_currency"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "fx_tracked_pair_legs_differ": {
+          "name": "fx_tracked_pair_legs_differ",
+          "value": "\"fx_tracked_pair\".\"base_currency\" <> \"fx_tracked_pair\".\"quote_currency\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.instrument_price_daily": {
+      "name": "instrument_price_daily",
+      "schema": "",
+      "columns": {
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_date": {
+          "name": "price_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "close_raw": {
+          "name": "close_raw",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quality": {
+          "name": "quality",
+          "type": "price_quality",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ingested_at": {
+          "name": "ingested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "instrument_price_daily_ingested_at_brin_idx": {
+          "name": "instrument_price_daily_ingested_at_brin_idx",
+          "columns": [
+            {
+              "expression": "ingested_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "brin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "instrument_price_daily_instrument_id_instrument_id_fk": {
+          "name": "instrument_price_daily_instrument_id_instrument_id_fk",
+          "tableFrom": "instrument_price_daily",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "instrument_price_daily_currency_currency_code_fk": {
+          "name": "instrument_price_daily_currency_currency_code_fk",
+          "tableFrom": "instrument_price_daily",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "instrument_price_daily_instrument_id_price_date_pk": {
+          "name": "instrument_price_daily_instrument_id_price_date_pk",
+          "columns": [
+            "instrument_id",
+            "price_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.manual_price_point": {
+      "name": "manual_price_point",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_date": {
+          "name": "price_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "close": {
+          "name": "close",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "entered_at": {
+          "name": "entered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "manual_price_point_tenant_id_tenant_id_fk": {
+          "name": "manual_price_point_tenant_id_tenant_id_fk",
+          "tableFrom": "manual_price_point",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "manual_price_point_instrument_id_instrument_id_fk": {
+          "name": "manual_price_point_instrument_id_instrument_id_fk",
+          "tableFrom": "manual_price_point",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "manual_price_point_currency_currency_code_fk": {
+          "name": "manual_price_point_currency_currency_code_fk",
+          "tableFrom": "manual_price_point",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "manual_price_point_tenant_id_instrument_id_price_date_pk": {
+          "name": "manual_price_point_tenant_id_instrument_id_price_date_pk",
+          "columns": [
+            "tenant_id",
+            "instrument_id",
+            "price_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.instrument_quote_latest": {
+      "name": "instrument_quote_latest",
+      "schema": "",
+      "columns": {
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "price": {
+          "name": "price",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "as_of": {
+          "name": "as_of",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "quality": {
+          "name": "quality",
+          "type": "price_quality",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "instrument_quote_latest_instrument_id_instrument_id_fk": {
+          "name": "instrument_quote_latest_instrument_id_instrument_id_fk",
+          "tableFrom": "instrument_quote_latest",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "instrument_quote_latest_currency_currency_code_fk": {
+          "name": "instrument_quote_latest_currency_currency_code_fk",
+          "tableFrom": "instrument_quote_latest",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.provider_fetch_log": {
+      "name": "provider_fetch_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "provider_key": {
+          "name": "provider_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "provider_fetch_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_ms": {
+          "name": "latency_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rows_fetched": {
+          "name": "rows_fetched",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.instrument_backfill_state": {
+      "name": "instrument_backfill_state",
+      "schema": "",
+      "columns": {
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "requested_from": {
+          "name": "requested_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "earliest_backfilled_date": {
+          "name": "earliest_backfilled_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latest_backfilled_date": {
+          "name": "latest_backfilled_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "backfilled_from": {
+          "name": "backfilled_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "backfill_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "last_attempted_at": {
+          "name": "last_attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consecutive_failures": {
+          "name": "consecutive_failures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "instrument_backfill_state_instrument_id_instrument_id_fk": {
+          "name": "instrument_backfill_state_instrument_id_instrument_id_fk",
+          "tableFrom": "instrument_backfill_state",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.instrument_price_gap": {
+      "name": "instrument_price_gap",
+      "schema": "",
+      "columns": {
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_date": {
+          "name": "price_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_key": {
+          "name": "provider_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_confirmed_at": {
+          "name": "last_confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "instrument_price_gap_instrument_id_instrument_id_fk": {
+          "name": "instrument_price_gap_instrument_id_instrument_id_fk",
+          "tableFrom": "instrument_price_gap",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "instrument_price_gap_instrument_id_price_date_pk": {
+          "name": "instrument_price_gap_instrument_id_price_date_pk",
+          "columns": [
+            "instrument_id",
+            "price_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.market_calendar": {
+      "name": "market_calendar",
+      "schema": "",
+      "columns": {
+        "calendar_key": {
+          "name": "calendar_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_date": {
+          "name": "session_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_open": {
+          "name": "is_open",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "market_calendar_calendar_key_session_date_pk": {
+          "name": "market_calendar_calendar_key_session_date_pk",
+          "columns": [
+            "calendar_key",
+            "session_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.market_data_epoch": {
+      "name": "market_data_epoch",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "smallint",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "epoch": {
+          "name": "epoch",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "market_data_epoch_single_row": {
+          "name": "market_data_epoch_single_row",
+          "value": "\"market_data_epoch\".\"id\" = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.portfolio": {
+      "name": "portfolio",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "broker": {
+          "name": "broker",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accent_color": {
+          "name": "accent_color",
+          "type": "portfolio_accent_color",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calc_epoch": {
+          "name": "calc_epoch",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "portfolio_tenant_id_name_key": {
+          "name": "portfolio_tenant_id_name_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "portfolio_tenant_id_tenant_id_fk": {
+          "name": "portfolio_tenant_id_tenant_id_fk",
+          "tableFrom": "portfolio",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "portfolio_name_length": {
+          "name": "portfolio_name_length",
+          "value": "\"portfolio\".\"name\" ~ '[^[:space:]\\u00A0\\u1680\\u180E\\u2007\\u200B\\u200C\\u200D\\u202F\\u2060\\uFEFF]' and length(btrim(\"portfolio\".\"name\")) <= 200"
+        },
+        "portfolio_broker_length": {
+          "name": "portfolio_broker_length",
+          "value": "\"portfolio\".\"broker\" ~ '[^[:space:]\\u00A0\\u1680\\u180E\\u2007\\u200B\\u200C\\u200D\\u202F\\u2060\\uFEFF]' and length(btrim(\"portfolio\".\"broker\")) <= 200"
+        },
+        "portfolio_description_length": {
+          "name": "portfolio_description_length",
+          "value": "\"portfolio\".\"description\" ~ '[^[:space:]\\u00A0\\u1680\\u180E\\u2007\\u200B\\u200C\\u200D\\u202F\\u2060\\uFEFF]' and length(btrim(\"portfolio\".\"description\")) <= 2000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.portfolio_icon": {
+      "name": "portfolio_icon",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bytes": {
+          "name": "bytes",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "instrument_icon_content_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "byte_length": {
+          "name": "byte_length",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "width_px": {
+          "name": "width_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height_px": {
+          "name": "height_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "portfolio_icon_tenant_id_tenant_id_fk": {
+          "name": "portfolio_icon_tenant_id_tenant_id_fk",
+          "tableFrom": "portfolio_icon",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "portfolio_icon_portfolio_id_portfolio_id_fk": {
+          "name": "portfolio_icon_portfolio_id_portfolio_id_fk",
+          "tableFrom": "portfolio_icon",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "portfolio_icon_tenant_id_portfolio_id_pk": {
+          "name": "portfolio_icon_tenant_id_portfolio_id_pk",
+          "columns": [
+            "tenant_id",
+            "portfolio_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "portfolio_icon_byte_length_is_real": {
+          "name": "portfolio_icon_byte_length_is_real",
+          "value": "\"portfolio_icon\".\"byte_length\" = octet_length(\"portfolio_icon\".\"bytes\")"
+        },
+        "portfolio_icon_byte_length_bound": {
+          "name": "portfolio_icon_byte_length_bound",
+          "value": "\"portfolio_icon\".\"byte_length\" between 1 and 262144"
+        },
+        "portfolio_icon_dimensions_bound": {
+          "name": "portfolio_icon_dimensions_bound",
+          "value": "\"portfolio_icon\".\"width_px\" between 1 and 512 and \"portfolio_icon\".\"height_px\" between 1 and 512"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cash_account": {
+      "name": "cash_account",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cash_account_tenant_id_portfolio_id_name_key": {
+          "name": "cash_account_tenant_id_portfolio_id_name_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "portfolio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cash_account_tenant_id_portfolio_id_id_currency_key": {
+          "name": "cash_account_tenant_id_portfolio_id_id_currency_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "portfolio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cash_account_tenant_id_tenant_id_fk": {
+          "name": "cash_account_tenant_id_tenant_id_fk",
+          "tableFrom": "cash_account",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cash_account_portfolio_id_portfolio_id_fk": {
+          "name": "cash_account_portfolio_id_portfolio_id_fk",
+          "tableFrom": "cash_account",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cash_account_name_length": {
+          "name": "cash_account_name_length",
+          "value": "\"cash_account\".\"name\" ~ '[^[:space:]\\u00A0\\u1680\\u180E\\u2007\\u200B\\u200C\\u200D\\u202F\\u2060\\uFEFF]' and length(btrim(\"cash_account\".\"name\")) <= 200"
+        },
+        "cash_account_currency_charset": {
+          "name": "cash_account_currency_charset",
+          "value": "\"cash_account\".\"currency\" ~ '^[A-Z]{3}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.transaction": {
+      "name": "transaction",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "transaction_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_currency": {
+          "name": "base_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trade_date": {
+          "name": "trade_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trade_ts": {
+          "name": "trade_ts",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gross_amount": {
+          "name": "gross_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "txn_currency": {
+          "name": "txn_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "txn_settlement_instrument_id": {
+          "name": "txn_settlement_instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cash_currency": {
+          "name": "cash_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cash_amount": {
+          "name": "cash_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_currency": {
+          "name": "target_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_amount": {
+          "name": "target_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fee_amount": {
+          "name": "fee_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "broker_fee_amount": {
+          "name": "broker_fee_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fx_fee_amount": {
+          "name": "fx_fee_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_amount": {
+          "name": "tax_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "other_cost_amount": {
+          "name": "other_cost_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withholding_amount": {
+          "name": "withholding_amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withholding_currency": {
+          "name": "withholding_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_dividend_id": {
+          "name": "source_dividend_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fx_rate": {
+          "name": "fx_rate",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate_source": {
+          "name": "fx_rate_source",
+          "type": "fx_rate_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate_provider_key": {
+          "name": "fx_rate_provider_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fx_rate_observed_on": {
+          "name": "fx_rate_observed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fx_rate_user_input": {
+          "name": "fx_rate_user_input",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wht_fx_rate": {
+          "name": "wht_fx_rate",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wht_fx_rate_source": {
+          "name": "wht_fx_rate_source",
+          "type": "fx_rate_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wht_fx_rate_provider_key": {
+          "name": "wht_fx_rate_provider_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wht_fx_rate_observed_on": {
+          "name": "wht_fx_rate_observed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wht_fx_rate_user_input": {
+          "name": "wht_fx_rate_user_input",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cash_account_id": {
+          "name": "cash_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_cash_account_id": {
+          "name": "target_cash_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wht_cash_account_id": {
+          "name": "wht_cash_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "import_fingerprint": {
+          "name": "import_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by_session_id": {
+          "name": "updated_by_session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "transaction_tenant_id_seq_key": {
+          "name": "transaction_tenant_id_seq_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "transaction_tenant_portfolio_trade_date_seq_idx": {
+          "name": "transaction_tenant_portfolio_trade_date_seq_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "portfolio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "trade_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "transaction_tenant_instrument_trade_date_seq_idx": {
+          "name": "transaction_tenant_instrument_trade_date_seq_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "instrument_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "trade_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "transaction_import_fingerprint_key": {
+          "name": "transaction_import_fingerprint_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "portfolio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "import_fingerprint",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"transaction\".\"import_fingerprint\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "transaction_tenant_id_tenant_id_fk": {
+          "name": "transaction_tenant_id_tenant_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_portfolio_id_portfolio_id_fk": {
+          "name": "transaction_portfolio_id_portfolio_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_instrument_id_instrument_id_fk": {
+          "name": "transaction_instrument_id_instrument_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_txn_settlement_instrument_id_instrument_id_fk": {
+          "name": "transaction_txn_settlement_instrument_id_instrument_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "txn_settlement_instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_source_dividend_id_transaction_id_fk": {
+          "name": "transaction_source_dividend_id_transaction_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "transaction",
+          "columnsFrom": [
+            "source_dividend_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_updated_by_session_id_session_id_fk": {
+          "name": "transaction_updated_by_session_id_session_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "session",
+          "columnsFrom": [
+            "updated_by_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_cash_account_fk": {
+          "name": "transaction_cash_account_fk",
+          "tableFrom": "transaction",
+          "tableTo": "cash_account",
+          "columnsFrom": [
+            "tenant_id",
+            "portfolio_id",
+            "cash_account_id",
+            "cash_currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "portfolio_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_target_cash_account_fk": {
+          "name": "transaction_target_cash_account_fk",
+          "tableFrom": "transaction",
+          "tableTo": "cash_account",
+          "columnsFrom": [
+            "tenant_id",
+            "portfolio_id",
+            "target_cash_account_id",
+            "target_currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "portfolio_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_wht_cash_account_fk": {
+          "name": "transaction_wht_cash_account_fk",
+          "tableFrom": "transaction",
+          "tableTo": "cash_account",
+          "columnsFrom": [
+            "tenant_id",
+            "portfolio_id",
+            "wht_cash_account_id",
+            "withholding_currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "portfolio_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "transaction_buy_sell_shape": {
+          "name": "transaction_buy_sell_shape",
+          "value": "\"transaction\".\"kind\" NOT IN ('BUY', 'SELL') OR (\n        \"transaction\".\"instrument_id\" IS NOT NULL\n        AND \"transaction\".\"quantity\" IS NOT NULL\n        AND \"transaction\".\"unit_price\" IS NOT NULL\n        AND \"transaction\".\"target_currency\" IS NULL\n        AND \"transaction\".\"target_amount\" IS NULL\n        AND \"transaction\".\"source_dividend_id\" IS NULL\n      )"
+        },
+        "transaction_deposit_withdrawal_shape": {
+          "name": "transaction_deposit_withdrawal_shape",
+          "value": "\"transaction\".\"kind\" NOT IN ('DEPOSIT', 'WITHDRAWAL') OR (\n        \"transaction\".\"txn_currency\" IS NOT NULL\n        AND \"transaction\".\"instrument_id\" IS NULL\n        AND \"transaction\".\"quantity\" IS NULL\n        AND \"transaction\".\"unit_price\" IS NULL\n        AND \"transaction\".\"target_currency\" IS NULL\n        AND \"transaction\".\"target_amount\" IS NULL\n        AND \"transaction\".\"source_dividend_id\" IS NULL\n      )"
+        },
+        "transaction_dividend_shape": {
+          "name": "transaction_dividend_shape",
+          "value": "\"transaction\".\"kind\" <> 'DIVIDEND' OR (\n        \"transaction\".\"instrument_id\" IS NOT NULL\n        AND \"transaction\".\"quantity\" IS NULL\n        AND \"transaction\".\"unit_price\" IS NULL\n        AND \"transaction\".\"target_currency\" IS NULL\n        AND \"transaction\".\"target_amount\" IS NULL\n        AND \"transaction\".\"source_dividend_id\" IS NULL\n        AND \"transaction\".\"fee_amount\" IS NULL\n      )"
+        },
+        "transaction_drip_shape": {
+          "name": "transaction_drip_shape",
+          "value": "\"transaction\".\"kind\" <> 'DRIP' OR (\n        \"transaction\".\"instrument_id\" IS NOT NULL\n        AND \"transaction\".\"quantity\" IS NOT NULL\n        AND \"transaction\".\"unit_price\" IS NOT NULL\n        AND \"transaction\".\"source_dividend_id\" IS NOT NULL\n        AND \"transaction\".\"target_currency\" IS NULL\n        AND \"transaction\".\"target_amount\" IS NULL\n      )"
+        },
+        "transaction_currency_exchange_shape": {
+          "name": "transaction_currency_exchange_shape",
+          "value": "\"transaction\".\"kind\" <> 'CURRENCY_EXCHANGE' OR (\n        \"transaction\".\"txn_currency\" IS NOT NULL\n        AND \"transaction\".\"target_currency\" IS NOT NULL\n        AND \"transaction\".\"target_amount\" IS NOT NULL\n        AND \"transaction\".\"instrument_id\" IS NULL\n        AND \"transaction\".\"quantity\" IS NULL\n        AND \"transaction\".\"unit_price\" IS NULL\n        AND \"transaction\".\"source_dividend_id\" IS NULL\n      )"
+        },
+        "transaction_share_distribution_shape": {
+          "name": "transaction_share_distribution_shape",
+          "value": "\"transaction\".\"kind\"::text <> 'SHARE_DISTRIBUTION' OR (\n        \"transaction\".\"instrument_id\" IS NOT NULL\n        AND \"transaction\".\"quantity\" IS NOT NULL\n        AND \"transaction\".\"txn_currency\" IS NOT NULL\n        AND \"transaction\".\"unit_price\" IS NULL\n        AND \"transaction\".\"target_currency\" IS NULL\n        AND \"transaction\".\"target_amount\" IS NULL\n        AND \"transaction\".\"source_dividend_id\" IS NULL\n        AND \"transaction\".\"cash_account_id\" IS NULL\n        AND \"transaction\".\"cash_currency\" IS NULL\n        AND \"transaction\".\"cash_amount\" IS NULL\n        AND \"transaction\".\"fee_amount\" IS NULL\n        AND \"transaction\".\"withholding_amount\" IS NULL\n      )"
+        },
+        "transaction_currency_xor_settlement_instrument": {
+          "name": "transaction_currency_xor_settlement_instrument",
+          "value": "(\"transaction\".\"txn_currency\" IS NOT NULL) <> (\"transaction\".\"txn_settlement_instrument_id\" IS NOT NULL)"
+        },
+        "transaction_quantity_positive": {
+          "name": "transaction_quantity_positive",
+          "value": "\"transaction\".\"quantity\" IS NULL OR \"transaction\".\"quantity\" > 0"
+        },
+        "transaction_unit_price_positive": {
+          "name": "transaction_unit_price_positive",
+          "value": "\"transaction\".\"unit_price\" IS NULL OR \"transaction\".\"unit_price\" > 0"
+        },
+        "transaction_gross_amount_positive": {
+          "name": "transaction_gross_amount_positive",
+          "value": "\"transaction\".\"gross_amount\" > 0"
+        },
+        "transaction_target_amount_positive": {
+          "name": "transaction_target_amount_positive",
+          "value": "\"transaction\".\"target_amount\" IS NULL OR \"transaction\".\"target_amount\" > 0"
+        },
+        "transaction_fee_amount_positive": {
+          "name": "transaction_fee_amount_positive",
+          "value": "\"transaction\".\"fee_amount\" IS NULL OR \"transaction\".\"fee_amount\" > 0"
+        },
+        "transaction_broker_fee_amount_positive": {
+          "name": "transaction_broker_fee_amount_positive",
+          "value": "\"transaction\".\"broker_fee_amount\" IS NULL OR \"transaction\".\"broker_fee_amount\" > 0"
+        },
+        "transaction_fx_fee_amount_positive": {
+          "name": "transaction_fx_fee_amount_positive",
+          "value": "\"transaction\".\"fx_fee_amount\" IS NULL OR \"transaction\".\"fx_fee_amount\" > 0"
+        },
+        "transaction_tax_amount_positive": {
+          "name": "transaction_tax_amount_positive",
+          "value": "\"transaction\".\"tax_amount\" IS NULL OR \"transaction\".\"tax_amount\" > 0"
+        },
+        "transaction_other_cost_amount_positive": {
+          "name": "transaction_other_cost_amount_positive",
+          "value": "\"transaction\".\"other_cost_amount\" IS NULL OR \"transaction\".\"other_cost_amount\" > 0"
+        },
+        "transaction_cost_components_sum_to_fee_amount": {
+          "name": "transaction_cost_components_sum_to_fee_amount",
+          "value": "(\"transaction\".\"broker_fee_amount\" IS NULL AND \"transaction\".\"fx_fee_amount\" IS NULL AND \"transaction\".\"tax_amount\" IS NULL AND \"transaction\".\"other_cost_amount\" IS NULL) OR (\"transaction\".\"fee_amount\" IS NOT NULL AND \"transaction\".\"fee_amount\" = coalesce(\"transaction\".\"broker_fee_amount\",0) + coalesce(\"transaction\".\"fx_fee_amount\",0) + coalesce(\"transaction\".\"tax_amount\",0) + coalesce(\"transaction\".\"other_cost_amount\",0))"
+        },
+        "transaction_withholding_amount_positive": {
+          "name": "transaction_withholding_amount_positive",
+          "value": "\"transaction\".\"withholding_amount\" IS NULL OR \"transaction\".\"withholding_amount\" > 0"
+        },
+        "transaction_instrument_not_self_settled": {
+          "name": "transaction_instrument_not_self_settled",
+          "value": "\"transaction\".\"txn_settlement_instrument_id\" IS NULL OR \"transaction\".\"instrument_id\" <> \"transaction\".\"txn_settlement_instrument_id\""
+        },
+        "transaction_wht_cash_account_pairing": {
+          "name": "transaction_wht_cash_account_pairing",
+          "value": "(\"transaction\".\"wht_cash_account_id\" IS NULL) OR (\"transaction\".\"withholding_currency\" IS NOT NULL)"
+        },
+        "transaction_target_cash_account_pairing": {
+          "name": "transaction_target_cash_account_pairing",
+          "value": "(\"transaction\".\"target_cash_account_id\" IS NULL) OR (\"transaction\".\"target_currency\" IS NOT NULL)"
+        },
+        "transaction_withholding_amount_currency_pairing": {
+          "name": "transaction_withholding_amount_currency_pairing",
+          "value": "(\"transaction\".\"withholding_amount\" IS NULL) = (\"transaction\".\"withholding_currency\" IS NULL)"
+        },
+        "transaction_settled_principal_has_no_cash_account": {
+          "name": "transaction_settled_principal_has_no_cash_account",
+          "value": "\"transaction\".\"txn_settlement_instrument_id\" IS NULL OR \"transaction\".\"cash_account_id\" IS NULL"
+        },
+        "transaction_settled_principal_has_no_cost": {
+          "name": "transaction_settled_principal_has_no_cost",
+          "value": "\"transaction\".\"txn_settlement_instrument_id\" IS NULL OR \"transaction\".\"fee_amount\" IS NULL"
+        },
+        "transaction_cash_amount_positive": {
+          "name": "transaction_cash_amount_positive",
+          "value": "\"transaction\".\"cash_amount\" IS NULL OR \"transaction\".\"cash_amount\" > 0"
+        },
+        "transaction_cash_amount_currency_pairing": {
+          "name": "transaction_cash_amount_currency_pairing",
+          "value": "(\"transaction\".\"cash_amount\" IS NULL) = (\"transaction\".\"cash_currency\" IS NULL)"
+        },
+        "transaction_cash_degenerate_equals_gross": {
+          "name": "transaction_cash_degenerate_equals_gross",
+          "value": "\"transaction\".\"cash_currency\" IS NULL OR \"transaction\".\"cash_currency\" IS DISTINCT FROM \"transaction\".\"txn_currency\" OR \"transaction\".\"cash_amount\" = \"transaction\".\"gross_amount\""
+        },
+        "transaction_settled_principal_has_no_cash_leg": {
+          "name": "transaction_settled_principal_has_no_cash_leg",
+          "value": "\"transaction\".\"txn_settlement_instrument_id\" IS NULL OR (\"transaction\".\"cash_currency\" IS NULL AND \"transaction\".\"cash_amount\" IS NULL)"
+        },
+        "transaction_fiat_principal_has_cash_account": {
+          "name": "transaction_fiat_principal_has_cash_account",
+          "value": "\"transaction\".\"txn_currency\" IS NULL OR \"transaction\".\"kind\"::text = 'SHARE_DISTRIBUTION' OR \"transaction\".\"cash_account_id\" IS NOT NULL"
+        },
+        "transaction_target_has_cash_account": {
+          "name": "transaction_target_has_cash_account",
+          "value": "\"transaction\".\"target_currency\" IS NULL OR \"transaction\".\"target_cash_account_id\" IS NOT NULL"
+        },
+        "transaction_wht_has_cash_account": {
+          "name": "transaction_wht_has_cash_account",
+          "value": "\"transaction\".\"withholding_currency\" IS NULL OR \"transaction\".\"wht_cash_account_id\" IS NOT NULL"
+        },
+        "transaction_cash_account_currency_pairing": {
+          "name": "transaction_cash_account_currency_pairing",
+          "value": "\"transaction\".\"cash_account_id\" IS NULL OR \"transaction\".\"cash_currency\" IS NOT NULL"
+        },
+        "transaction_currency_exchange_cash_leg_pinned": {
+          "name": "transaction_currency_exchange_cash_leg_pinned",
+          "value": "\"transaction\".\"kind\" <> 'CURRENCY_EXCHANGE' OR (\"transaction\".\"cash_currency\" IS NOT NULL AND \"transaction\".\"cash_currency\" = \"transaction\".\"txn_currency\")"
+        },
+        "transaction_fiat_principal_has_cash_currency": {
+          "name": "transaction_fiat_principal_has_cash_currency",
+          "value": "\"transaction\".\"txn_currency\" IS NULL OR \"transaction\".\"kind\"::text = 'SHARE_DISTRIBUTION' OR \"transaction\".\"cash_currency\" IS NOT NULL"
+        },
+        "transaction_import_fingerprint_shape": {
+          "name": "transaction_import_fingerprint_shape",
+          "value": "\"transaction\".\"import_fingerprint\" IS NULL OR \"transaction\".\"import_fingerprint\" ~ '^[a-z0-9]{1,8}:[0-9a-f]{64}$'"
+        },
+        "transaction_reference_shape": {
+          "name": "transaction_reference_shape",
+          "value": "\"transaction\".\"reference\" IS NULL OR (\"transaction\".\"reference\" ~ '[^[:space:]\\u00A0\\u1680\\u180E\\u2007\\u200B\\u200C\\u200D\\u202F\\u2060\\uFEFF]' and length(\"transaction\".\"reference\") <= 120)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.transaction_posting": {
+      "name": "transaction_posting",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_currency": {
+          "name": "base_currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seq": {
+          "name": "seq",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leg": {
+          "name": "leg",
+          "type": "posting_leg",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cash_account_id": {
+          "name": "cash_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity_delta": {
+          "name": "quantity_delta",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_native": {
+          "name": "amount_native",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_base": {
+          "name": "amount_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate_applied": {
+          "name": "fx_rate_applied",
+          "type": "numeric(28, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate_source": {
+          "name": "fx_rate_source",
+          "type": "fx_rate_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flow_class": {
+          "name": "flow_class",
+          "type": "flow_class",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "transaction_posting_cash_account_id_idx": {
+          "name": "transaction_posting_cash_account_id_idx",
+          "columns": [
+            {
+              "expression": "cash_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "transaction_posting_tenant_leg_flow_class_idx": {
+          "name": "transaction_posting_tenant_leg_flow_class_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "leg",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "flow_class",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "transaction_posting_tenant_id_tenant_id_fk": {
+          "name": "transaction_posting_tenant_id_tenant_id_fk",
+          "tableFrom": "transaction_posting",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_posting_transaction_id_transaction_id_fk": {
+          "name": "transaction_posting_transaction_id_transaction_id_fk",
+          "tableFrom": "transaction_posting",
+          "tableTo": "transaction",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "transaction_posting_portfolio_id_portfolio_id_fk": {
+          "name": "transaction_posting_portfolio_id_portfolio_id_fk",
+          "tableFrom": "transaction_posting",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_posting_instrument_id_instrument_id_fk": {
+          "name": "transaction_posting_instrument_id_instrument_id_fk",
+          "tableFrom": "transaction_posting",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_posting_cash_account_fk": {
+          "name": "transaction_posting_cash_account_fk",
+          "tableFrom": "transaction_posting",
+          "tableTo": "cash_account",
+          "columnsFrom": [
+            "tenant_id",
+            "portfolio_id",
+            "cash_account_id",
+            "currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "portfolio_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "transaction_posting_cash_leg_has_currency": {
+          "name": "transaction_posting_cash_leg_has_currency",
+          "value": "(\"transaction_posting\".\"leg\" = 'CASH') = (\"transaction_posting\".\"currency\" IS NOT NULL)"
+        },
+        "transaction_posting_cash_leg_has_account": {
+          "name": "transaction_posting_cash_leg_has_account",
+          "value": "(\"transaction_posting\".\"leg\" = 'CASH') = (\"transaction_posting\".\"cash_account_id\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.transaction_revision": {
+      "name": "transaction_revision",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision_kind": {
+          "name": "revision_kind",
+          "type": "transaction_revision_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after": {
+          "name": "after",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "changed_at": {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "changed_by": {
+          "name": "changed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "transaction_revision_tenant_id_tenant_id_fk": {
+          "name": "transaction_revision_tenant_id_tenant_id_fk",
+          "tableFrom": "transaction_revision",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_revision_changed_by_app_user_id_fk": {
+          "name": "transaction_revision_changed_by_app_user_id_fk",
+          "tableFrom": "transaction_revision",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "changed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cash_balance": {
+      "name": "cash_balance",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cash_account_id": {
+          "name": "cash_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calc_epoch": {
+          "name": "calc_epoch",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cash_balance_tenant_id_tenant_id_fk": {
+          "name": "cash_balance_tenant_id_tenant_id_fk",
+          "tableFrom": "cash_balance",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cash_balance_portfolio_id_portfolio_id_fk": {
+          "name": "cash_balance_portfolio_id_portfolio_id_fk",
+          "tableFrom": "cash_balance",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cash_balance_cash_account_fk": {
+          "name": "cash_balance_cash_account_fk",
+          "tableFrom": "cash_balance",
+          "tableTo": "cash_account",
+          "columnsFrom": [
+            "tenant_id",
+            "portfolio_id",
+            "cash_account_id",
+            "currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "portfolio_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "cash_balance_tenant_id_portfolio_id_cash_account_id_currency_pk": {
+          "name": "cash_balance_tenant_id_portfolio_id_cash_account_id_currency_pk",
+          "columns": [
+            "tenant_id",
+            "portfolio_id",
+            "cash_account_id",
+            "currency"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.holding_state": {
+      "name": "holding_state",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cost_basis_base": {
+          "name": "cost_basis_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pmp_unit_base": {
+          "name": "pmp_unit_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cost_basis_native": {
+          "name": "cost_basis_native",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pmp_unit_native": {
+          "name": "pmp_unit_native",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_txn_seq": {
+          "name": "last_txn_seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calc_epoch": {
+          "name": "calc_epoch",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "holding_state_tenant_id_tenant_id_fk": {
+          "name": "holding_state_tenant_id_tenant_id_fk",
+          "tableFrom": "holding_state",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "holding_state_portfolio_id_portfolio_id_fk": {
+          "name": "holding_state_portfolio_id_portfolio_id_fk",
+          "tableFrom": "holding_state",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "holding_state_instrument_id_instrument_id_fk": {
+          "name": "holding_state_instrument_id_instrument_id_fk",
+          "tableFrom": "holding_state",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "holding_state_tenant_id_portfolio_id_instrument_id_pk": {
+          "name": "holding_state_tenant_id_portfolio_id_instrument_id_pk",
+          "columns": [
+            "tenant_id",
+            "portfolio_id",
+            "instrument_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.realized_gain": {
+      "name": "realized_gain",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instrument_id": {
+          "name": "instrument_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "disposal_date": {
+          "name": "disposal_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_sold": {
+          "name": "quantity_sold",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pmp_unit_base_at_sale": {
+          "name": "pmp_unit_base_at_sale",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proceeds_base": {
+          "name": "proceeds_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gain_base": {
+          "name": "gain_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gain_native": {
+          "name": "gain_native",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_component_base": {
+          "name": "fx_component_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calc_epoch": {
+          "name": "calc_epoch",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "realized_gain_tenant_id_tenant_id_fk": {
+          "name": "realized_gain_tenant_id_tenant_id_fk",
+          "tableFrom": "realized_gain",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "realized_gain_portfolio_id_portfolio_id_fk": {
+          "name": "realized_gain_portfolio_id_portfolio_id_fk",
+          "tableFrom": "realized_gain",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "realized_gain_instrument_id_instrument_id_fk": {
+          "name": "realized_gain_instrument_id_instrument_id_fk",
+          "tableFrom": "realized_gain",
+          "tableTo": "instrument",
+          "columnsFrom": [
+            "instrument_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "realized_gain_transaction_id_transaction_id_fk": {
+          "name": "realized_gain_transaction_id_transaction_id_fk",
+          "tableFrom": "realized_gain",
+          "tableTo": "transaction",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.portfolio_daily_valuation": {
+      "name": "portfolio_daily_valuation",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "portfolio_id": {
+          "name": "portfolio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valuation_date": {
+          "name": "valuation_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_value_base": {
+          "name": "total_value_base",
+          "type": "numeric(38, 12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "materialized_at": {
+          "name": "materialized_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "market_epoch": {
+          "name": "market_epoch",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "portfolio_daily_valuation_tenant_id_tenant_id_fk": {
+          "name": "portfolio_daily_valuation_tenant_id_tenant_id_fk",
+          "tableFrom": "portfolio_daily_valuation",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "portfolio_daily_valuation_portfolio_id_portfolio_id_fk": {
+          "name": "portfolio_daily_valuation_portfolio_id_portfolio_id_fk",
+          "tableFrom": "portfolio_daily_valuation",
+          "tableTo": "portfolio",
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "portfolio_daily_valuation_tenant_id_portfolio_id_valuation_date_pk": {
+          "name": "portfolio_daily_valuation_tenant_id_portfolio_id_valuation_date_pk",
+          "columns": [
+            "tenant_id",
+            "portfolio_id",
+            "valuation_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "portfolio_daily_valuation_date_not_before_epoch": {
+          "name": "portfolio_daily_valuation_date_not_before_epoch",
+          "value": "\"portfolio_daily_valuation\".\"valuation_date\" >= DATE '2000-01-01'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.login_attempt": {
+      "name": "login_attempt",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "citext",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip": {
+          "name": "ip",
+          "type": "inet",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "succeeded": {
+          "name": "succeeded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "login_attempt_email_attempted_at_idx": {
+          "name": "login_attempt_email_attempted_at_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "login_attempt_ip_attempted_at_idx": {
+          "name": "login_attempt_ip_attempted_at_idx",
+          "columns": [
+            {
+              "expression": "ip",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ops_indicator": {
+      "name": "ops_indicator",
+      "schema": "",
+      "columns": {
+        "indicator_key": {
+          "name": "indicator_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_breached_at": {
+          "name": "first_breached_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_ok_at": {
+          "name": "last_ok_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ops_indicator_state": {
+          "name": "ops_indicator_state",
+          "value": "\"ops_indicator\".\"state\" IN ('OK','BREACHED')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.instrument_kind": {
+      "name": "instrument_kind",
+      "schema": "public",
+      "values": [
+        "SHARE",
+        "ETF",
+        "FUND",
+        "CRYPTO",
+        "INDEX"
+      ]
+    },
+    "public.instrument_sector": {
+      "name": "instrument_sector",
+      "schema": "public",
+      "values": [
+        "TECHNOLOGIE",
+        "SANTE",
+        "FINANCE",
+        "CONSOMMATION_CYCLIQUE",
+        "CONSOMMATION_DEFENSIVE",
+        "INDUSTRIE",
+        "ENERGIE",
+        "MATERIAUX",
+        "SERVICES_COLLECTIVITES"
+      ]
+    },
+    "public.instrument_status": {
+      "name": "instrument_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "DELISTED",
+        "MERGED"
+      ]
+    },
+    "public.primary_identifier": {
+      "name": "primary_identifier",
+      "schema": "public",
+      "values": [
+        "ISIN",
+        "SYMBOL"
+      ]
+    },
+    "public.quote_policy": {
+      "name": "quote_policy",
+      "schema": "public",
+      "values": [
+        "AUTO",
+        "MANUAL_ONLY"
+      ]
+    },
+    "public.provider_map_confidence": {
+      "name": "provider_map_confidence",
+      "schema": "public",
+      "values": [
+        "CONFIRMED",
+        "HEURISTIC"
+      ]
+    },
+    "public.instrument_icon_content_type": {
+      "name": "instrument_icon_content_type",
+      "schema": "public",
+      "values": [
+        "image/png",
+        "image/jpeg"
+      ]
+    },
+    "public.instrument_icon_source": {
+      "name": "instrument_icon_source",
+      "schema": "public",
+      "values": [
+        "MANUAL",
+        "PROVIDER"
+      ]
+    },
+    "public.price_quality": {
+      "name": "price_quality",
+      "schema": "public",
+      "values": [
+        "EOD",
+        "DELAYED",
+        "REALTIME"
+      ]
+    },
+    "public.provider_fetch_status": {
+      "name": "provider_fetch_status",
+      "schema": "public",
+      "values": [
+        "SUCCESS",
+        "FAILURE",
+        "RATE_LIMITED"
+      ]
+    },
+    "public.backfill_status": {
+      "name": "backfill_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "IN_PROGRESS",
+        "COMPLETE",
+        "FAILED"
+      ]
+    },
+    "public.portfolio_accent_color": {
+      "name": "portfolio_accent_color",
+      "schema": "public",
+      "values": [
+        "CHART_1",
+        "CHART_2",
+        "CHART_3",
+        "CHART_4",
+        "CHART_5",
+        "CHART_6"
+      ]
+    },
+    "public.fx_rate_source": {
+      "name": "fx_rate_source",
+      "schema": "public",
+      "values": [
+        "USER_PINNED",
+        "PROVIDER",
+        "IMPLIED_BASE",
+        "QUOTE_PROVIDER"
+      ]
+    },
+    "public.transaction_kind": {
+      "name": "transaction_kind",
+      "schema": "public",
+      "values": [
+        "BUY",
+        "SELL",
+        "DEPOSIT",
+        "WITHDRAWAL",
+        "DIVIDEND",
+        "DRIP",
+        "CURRENCY_EXCHANGE",
+        "SHARE_DISTRIBUTION"
+      ]
+    },
+    "public.flow_class": {
+      "name": "flow_class",
+      "schema": "public",
+      "values": [
+        "EXTERNAL",
+        "INTERNAL",
+        "INCOME",
+        "FEE",
+        "TAX"
+      ]
+    },
+    "public.posting_leg": {
+      "name": "posting_leg",
+      "schema": "public",
+      "values": [
+        "POSITION",
+        "CASH"
+      ]
+    },
+    "public.transaction_revision_kind": {
+      "name": "transaction_revision_kind",
+      "schema": "public",
+      "values": [
+        "CREATE",
+        "UPDATE",
+        "DELETE"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

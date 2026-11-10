@@ -1,0 +1,27 @@
+{
+  "name": "@kerdial/market-ingestion",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kerdial/market-ports": "workspace:*",
+    "@kerdial/platform-db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg-boss": "^12.26.2"
+  },
+  "devDependencies": {
+    "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/market-test-support": "workspace:*",
+    "@kerdial/platform-test-support": "workspace:*",
+    "@testcontainers/postgresql": "^10.16.0",
+    "cron-parser": "^5.6.2",
+    "postgres": "^3.4.5",
+    "testcontainers": "^10.16.0"
+  }
+}

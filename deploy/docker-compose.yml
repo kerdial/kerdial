@@ -1,0 +1,310 @@
+# Kerdial — the self-hosted stack: PostgreSQL, a one-shot database migration,
+# the background worker and the api (which also serves the web app)
+# (SH-30/SH-31; FR-38–FR-40/FR-47, AC-32/AC-33/AC-37).
+#
+# Quick start: put this file and `.env` (copied from `.env.example`, passwords
+# filled in) in one folder, then `docker compose up -d --wait`. The README and
+# docs/deploy-runbook.md walk through it.
+#
+# ONE file, deployed unchanged on a PC and on a Synology NAS. Three properties
+# make that true, and each of them is a decision rather than a style:
+#
+#  1. **Named volumes, never a host bind-mount.** DSM owns the uid/gid of every
+#     share it creates, so a bind-mounted host directory that works on a PC is
+#     unwritable on the NAS. A named volume is created by the engine with the
+#     mount point's own image ownership, so the same file works on both.
+#  2. **No absolute host path anywhere**, and no path that assumes a layout.
+#  3. **Every environment value is a quoted string** (FR-39) — an unquoted
+#     `false` is a YAML boolean, and `WORKER_IN_PROCESS: false` would reach the
+#     process as `"true"`-ish garbage rather than the literal `"false"` that
+#     `resolveWorkerInProcess` actually tests for.
+#
+# **What this stack is NOT.** There is no reverse proxy and no ACME/certificate
+# service here, and there never will be: TLS termination, certificates, the
+# domain and the proxy itself are operator-owned, outside this repository
+# (NG11). The chain below therefore terminates at `api`.
+#
+# **Startup is a chain, not a race**:
+#
+#     postgres healthy → migrate exits 0 → worker healthy → api healthy
+#
+# A failed migration leaves `migrate` non-zero, so `service_completed_successfully`
+# never fires, so `api` never starts, so it never accepts traffic — FR-47's
+# pre-ADR "a migration failure blocks deploy" property, in a topology with no CD
+# endpoint to block (AC-37).
+#
+# Bring-up, the `.env` it reads and how `API_BIND` is derived: `docs/deploy-runbook.md`.
+
+# The project name fixes every resource name compose derives: containers
+# `kerdial-<service>-1`, network `kerdial_default`, database volume
+# `kerdial_pgdata`. Changing it points the stack at a NEW, empty volume — an
+# install that ran under the 0.1.x project name `portfolio` must move its data
+# across first (docs/deploy-runbook.md, "Upgrading from 0.1.x").
+name: kerdial
+
+services:
+  # ---------------------------------------------------------------------------
+  # postgres — the only stateful service. **No published port, in either
+  # topology**: every client of it is on this
+  # compose network.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: "postgres:17"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_SUPERUSER}"
+      POSTGRES_PASSWORD: "${POSTGRES_SUPERUSER_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+      TZ: "UTC"
+    volumes:
+      - "pgdata:/var/lib/postgresql/data"
+    healthcheck:
+      # Quoted `$$` so compose passes a literal `$` through to the container's
+      # shell rather than interpolating it here.
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -q']
+      interval: 5s
+      timeout: 5s
+      # `start_period` is the boot grace (a failing probe inside it does not
+      # count against `retries`, and the first success marks the container
+      # healthy immediately), so `retries` only ever governs the *steady state*:
+      # how long a service that has gone bad takes to be reported bad. Keeping
+      # `retries` low is what makes these probes actually observable — a large
+      # value would leave a dead service reading "healthy" for minutes.
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # migrate — one-shot (SH-31). Runs to completion, exits, and is
+  # never restarted; `api` and `worker` wait on
+  # `condition: service_completed_successfully`, which is the gate.
+  #
+  # `command:` is explicit because `docker-entrypoint.sh` would otherwise
+  # dispatch on `APP_ROLE` and start a server (it honours an explicit command:
+  # `exec "$@"`). The runner is `platform/db`'s own `migrate-main.js`, which uses
+  # `drizzle-orm/postgres-js/migrator` — `drizzle-kit` is a devDependency and is
+  # NOT in the image, so `drizzle-kit migrate` (what `scripts/dev-up.sh` uses)
+  # would fail here.
+  #
+  # It connects as the Postgres superuser, not as `app_owner`: migration `0007`
+  # is what *creates* `app_owner`, so on a fresh volume no such role exists yet.
+  # `0007` reassigns ownership of every table to `app_owner` regardless of who
+  # applied it, which is what actually matters for ownership. It
+  # also provisions `app_web`/`app_ingest` credentials, which migration `0007`
+  # deliberately does not carry — see `migrate-main.ts`.
+  # ---------------------------------------------------------------------------
+  migrate:
+    image: "${APP_IMAGE:-docker.io/kerdial/kerdial:latest}"
+    init: true
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["node", "/app/platform/db/dist/migrate-main.js"]
+    environment:
+      MIGRATE_DATABASE_URL: "postgres://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      APP_WEB_PASSWORD: "${APP_WEB_PASSWORD}"
+      APP_INGEST_PASSWORD: "${APP_INGEST_PASSWORD}"
+      TZ: "UTC"
+
+  # ---------------------------------------------------------------------------
+  # worker — every `boss.work()` handler and every `boss.schedule()` cron. Binds
+  # no port at all (verified in SH-27: no listening socket other than Docker's
+  # own resolver).
+  #
+  # `stop_grace_period: 40s` is load-bearing, not a nicety: `worker-main.ts`
+  # drains with `timeoutSeconds: 25`, and compose's default grace period is 10s —
+  # a 25s drain inside a 10s grace period is *completely inert*, SIGKILL arrives
+  # first and the in-flight job is abandoned exactly as if `graceful: false` had
+  # been passed. 40 > 25 with room for the drain to finish and
+  # the process to exit.
+  # ---------------------------------------------------------------------------
+  worker:
+    image: "${APP_IMAGE:-docker.io/kerdial/kerdial:latest}"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s
+    # The worker gets the api's two-ceiling pair (see the api's
+    # `mem_limit` comment for why it is a pair and why the order matters).
+    # Sized from a measurement, not a guess: the worker's node process at
+    # 147 MiB RSS with a **168 MiB high-water mark** over five days of daily
+    # jobs and a weekly gap repair (MEASURED 2026-10-12, `VmHWM` of
+    # `worker-main.js` on a measured deployment). It holds no request bodies, so
+    # its external memory is provider responses of a few MiB.
+    # `--max-old-space-size=384` is ~2,3x that peak; 512 - 384 = 128 MiB above
+    # it for Buffers and the runtime. A runaway job then ends as a V8 heap OOM
+    # and a `restart: unless-stopped`, not as the kernel picking a process.
+    mem_limit: 512m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      APP_ROLE: "worker"
+      INGESTION_DATABASE_URL: "postgres://app_ingest:${APP_INGEST_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      # AR-17 (ADR-0008) — the same two values the api is given, because the
+      # assertion is about the *deployment*, not this process. The worker opens no
+      # request pool, but it counts the api's: a worker that saw only its own two
+      # pools would boot happily beside an api that could not.
+      #
+      # `DB_POOL_MAX` here therefore describes the api's pool, not the worker's.
+      # It must match the api's value; if it drifts, the two processes disagree
+      # about the same deployment and the api — the one that actually opens that
+      # pool — is the one that refuses, which is the safe direction.
+      DB_POOL_MAX: "40"
+      PGMAX: "${PGMAX:-100}"
+      # The V8 half of the pair above; keep it below `mem_limit`.
+      NODE_OPTIONS: "--max-old-space-size=384"
+      TZ: "UTC"
+    healthcheck:
+      # The marker `worker-main.ts` writes only after
+      # `boss.start()` AND every `boss.work()` registration AND every
+      # `boss.schedule()` upsert, and removes on the first shutdown signal.
+      test: ["CMD", "test", "-f", "/run/worker/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # api — the SPA plus `/api/v1/*`, pg-boss **producer only**
+  # (`WORKER_IN_PROCESS: "false"`), and the terminus of the startup chain.
+  #
+  # `ports` is the exposure knob (docs/deploy-runbook.md §1) — the api
+  # is exposed on a plain port here, full stop; whether a reverse proxy sits in
+  # front of it is entirely operator-owned and irrelevant to this stack.
+  # `API_BIND` is the interface the port is published on: the default
+  # `127.0.0.1` reaches only a proxy (or browser) on this host; `0.0.0.0`
+  # publishes to every interface for a LAN-only instance or a proxy on another
+  # machine. There is deliberately no literal address here, so one file serves
+  # both.
+  #
+  # `TRUST_PROXY` is a SEPARATE, optional knob that does not affect exposure:
+  # unset (the default) when nothing forwards for the api — the app is fully
+  # usable either way — `1` behind one proxy on this host, the proxy's address
+  # when it is elsewhere — never a blanket `true` (`api/src/trust-proxy.ts`).
+  # ---------------------------------------------------------------------------
+  api:
+    image: "${APP_IMAGE:-docker.io/kerdial/kerdial:latest}"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    # Security review M3 — two ceilings, in this order, so that
+    # an import or an export that allocates more than this deployment budgeted
+    # ends as a **clean restart** rather than as the kernel's OOM killer picking
+    # whichever process on the NAS it likes (which is usually postgres).
+    #
+    # The arithmetic, against measured numbers rather than round ones:
+    #   - 84,7 MiB — this api's idle RSS, MEASURED 2026-09-25 with
+    #     `docker stats --no-stream` on a measured deployment;
+    #   - +96–160 MiB — one in-flight Kerdial import at the 32 MiB file ceiling
+    #     (a 3–5× ESTIMATE: the buffered file, `JSON.parse`'s
+    #     object graph, the schema's validated copy). At most **one**, since
+    #     `api/src/common/kerdial-import-throttle.interceptor.ts` caps those two
+    #     routes at one concurrent request;
+    #   - +~100 MiB per near-ceiling catalogue export: ≤ 32 MiB of base64,
+    #     the JSON string over it and the Buffer under it. Bounded by the
+    #     export's refusal during the icon read instead of after building the
+    #     whole document (~0,5 GB before that). At most **two** in flight
+    #     (`api/src/common/export-throttle.interceptor.ts`, both export routes);
+    #   - + ordinary traffic under the admission bound of 30, a few MiB each.
+    #
+    # 85 + 160 + 2 × 100 ≈ 445 MiB of genuine peak. `--max-old-space-size=512`
+    # leaves ~1,15× headroom over that worst case (one import and two exports,
+    # all three at their ceilings at once; ~1,5× with one export) for GC lag
+    # and fragmentation while making V8 the
+    # thing that fails — a JS heap OOM is a clean exit that `restart:
+    # unless-stopped` recovers from, with a stack in the log.
+    #
+    # `mem_limit` sits **above** the heap cap because the heap is not the whole
+    # process: a `Buffer` is external memory, not old space. With the two caps
+    # above, at most one 32 MiB import upload and two 32 MiB export response
+    # buffers exist at once — 96 MiB of the 768 - 512 = 256 MiB above the heap,
+    # the rest the runtime's own RSS. Before the export throttle nothing bounded
+    # the exports, and five concurrent ones could cross this line first, turning
+    # a diagnosable heap OOM into a kernel kill.
+    #
+    # Raise both together, and keep the gap: a `mem_limit` at or below
+    # `--max-old-space-size` re-creates exactly the cgroup kill this exists to
+    # avoid. On a memory-tight box, lower `--max-old-space-size` first.
+    mem_limit: 768m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      worker:
+        condition: service_healthy
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-3000}:3000"
+    environment:
+      APP_ROLE: "api"
+      DATABASE_URL: "postgres://app_web:${APP_WEB_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      INGESTION_DATABASE_URL: "postgres://app_ingest:${APP_INGEST_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      CSRF_SECRET: "${CSRF_SECRET}"
+      # The one-time first-run setup token. Passed through so
+      # `.env` can pin it for a scripted claim; **blank by default and blank in
+      # normal use**, in which case the api generates one per start-up and
+      # prints it while the instance is unclaimed (see deploy-runbook §0's claim
+      # step). `resolveSetupToken` treats a blank value as unset, so the
+      # `:-` default here is the "not configured" shape, not an empty token.
+      SETUP_TOKEN: "${SETUP_TOKEN:-}"
+      # `Secure` on the session/CSRF cookies. Default on; the LAN-only
+      # recipe in the runbook is the one place `"false"` is set, on purpose.
+      COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      # The api's request pool, counted into the AR-17 budget; the api's
+      # instance-wide admission bound is derived from it.
+      DB_POOL_MAX: "40"
+      # AR-17 (ADR-0008) — the cluster's own max_connections. Both processes
+      # assert the *whole deployment's* pool ceilings against `PGMAX` minus the
+      # reserve, so they must agree; see the worker's identical block. Only an
+      # operator who lowered postgres's max_connections ever sets it in `.env`.
+      # (`REPLICA_COUNT` was struck by ADR-0016.)
+      PGMAX: "${PGMAX:-100}"
+      # SH-10 — producer mode: this process enqueues, it never consumes. The
+      # literal string is what `resolveWorkerInProcess` tests for; an unquoted
+      # YAML `false` would not survive as one.
+      WORKER_IN_PROCESS: "false"
+      # Blank is unset (trust nothing); see the `ports` comment above.
+      TRUST_PROXY: "${TRUST_PROXY:-}"
+      # How long one request may run, and with it how long a CSV import
+      # may spend writing. Blank on fast hardware; raised on a NAS, where a
+      # 300-row import that finishes in ~3 s on a laptop can take several times
+      # longer and start returning rows as "not processed". Raising this one
+      # value raises the import's own apply deadline with it — see
+      # docs/deploy-runbook.md §5. Blank is unset, not zero.
+      HTTP_TIMEOUT_MS: "${HTTP_TIMEOUT_MS:-}"
+      # The V8 half of the pair sized in the `mem_limit`
+      # comment above. Kept inside `mem_limit` on purpose; see that comment
+      # before changing either.
+      NODE_OPTIONS: "--max-old-space-size=512"
+      TZ: "UTC"
+    healthcheck:
+      # Runs INSIDE the container against port 3000, so it is unaffected by how
+      # or where the port is published — no `API_BIND` value can make the
+      # container look unhealthy.
+      #
+      # It asserts `status == "ok"`, not merely HTTP 200. `/health` deliberately
+      # answers 200 *even when the database is unreachable* (the payload
+      # is the signal, not the status code), so a status-blind probe would report
+      # a database-less API as healthy — a healthcheck that passes because it
+      # probes nothing, on the service that terminates the whole startup chain.
+      # `node -e` rather than curl/wget: `node:22-bookworm-slim` ships neither.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(async r=>{const b=await r.json();process.exit(r.status===200&&b.status==='ok'?0:1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  # FR-38 — a named volume, never a host bind-mount. `docker compose down -v`
+  # removes it and the next `up` re-initialises and re-migrates from scratch
+  # (AC-33), with no host-path assumption anywhere. On disk it is
+  # `kerdial_pgdata` — the project name above, then the key.
+  pgdata:

@@ -1,0 +1,349 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`valuation — holdings responses are byte-identical across the closed-positions batch (AC-323) > valueHoldingsAsOf and valueHoldingsForTenant match the pre-batch snapshot exactly > valueHoldingsAsOf 1`] = `
+{
+  "asOfDate": "2024-03-02",
+  "baseCurrency": "EUR",
+  "calcEpoch": "BigInt(3)",
+  "dayChange": {
+    "amount": "Decimal(100)",
+    "currency": "EUR",
+    "provenance": {
+      "derivedFrom": [
+        "AUTOMATED",
+      ],
+      "priceAsOf": "2024-03-01",
+      "priceIsStale": false,
+      "summary": {
+        "carriedFxPresent": false,
+        "complete": true,
+        "derivedFrom": [
+          "AUTOMATED",
+        ],
+        "leafCount": 1,
+        "manualInputCount": 0,
+        "newestObservationAt": "2024-03-01",
+        "oldestObservationAt": "2024-03-01",
+        "pinnedFxPresent": false,
+        "sources": [
+          "yahoo",
+        ],
+        "staleInputCount": 0,
+      },
+    },
+  },
+  "holdings": [
+    {
+      "costBasis": {
+        "amount": "Decimal(1000)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+        },
+      },
+      "currency": "EUR",
+      "currentPrice": {
+        "amount": "Decimal(120)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+      "currentValue": {
+        "amount": "Decimal(1200)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+      "dayChange": {
+        "amount": "Decimal(100)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+      "dayChangePercent": "Decimal(0.09090909090909090909090909090909091)",
+      "displayName": "AC-323 open holding",
+      "domicileCountry": null,
+      "hasIcon": false,
+      "instrumentId": "<open-instrument>",
+      "kind": "SHARE",
+      "listingCountry": "FR",
+      "pmp": {
+        "amount": "Decimal(100)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+        },
+      },
+      "quantity": "Decimal(10)",
+      "realizedGains": [],
+      "sectorCode": null,
+      "symbol": null,
+      "unrealizedGainLoss": {
+        "amount": "Decimal(200)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+    },
+  ],
+  "portfolioCount": 1,
+  "totalUnrealizedGainLoss": {
+    "amount": "Decimal(200)",
+    "currency": "EUR",
+    "provenance": {
+      "derivedFrom": [
+        "AUTOMATED",
+      ],
+      "priceAsOf": "2024-03-01",
+      "priceIsStale": false,
+      "summary": {
+        "carriedFxPresent": false,
+        "complete": true,
+        "derivedFrom": [
+          "AUTOMATED",
+        ],
+        "leafCount": 1,
+        "manualInputCount": 0,
+        "newestObservationAt": "2024-03-01",
+        "oldestObservationAt": "2024-03-01",
+        "pinnedFxPresent": false,
+        "sources": [
+          "yahoo",
+        ],
+        "staleInputCount": 0,
+      },
+    },
+  },
+  "totalValue": {
+    "amount": "Decimal(1200)",
+    "currency": "EUR",
+    "provenance": {
+      "derivedFrom": [
+        "AUTOMATED",
+      ],
+      "priceAsOf": "2024-03-01",
+      "priceIsStale": false,
+      "summary": {
+        "carriedFxPresent": false,
+        "complete": true,
+        "derivedFrom": [
+          "AUTOMATED",
+        ],
+        "leafCount": 1,
+        "manualInputCount": 0,
+        "newestObservationAt": "2024-03-01",
+        "oldestObservationAt": "2024-03-01",
+        "pinnedFxPresent": false,
+        "sources": [
+          "yahoo",
+        ],
+        "staleInputCount": 0,
+      },
+    },
+  },
+}
+`;
+
+exports[`valuation — holdings responses are byte-identical across the closed-positions batch (AC-323) > valueHoldingsAsOf and valueHoldingsForTenant match the pre-batch snapshot exactly > valueHoldingsForTenant 1`] = `
+{
+  "asOfDate": "2024-03-02",
+  "baseCurrency": "EUR",
+  "calcEpoch": "BigInt(6)",
+  "dayChange": {
+    "amount": "Decimal(150)",
+    "currency": "EUR",
+    "provenance": {
+      "derivedFrom": [
+        "AUTOMATED",
+      ],
+      "priceAsOf": "2024-03-01",
+      "priceIsStale": false,
+      "summary": {
+        "carriedFxPresent": false,
+        "complete": true,
+        "derivedFrom": [
+          "AUTOMATED",
+        ],
+        "leafCount": 1,
+        "manualInputCount": 0,
+        "newestObservationAt": "2024-03-01",
+        "oldestObservationAt": "2024-03-01",
+        "pinnedFxPresent": false,
+        "sources": [],
+        "staleInputCount": 0,
+      },
+    },
+  },
+  "holdings": [
+    {
+      "costBasis": {
+        "amount": "Decimal(1450)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+        },
+      },
+      "currency": "EUR",
+      "currentPrice": {
+        "amount": "Decimal(120)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+      "currentValue": {
+        "amount": "Decimal(1800)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+      "dayChange": {
+        "amount": "Decimal(150)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+        },
+      },
+      "dayChangePercent": "Decimal(0.09090909090909090909090909090909091)",
+      "displayName": "AC-323 open holding",
+      "domicileCountry": null,
+      "hasIcon": false,
+      "instrumentId": "<open-instrument>",
+      "kind": "SHARE",
+      "listingCountry": "FR",
+      "pmp": {
+        "amount": "Decimal(96.66666666666666666666666666666667)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+        },
+      },
+      "quantity": "Decimal(15)",
+      "realizedGains": [],
+      "sectorCode": null,
+      "symbol": null,
+      "unrealizedGainLoss": {
+        "amount": "Decimal(350)",
+        "currency": "EUR",
+        "provenance": {
+          "derivedFrom": [
+            "AUTOMATED",
+          ],
+          "priceAsOf": "2024-03-01",
+          "priceIsStale": false,
+          "priceQuality": "EOD",
+          "priceSource": "yahoo",
+        },
+      },
+    },
+  ],
+  "portfolioCount": 2,
+  "totalUnrealizedGainLoss": {
+    "amount": "Decimal(350)",
+    "currency": "EUR",
+    "provenance": {
+      "derivedFrom": [
+        "AUTOMATED",
+      ],
+      "priceAsOf": "2024-03-01",
+      "priceIsStale": false,
+      "summary": {
+        "carriedFxPresent": false,
+        "complete": true,
+        "derivedFrom": [
+          "AUTOMATED",
+        ],
+        "leafCount": 1,
+        "manualInputCount": 0,
+        "newestObservationAt": "2024-03-01",
+        "oldestObservationAt": "2024-03-01",
+        "pinnedFxPresent": false,
+        "sources": [
+          "yahoo",
+        ],
+        "staleInputCount": 0,
+      },
+    },
+  },
+  "totalValue": {
+    "amount": "Decimal(1800)",
+    "currency": "EUR",
+    "provenance": {
+      "derivedFrom": [
+        "AUTOMATED",
+      ],
+      "priceAsOf": "2024-03-01",
+      "priceIsStale": false,
+      "summary": {
+        "carriedFxPresent": false,
+        "complete": true,
+        "derivedFrom": [
+          "AUTOMATED",
+        ],
+        "leafCount": 1,
+        "manualInputCount": 0,
+        "newestObservationAt": "2024-03-01",
+        "oldestObservationAt": "2024-03-01",
+        "pinnedFxPresent": false,
+        "sources": [
+          "yahoo",
+        ],
+        "staleInputCount": 0,
+      },
+    },
+  },
+}
+`;

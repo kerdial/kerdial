@@ -1,0 +1,460 @@
+/* The banner recipe lives in `components.css`. This screen's
+   banners use `.k-banner` directly; only layout-specific rules remain here. */
+/* Screen styles for the activity restyle. Owned by that screen's issue alone.
+   Shared patterns belong in components.css, not here. */
+
+/* ─────────────────────────────  the screen  ───────────────────────────── */
+
+/* 20px vertical rhythm down the content column. Every block on
+   this screen is a direct child (the view's conditional branches are
+   fragments, which add no element), so one gap governs all of them and no
+   block carries its own margin. */
+.activity-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* The standing OD-4 note and the type-filter scope line: qualifications, read
+   once, never competing with a figure. */
+.activity-note {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+.activity-empty-copy {
+  margin-bottom: var(--space-4);
+  color: var(--text-body);
+}
+
+.activity-pagination {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* A business state is a banner with a 3px inset left bar, in
+   the tone of what it is saying. This one is warn — a window that could not be
+   read to exhaustion, so no total is shown. */
+/* "Revenus & frais" — three tiles in one card with hairline dividers, the
+   same strip treatment the Positions screen has. */
+.activity-window-label {
+  margin-bottom: var(--space-4);
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+.activity-income-strip {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .activity-income-strip {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+  .activity-income-strip > * + * {
+    padding-left: var(--space-5);
+    border-left: 1px solid var(--border-subtle);
+  }
+}
+
+/* ─────────────────────────────  filter bar  ───────────────────────────── */
+
+.activity-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The control row wraps rather than scrolls, at every width. */
+.activity-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.activity-filter-field {
+  position: relative;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.activity-filter-field-date {
+  flex: 0 1 160px;
+}
+.activity-filter-clear {
+  margin-left: auto;
+}
+
+/* The instrument filter's selected state — the shape of a field, but holding a
+   value and its remove control rather than an input. */
+.activity-filter-label {
+  display: block;
+  margin-bottom: var(--space-1);
+  font: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--text-body);
+}
+.activity-filter-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-1) 0 var(--pad-control-x);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+}
+.activity-filter-picked {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--size-body-s);
+  color: var(--text-strong);
+}
+
+/* Results hang over the row instead of pushing it open, so the controls below
+   do not jump as the user types. */
+.activity-filter-results {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-md);
+}
+.activity-filter-result {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  font-size: var(--size-body-s);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.activity-filter-result:hover {
+  background: var(--paper-50);
+}
+
+/* The "active" strip: what is applied, and how to undo it. */
+.activity-filter-active {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.activity-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.activity-filter-note {
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+
+/* ───────────────────  the 368px filters panel  ─────────────────── */
+
+/* One column, not the bar's wrapping row: 368px is narrow on purpose, and a
+   panel whose fields reflow as you type is harder to read than a list of
+   them. The width itself is the Dialog's, not this file's. */
+.activity-filters-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* Du/Au read as one range, so they sit side by side even here — the only pair
+   in the panel that does. */
+.activity-filters-panel-dates,
+.activity-filters-panel-amount-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+/* The amount pair is a `<fieldset>` so `disabled` reaches both inputs from one
+   place; it contributes no box of its own beyond the group's own spacing. */
+.activity-filters-panel-amounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* The design's disabled treatment, applied to the whole group rather
+   than to each control: the group is what is unavailable until a currency is
+   chosen, and its own label and note have to say so too. */
+.activity-filters-panel-amounts:disabled {
+  opacity: 0.45;
+}
+
+/* ────────────────────────────  ledger table  ──────────────────────────── */
+
+/* The card clips the table so a hovered first/last row cannot square off the
+   card's corners. Keyed on the table rather than on a test id, since the
+   markup is what the rule is actually about. */
+.k-card:has(> .activity-table),
+.k-card:has(> .activity-month-rows) {
+  overflow: hidden;
+}
+
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--size-body-s);
+}
+/* Nine columns have to fit the content column without a sideways scroll, so
+   the widths are declared rather than negotiated: the type column is sized for
+   the longest kind label ("Réinvestissement") plus its FX/settlement flags,
+   the numeric ones for their digits, and asset/portfolio truncate with an
+   ellipsis rather than widening the table. */
+.activity-table th:nth-child(1) {
+  width: 11%;
+}
+.activity-table th:nth-child(2) {
+  width: 16%;
+}
+.activity-table th:nth-child(3) {
+  width: 16%;
+}
+.activity-table th:nth-child(4) {
+  width: 7%;
+}
+.activity-table th:nth-child(5) {
+  width: 10%;
+}
+.activity-table th:nth-child(6) {
+  width: 12%;
+}
+.activity-table th:nth-child(7) {
+  width: 11%;
+}
+.activity-table th:nth-child(8) {
+  width: 13%;
+}
+.activity-table th:nth-child(9) {
+  width: 4%;
+}
+
+.activity-table th {
+  /* Sentence case, never ALL-CAPS: the design reserves uppercase for
+     micro-labels, and a column header is not one. */
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  font: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  text-align: left;
+}
+.activity-table td {
+  height: var(--row-height);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-body);
+  vertical-align: middle;
+}
+.activity-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.activity-table th.activity-table-num,
+.activity-table td.activity-table-num {
+  text-align: right;
+  white-space: nowrap;
+  /* A money column is sized for its digits, so it spends its width on them
+     rather than on padding. */
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+/* The ground moves on hover, the row height never does. */
+.activity-row {
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.activity-row:hover {
+  background: var(--paper-50);
+}
+
+.activity-cell-date {
+  font-size: var(--size-body-s);
+  color: var(--text-body);
+  white-space: nowrap;
+}
+.activity-cell-asset,
+.activity-cell-portfolio {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-cell-asset {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+/* Logo (or monogram tile) then name, on one line; the name is what
+   ellipsises. */
+.activity-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.activity-asset-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-cell-sub {
+  display: block;
+  font-size: var(--size-micro);
+  color: var(--text-muted);
+}
+/* The FX/settlement flags sit under the kind badge — same cell, same question:
+   what kind of event was this. */
+.activity-cell-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+.activity-cell-flags .k-badge {
+  font-size: var(--size-micro);
+}
+.activity-cell-actions {
+  text-align: right;
+}
+
+/* ────────────────────────  amounts (LedgerAmount)  ────────────────────── */
+
+/* A signed amount is ink-black by default. Gain-green and
+   loss-red mean money in and an actual loss, and a ledger row is neither — it
+   is a record of what happened, not a judgement about it. */
+.ledger-amount {
+  color: var(--text-strong);
+}
+.ledger-amount-absent {
+  color: var(--text-faint);
+}
+
+/* ──────────────────────────  mobile card list  ────────────────────────── */
+
+/* Stacked rows under month headers. No table, so nothing
+   to scroll sideways. */
+.activity-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.activity-month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.activity-month-heading {
+  font-family: var(--font-text);
+}
+.activity-month-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activity-card:last-child .k-txrow {
+  border-bottom: 0;
+}
+/* The whole row is one control. The button contributes no box of its own —
+   `.k-txrow` inside it is what has the padding, the ground and the rule
+   underneath — so the row keeps the kit's exact geometry. */
+.activity-card-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* The ground moves, the row height never does. */
+.activity-card-open:hover .k-txrow {
+  background: var(--paper-50);
+}
+.activity-card-line {
+  display: block;
+}
+/* The row's headline. It sits inside the kit's detail slot rather than its
+   asset slot (see TransactionCardList.tsx), so it restores the typography
+   `.k-txrow-asset` would have given it. */
+.activity-card-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--size-body-m);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+
+/* ─────────────────────────  the calendar tab  ─────────────────────── */
+
+/* Title and unit on the left, the « Nombre / Montant » toggle on the right;
+   the grid (`.k-heatcal`, components.css) sits under both. Wraps onto two
+   lines only when the card is genuinely too narrow for the toggle. */
+.activity-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-height: 28px;
+}
+
+.activity-calendar-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.activity-calendar-title {
+  font: var(--text-title-s);
+  color: var(--text-strong);
+}
+
+.activity-calendar-unit {
+  font: var(--text-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* The detail line's one action reads as part of the sentence, not as a block
+   button: no minimum height pushing the line taller than its neighbours. */
+.k-heatcal-detail .k-btn {
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  vertical-align: baseline;
+}
+
+/* A figure and its unit stay on one line; the detail line wraps between its
+   figures, never inside one (seen at 390 px: « 19 222.00 » / « EUR échangés »). */
+.activity-calendar-figure {
+  white-space: nowrap;
+}
