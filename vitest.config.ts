@@ -153,3 +153,4 @@ export default defineConfig({
     globalSetup: ["./vitest.global-setup.ts"],
   },
 });
+// CI first-run probe; this pull request is closed unmerged.
