@@ -6,7 +6,7 @@ from this file above the generated list of changes.
 
 ---
 
-## Unreleased
+## v0.2.1
 
 ### Cash balances match the bank to the cent
 
