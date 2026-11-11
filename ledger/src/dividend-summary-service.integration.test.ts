@@ -35,6 +35,7 @@ import { recomputeAndInvalidate } from "./materialization.js";
 import { lockPortfolioRow } from "./portfolio-lock.js";
 import { createPortfolio } from "./portfolio-service.js";
 import { expandPostings, type ExpandableTransaction } from "./posting-expander.js";
+import { testMinorUnitOf } from "./posting-expander.test-support.js";
 import { TransactionWriteService } from "./transaction-write-service.js";
 
 /**
@@ -1575,7 +1576,7 @@ function toExpandable(row: typeof transaction.$inferInsert): ExpandableTransacti
 function postingRowsFor(
   row: typeof transaction.$inferInsert,
 ): Array<typeof transactionPosting.$inferInsert> {
-  return expandPostings(toExpandable(row)).map((draft) => ({
+  return expandPostings(toExpandable(row), testMinorUnitOf).map((draft) => ({
     id: randomUUID(),
     tenantId: row.tenantId,
     baseCurrency: row.baseCurrency,

@@ -1048,11 +1048,14 @@ function toExpandable(row: typeof transaction.$inferInsert): ExpandableTransacti
   };
 }
 
+/** This suite's rows settle in EUR only; production reads the minor unit from the `currency` table. */
+const testMinorUnitOf = (): number => 2;
+
 /** The **real** expander over a hand-built row — the cap fixture's postings are produced the way every production write produces them, never hand-written. */
 function postingRowsFor(
   row: typeof transaction.$inferInsert,
 ): Array<typeof transactionPosting.$inferInsert> {
-  return expandPostings(toExpandable(row)).map((draft) => ({
+  return expandPostings(toExpandable(row), testMinorUnitOf).map((draft) => ({
     id: randomUUID(),
     tenantId: row.tenantId,
     baseCurrency: row.baseCurrency,

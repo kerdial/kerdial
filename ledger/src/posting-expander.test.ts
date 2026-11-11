@@ -5,6 +5,7 @@ import {
   expandPostings,
   type ExpandableTransaction,
 } from "./posting-expander.js";
+import { testMinorUnitOf } from "./posting-expander.test-support.js";
 
 /**
  * Pure/no-DB tests for T-21's posting expander. The
@@ -84,6 +85,7 @@ describe("expandPostings — DEPOSIT / WITHDRAWAL (AC5, FR-8: cash only, externa
   it("expands a DEPOSIT into exactly one CASH posting in the specified currency, and no POSITION posting", () => {
     const postings = expandPostings(
       txn({ kind: "DEPOSIT", grossAmount: new Decimal("2500"), txnCurrency: "EUR" }),
+      testMinorUnitOf,
     );
 
     expect(postings).toHaveLength(1);
@@ -117,6 +119,7 @@ describe("expandPostings — DEPOSIT / WITHDRAWAL (AC5, FR-8: cash only, externa
         fxRate: new Decimal("0.9165"),
         fxRateSource: "PROVIDER",
       }),
+      testMinorUnitOf,
     );
 
     expect(postings).toHaveLength(1);
@@ -139,7 +142,7 @@ describe("expandPostings — BUY / SELL (INTERNAL legs, plus the fee's own leg)"
   });
 
   it("expands a BUY into a POSITION posting and a CASH posting, and nothing else", () => {
-    const postings = expandPostings(buy);
+    const postings = expandPostings(buy, testMinorUnitOf);
 
     expect(postings.map((posting) => posting.leg)).toEqual(["POSITION", "CASH"]);
     expect(postings[0]!.instrumentId).toBe(SHARE);
@@ -170,6 +173,7 @@ describe("expandPostings — BUY / SELL (INTERNAL legs, plus the fee's own leg)"
         fxRateSource: "PROVIDER",
         feeAmount: new Decimal("9.90"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((posting) => posting.leg)).toEqual(["POSITION", "CASH", "CASH"]);
@@ -196,6 +200,7 @@ describe("expandPostings — BUY / SELL (INTERNAL legs, plus the fee's own leg)"
         grossAmount: new Decimal("496"),
         txnCurrency: "EUR",
       }),
+      testMinorUnitOf,
     );
 
     expect(postings[0]!.quantityDelta!.toString()).toBe("-8");
@@ -212,6 +217,7 @@ describe("expandPostings — BUY / SELL (INTERNAL legs, plus the fee's own leg)"
         quantity: new Decimal("1.0625"),
         grossAmount: new Decimal("64"),
       }),
+      testMinorUnitOf,
     );
     expect(postings.map((posting) => posting.leg)).toEqual(["POSITION", "CASH"]);
     expect(postings.map((posting) => posting.flowClass)).toEqual(["INTERNAL", "INTERNAL"]);
@@ -221,24 +227,30 @@ describe("expandPostings — BUY / SELL (INTERNAL legs, plus the fee's own leg)"
 
 describe("expandPostings — DIVIDEND (FR-9: gross INCOME leg plus its own TAX leg)", () => {
   it("PP reference: gross 3.65 USD settled as 3.372 EUR, withholding 0.51 → INCOME +3.372 EUR and TAX −0.51 EUR at the principal's implied rate", () => {
-    const postings = expandPostings({
-      ...txn({
-        kind: "DIVIDEND",
-        instrumentId: SHARE,
-        grossAmount: new Decimal("3.65"),
-        txnCurrency: "USD",
-        fxRate: new Decimal("0.9237"),
-        fxRateSource: "PROVIDER",
-        withholdingAmount: new Decimal("0.51"),
-      }),
-      cashCurrency: "EUR",
-      cashAmount: new Decimal("3.372"),
-    });
+    const postings = expandPostings(
+      {
+        ...txn({
+          kind: "DIVIDEND",
+          instrumentId: SHARE,
+          grossAmount: new Decimal("3.65"),
+          txnCurrency: "USD",
+          fxRate: new Decimal("0.9237"),
+          fxRateSource: "PROVIDER",
+          withholdingAmount: new Decimal("0.51"),
+        }),
+        cashCurrency: "EUR",
+        cashAmount: new Decimal("3.372"),
+      },
+      testMinorUnitOf,
+    );
 
     expect(postings.map((posting) => posting.flowClass)).toEqual(["INCOME", "TAX"]);
     const [income, tax] = postings;
     expect(income!.currency).toBe("EUR");
-    expect(income!.amountNative.toString()).toBe("3.372");
+    // The account moves whole cents: the stated 3.372 settles as 3.37
+    // (per-movement rounding, HALF_UP). The implied rate below still reads the
+    // stored 3.372 — only the movement is rounded, never the row.
+    expect(income!.amountNative.toString()).toBe("3.37");
     // 3.65 × 0.9237 / 3.372 — the principal's implied account→base rate.
     const implied = new Decimal("3.65").times("0.9237").dividedBy("3.372");
     expect(income!.fxRateApplied.equals(implied)).toBe(true);
@@ -261,6 +273,7 @@ describe("expandPostings — DIVIDEND (FR-9: gross INCOME leg plus its own TAX l
         grossAmount: new Decimal("100"),
         withholdingAmount: new Decimal("30"),
       }),
+      testMinorUnitOf,
     );
     expect(postings.map((posting) => posting.flowClass)).toEqual(["INCOME", "TAX"]);
     expect(postings[1]!.currency).toBe("EUR");
@@ -272,6 +285,7 @@ describe("expandPostings — DIVIDEND (FR-9: gross INCOME leg plus its own TAX l
   it("emits a single INCOME leg when nothing was withheld", () => {
     const postings = expandPostings(
       txn({ kind: "DIVIDEND", instrumentId: SHARE, grossAmount: new Decimal("52.4") }),
+      testMinorUnitOf,
     );
     expect(postings).toEqual([
       {
@@ -319,7 +333,7 @@ describe("expandPostings — INTEREST (cash-interest AC-517: gross INCOME leg pl
   }
 
   it("gross 100.00 / withholding 30.00 into « Livret »: CASH +100.00 INCOME and CASH −30.00 TAX, net +70.00", () => {
-    const postings = expandPostings(interest);
+    const postings = expandPostings(interest, testMinorUnitOf);
 
     expect(postings.map((posting) => posting.leg)).toEqual(["CASH", "CASH"]);
     expect(postings.map((posting) => posting.flowClass)).toEqual(["INCOME", "TAX"]);
@@ -339,6 +353,7 @@ describe("expandPostings — INTEREST (cash-interest AC-517: gross INCOME leg pl
   it("without a withholding: exactly one CASH +100.00 INCOME leg", () => {
     const postings = expandPostings(
       txn({ kind: "INTEREST", grossAmount: new Decimal("100.00"), txnCurrency: "EUR" }),
+      testMinorUnitOf,
     );
     expect(postings).toHaveLength(1);
     expect(postings[0]!.leg).toBe("CASH");
@@ -354,6 +369,7 @@ describe("expandPostings — INTEREST (cash-interest AC-517: gross INCOME leg pl
         fxRate: new Decimal("0.9165"),
         fxRateSource: "USER_PINNED",
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((posting) => posting.flowClass)).toEqual(["INCOME", "TAX"]);
@@ -371,11 +387,14 @@ describe("expandPostings — INTEREST (cash-interest AC-517: gross INCOME leg pl
   it("an edit of the gross to 120.00 regenerates the postings wholesale and the invariant still holds", () => {
     // Regeneration on edit is delete + re-expand of the edited row: the old
     // +100 leg must not survive beside the new one.
-    const postings = expandPostings({
-      ...interest,
-      grossAmount: new Decimal("120.00"),
-      cashAmount: new Decimal("120.00"),
-    });
+    const postings = expandPostings(
+      {
+        ...interest,
+        grossAmount: new Decimal("120.00"),
+        cashAmount: new Decimal("120.00"),
+      },
+      testMinorUnitOf,
+    );
 
     expect(postings).toHaveLength(2);
     expect(postings.map((posting) => posting.amountBase.toString())).toEqual(["120", "-30"]);
@@ -388,7 +407,7 @@ describe("expandPostings — FEE (portfolio-cash AC-565, C-2: one CASH leg, clas
   const fee = txn({ kind: "FEE", grossAmount: new Decimal("10.00"), txnCurrency: "EUR" });
 
   it("FEE 10.00 gives exactly one CASH posting of −10.00, flow_class FEE, and no POSITION posting", () => {
-    const postings = expandPostings(fee);
+    const postings = expandPostings(fee, testMinorUnitOf);
 
     expect(postings).toHaveLength(1);
     expect(postings[0]!.leg).toBe("CASH");
@@ -400,7 +419,7 @@ describe("expandPostings — FEE (portfolio-cash AC-565, C-2: one CASH leg, clas
   });
 
   it("the same FEE with an instrument id set is byte-identical: the reference emits no POSITION leg", () => {
-    const withInstrument = expandPostings({ ...fee, instrumentId: SHARE });
+    const withInstrument = expandPostings({ ...fee, instrumentId: SHARE }, testMinorUnitOf);
 
     expect(withInstrument).toHaveLength(1);
     expect(withInstrument[0]!.leg).toBe("CASH");
@@ -411,11 +430,14 @@ describe("expandPostings — FEE (portfolio-cash AC-565, C-2: one CASH leg, clas
   });
 
   it("an edit of the amount to 30.00 regenerates the single leg wholesale", () => {
-    const postings = expandPostings({
-      ...fee,
-      grossAmount: new Decimal("30.00"),
-      cashAmount: new Decimal("30.00"),
-    });
+    const postings = expandPostings(
+      {
+        ...fee,
+        grossAmount: new Decimal("30.00"),
+        cashAmount: new Decimal("30.00"),
+      },
+      testMinorUnitOf,
+    );
     expect(postings).toHaveLength(1);
     expect(postings[0]!.amountBase.toString()).toBe("-30");
   });
@@ -431,13 +453,15 @@ describe("expandPostings — CURRENCY_EXCHANGE (FR-59, AC48: cash out of A, into
         targetCurrency: "USD",
         targetAmount: new Decimal("1091.575"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((posting) => posting.leg)).toEqual(["CASH", "CASH"]);
     expect(postings[0]!.currency).toBe("EUR");
     expect(postings[0]!.amountNative.toString()).toBe("-1000");
     expect(postings[1]!.currency).toBe("USD");
-    expect(postings[1]!.amountNative.toString()).toBe("1091.575");
+    // Each leg is rounded in its own currency: 1091.575 USD settles as 1091.58.
+    expect(postings[1]!.amountNative.toString()).toBe("1091.58");
     // AC48's "leaves every instrument quantity and cost basis unchanged" at
     // the posting layer: there is no POSITION leg to change one.
     expect(postings.some((posting) => posting.leg === "POSITION")).toBe(false);
@@ -462,6 +486,7 @@ describe("expandPostings — CURRENCY_EXCHANGE (FR-59, AC48: cash out of A, into
         targetCurrency: "JPY",
         targetAmount: new Decimal("74160"),
       }),
+      testMinorUnitOf,
     );
     expect(postings[0]!.amountBase.toString()).toBe("-459");
     expect(postings[1]!.amountBase.toString()).toBe("459");
@@ -482,7 +507,7 @@ describe("expandPostings — AC52/FR-66: a crypto-to-crypto BUY disposes of the 
   });
 
   it("emits a +2 ETH POSITION posting and a −0.1 BTC POSITION posting — the disposal, not a transfer", () => {
-    const postings = expandPostings(cryptoBuy);
+    const postings = expandPostings(cryptoBuy, testMinorUnitOf);
 
     expect(postings.map((posting) => posting.leg)).toEqual(["POSITION", "POSITION"]);
     const [acquired, disposed] = postings;
@@ -510,6 +535,7 @@ describe("expandPostings — AC52/FR-66: a crypto-to-crypto BUY disposes of the 
   it("keeps 18 dp on the disposed quantity — a float would collapse it (NFR-12, AC53)", () => {
     const postings = expandPostings(
       txn({ ...cryptoBuy, grossAmount: new Decimal("0.100000000000000001") }),
+      testMinorUnitOf,
     );
     expect(postings[1]!.quantityDelta!.toString()).toBe("-0.100000000000000001");
     expect(postings[1]!.quantityDelta!.equals(new Decimal("-0.1"))).toBe(false);
@@ -529,7 +555,7 @@ describe("expandPostings — determinism and fail-closed refusals", () => {
       grossAmount: new Decimal("90"),
       feeAmount: new Decimal("1.5"),
     });
-    expect(expandPostings(row)).toEqual(expandPostings(row));
+    expect(expandPostings(row, testMinorUnitOf)).toEqual(expandPostings(row, testMinorUnitOf));
   });
 
   it("numbers postings 1..n in emission order", () => {
@@ -540,13 +566,15 @@ describe("expandPostings — determinism and fail-closed refusals", () => {
         withholdingAmount: new Decimal("10"),
         feeAmount: new Decimal("2"),
       }),
+      testMinorUnitOf,
     );
     expect(postings.map((posting) => posting.seq)).toEqual([1, 2, 3]);
     expect(postings.map((posting) => posting.flowClass)).toEqual(["INCOME", "TAX", "FEE"]);
   });
 
   it("refuses a trade with no quantity rather than emitting a position leg of unknown size", () => {
-    const attempt = () => expandPostings(txn({ kind: "BUY", instrumentId: SHARE, quantity: null }));
+    const attempt = () =>
+      expandPostings(txn({ kind: "BUY", instrumentId: SHARE, quantity: null }), testMinorUnitOf);
     expect(attempt).toThrow(PostingExpansionError);
     expect(attempt).toThrow(/it has no quantity/);
   });
@@ -577,6 +605,7 @@ describe("expandPostings — determinism and fail-closed refusals", () => {
           cashAmount: null,
           feeAmount: new Decimal("2"),
         }),
+        testMinorUnitOf,
       );
     expect(attempt).toThrow(PostingExpansionError);
     expect(attempt).toThrow(/denominated by the settling account/);
@@ -592,6 +621,7 @@ describe("expandPostings — determinism and fail-closed refusals", () => {
           txnCurrency: null,
           txnSettlementInstrumentId: null,
         }),
+        testMinorUnitOf,
       );
     expect(attempt).toThrow(PostingExpansionError);
     expect(attempt).toThrow(/neither currency nor a settlement instrument/);
@@ -599,7 +629,10 @@ describe("expandPostings — determinism and fail-closed refusals", () => {
 
   it("refuses a CURRENCY_EXCHANGE with no target amount, which would make its target leg unpriceable", () => {
     const attempt = () =>
-      expandPostings(txn({ kind: "CURRENCY_EXCHANGE", targetCurrency: "USD", targetAmount: null }));
+      expandPostings(
+        txn({ kind: "CURRENCY_EXCHANGE", targetCurrency: "USD", targetAmount: null }),
+        testMinorUnitOf,
+      );
     expect(attempt).toThrow(/it has no targetAmount/);
   });
 });

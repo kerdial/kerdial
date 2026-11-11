@@ -6,6 +6,7 @@ import {
   type ExpandableTransaction,
   type PostingDraft,
 } from "./posting-expander.js";
+import { testMinorUnitOf } from "./posting-expander.test-support.js";
 
 const AAPL = "00000000-0000-7000-8000-00000047e001";
 const CASH_ACCOUNT = "00000000-0000-7000-8000-00000047e002";
@@ -91,7 +92,10 @@ function costPostings(drafts: readonly PostingDraft[]): PostingDraft[] {
 
 describe("expandPostings — FR-216: one posting per present cost component (AC-239)", () => {
   it("AC-239: the three-component BUY emits three cost postings, and each one's flow class is asserted individually", () => {
-    const drafts = expandPostings(itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" }));
+    const drafts = expandPostings(
+      itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" }),
+      testMinorUnitOf,
+    );
     const costs = costPostings(drafts);
 
     // **Per posting, not per count.** A design that emitted three `FEE`
@@ -105,14 +109,17 @@ describe("expandPostings — FR-216: one posting per present cost component (AC-
   });
 
   it("the same trade with a single unitemised 17,00 EUR cost emits exactly one FEE posting of −17,00", () => {
-    const costs = costPostings(expandPostings(unitemisedBuy("17.00")));
+    const costs = costPostings(expandPostings(unitemisedBuy("17.00"), testMinorUnitOf));
     expect(costs).toHaveLength(1);
     expect(costs[0]!.amountNative.toString()).toBe("-17");
     expect(costs[0]!.flowClass).toBe("FEE");
   });
 
   it("every cost posting carries the settling account's currency, the principal account, and the implied rate", () => {
-    const drafts = expandPostings(itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" }));
+    const drafts = expandPostings(
+      itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" }),
+      testMinorUnitOf,
+    );
     const principal = drafts.find(
       (draft) => draft.leg === "CASH" && draft.flowClass === "INTERNAL",
     );
@@ -152,8 +159,8 @@ describe("expandPostings — FR-216: one posting per present cost component (AC-
       ],
     ];
     for (const [costs, expected] of subsets) {
-      const emitted = costPostings(expandPostings(itemisedBuy(costs))).map((posting) =>
-        posting.amountNative.toString(),
+      const emitted = costPostings(expandPostings(itemisedBuy(costs), testMinorUnitOf)).map(
+        (posting) => posting.amountNative.toString(),
       );
       expect(emitted).toEqual(expected);
     }
@@ -161,8 +168,8 @@ describe("expandPostings — FR-216: one posting per present cost component (AC-
 
   it("seq is contiguous and the cost legs come last — re-expansion differs in nothing (P11)", () => {
     const row = itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" });
-    const first = expandPostings(row);
-    const second = expandPostings(row);
+    const first = expandPostings(row, testMinorUnitOf);
+    const second = expandPostings(row, testMinorUnitOf);
     expect(second).toEqual(first);
 
     expect(first.map((draft) => draft.seq)).toEqual([1, 2, 3, 4, 5]);
@@ -178,7 +185,10 @@ describe("expandPostings — FR-216: one posting per present cost component (AC-
   });
 
   it("flow_class gains no value: only FEE and TAX are used, and TAX is genuinely produced", () => {
-    const drafts = expandPostings(itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" }));
+    const drafts = expandPostings(
+      itemisedBuy({ brokerFee: "9.90", fxFee: "2.50", tax: "3.60" }),
+      testMinorUnitOf,
+    );
     const classes = new Set(costPostings(drafts).map((posting) => posting.flowClass));
     // No `ALTER TYPE`: both are values `flow_class` already had.
     expect([...classes].sort()).toEqual(["FEE", "TAX"]);
@@ -208,8 +218,10 @@ describe("expandPostings — the unitemised path emits exactly what the itemised
    * loop emits for one component**, so the two shapes cannot drift apart.
    */
   it("an unitemised total and a single component of the same size produce the identical posting", () => {
-    const unitemised = costPostings(expandPostings(unitemisedBuy("17.00", {})));
-    const itemised = costPostings(expandPostings(itemisedBuy({ brokerFee: "17.00" })));
+    const unitemised = costPostings(expandPostings(unitemisedBuy("17.00", {}), testMinorUnitOf));
+    const itemised = costPostings(
+      expandPostings(itemisedBuy({ brokerFee: "17.00" }), testMinorUnitOf),
+    );
 
     expect(unitemised).toHaveLength(1);
     expect(itemised).toHaveLength(1);
@@ -222,7 +234,7 @@ describe("expandPostings — the unitemised path emits exactly what the itemised
   });
 
   it("a row with no costs at all emits no cost posting from either path", () => {
-    expect(costPostings(expandPostings(itemisedBuy({})))).toHaveLength(0);
+    expect(costPostings(expandPostings(itemisedBuy({}), testMinorUnitOf))).toHaveLength(0);
   });
 
   it("components with no total are refused by name rather than expanded", () => {
@@ -231,7 +243,7 @@ describe("expandPostings — the unitemised path emits exactly what the itemised
     // catch an in-memory caller — and it names the constraint, so the reader is
     // sent to the rule rather than to a stack trace.
     const row = { ...itemisedBuy({ brokerFee: "9.90" }), feeAmount: null };
-    expect(() => expandPostings(row)).toThrow(/cost components but no feeAmount/);
+    expect(() => expandPostings(row, testMinorUnitOf)).toThrow(/cost components but no feeAmount/);
   });
 
   it("components on a row with no cash leg are refused — after L5 a cost has no currency without one", () => {
@@ -240,7 +252,7 @@ describe("expandPostings — the unitemised path emits exactly what the itemised
       cashCurrency: null,
       cashAmount: null,
     };
-    expect(() => expandPostings(row)).toThrow(/no cashCurrency/);
+    expect(() => expandPostings(row, testMinorUnitOf)).toThrow(/no cashCurrency/);
   });
 });
 
@@ -309,7 +321,7 @@ describe("expandPostings — an unitemised total denominated by the settling acc
   }
 
   it("emits exactly one FEE posting, in the settling account's currency, at the principal leg's implied rate", () => {
-    const costs = costPostings(expandPostings(batchFUnitemised()));
+    const costs = costPostings(expandPostings(batchFUnitemised(), testMinorUnitOf));
 
     expect(costs).toHaveLength(1);
     expect(costs[0]!.amountNative.toString()).toBe("-17");
@@ -326,9 +338,12 @@ describe("expandPostings — an unitemised total denominated by the settling acc
     // L5 is one rule, so the two shapes must not disagree about denomination.
     // FR-216's "exactly one posting" holds for the unitemised side; the
     // itemised side's postings sum to the same figure at the same rate.
-    const unitemised = costPostings(expandPostings(batchFUnitemised()));
+    const unitemised = costPostings(expandPostings(batchFUnitemised(), testMinorUnitOf));
     const itemised = costPostings(
-      expandPostings(itemisedBuy({ brokerFee: "10.90", fxFee: "2.50", tax: "3.60" })),
+      expandPostings(
+        itemisedBuy({ brokerFee: "10.90", fxFee: "2.50", tax: "3.60" }),
+        testMinorUnitOf,
+      ),
     );
 
     const total = (postings: readonly PostingDraft[]) =>
@@ -350,6 +365,7 @@ describe("expandPostings — an unitemised total denominated by the settling acc
           grossAmount: new Decimal("1000"),
           fxRate: new Decimal("0.90"),
         }),
+        testMinorUnitOf,
       ),
     );
     // implied = 1 000 × 0,90 / 880 = 1,0227272727…
@@ -370,13 +386,13 @@ describe("expandPostings — an unitemised total denominated by the settling acc
    * account's, which the case below covers for the shape that has none.
    */
   it("every unitemised total takes the settling account's currency and account", () => {
-    const costs = costPostings(expandPostings(unitemisedBuy("17.00", {})));
+    const costs = costPostings(expandPostings(unitemisedBuy("17.00", {}), testMinorUnitOf));
     expect(costs[0]!.currency).toBe("EUR");
     expect(costs[0]!.cashAccountId).toBe(CASH_ACCOUNT);
   });
 
   it("a total with no cash leg at all is refused by name — after L5 there is no currency to denominate it in", () => {
     const assetSettled = batchFUnitemised({ cashCurrency: null, cashAmount: null });
-    expect(() => expandPostings(assetSettled)).toThrow(/no cashCurrency/);
+    expect(() => expandPostings(assetSettled, testMinorUnitOf)).toThrow(/no cashCurrency/);
   });
 });

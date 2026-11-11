@@ -933,13 +933,14 @@ describe("applyImport against a real Postgres (CI-13)", () => {
         ORDER BY seq
       `;
       expect(postings).toEqual([
-        { flow_class: "INCOME", currency: "EUR", amount_native: "3.371505000000" },
+        { flow_class: "INCOME", currency: "EUR", amount_native: "3.370000000000" },
         { flow_class: "TAX", currency: "EUR", amount_native: "-0.510000000000" },
       ]);
-      // The net cash effect is the source's credited 2.86, to its two decimals:
-      // 3.371505 - 0.51 = 2.861505.
+      // The net cash effect is the source's credited 2.86 exactly: the movement
+      // round(3.371505 - 0.51, 2) settles to the cent, while the row keeps the
+      // unrounded cash_amount above.
       const net = postings.reduce((sum, one) => sum.plus(one.amount_native), new Decimal(0));
-      expect(net.toDecimalPlaces(2).toString()).toBe("2.86");
+      expect(net.toFixed(12)).toBe("2.860000000000");
     }, 60_000);
   });
 });

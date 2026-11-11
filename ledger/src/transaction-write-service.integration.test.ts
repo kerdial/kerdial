@@ -1041,7 +1041,8 @@ describe("ledger — transaction write service (T-19/T-20, Testcontainers)", () 
         {
           flowClass: "INCOME",
           currency: "EUR",
-          native: "3.371505",
+          // The movement settles to the cent; the base keeps gross × rate.
+          native: "3.37",
           base: "3.371505",
           account: cash(portfolioA, "EUR"),
         },
@@ -1915,7 +1916,8 @@ describe("ledger — transaction write service (T-19/T-20, Testcontainers)", () 
       expect(postings[0]!.currency).toBe("EUR");
       expect(postings[0]!.amountNative.toString()).toBe("-1000");
       expect(postings[1]!.currency).toBe("USD");
-      expect(postings[1]!.amountNative.toString()).toBe("1091.575");
+      // Rounded in its own currency: 1091.575 USD settles as 1091.58.
+      expect(postings[1]!.amountNative.toString()).toBe("1091.58");
       // AC48's "leaves every instrument quantity and cost basis unchanged":
       // no POSITION leg exists to change one.
       expect(postings.some((posting) => posting.leg === "POSITION")).toBe(false);

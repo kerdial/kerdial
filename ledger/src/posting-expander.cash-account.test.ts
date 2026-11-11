@@ -1,6 +1,7 @@
 import { Decimal } from "@kerdial/core-decimal";
 import { describe, expect, it } from "vitest";
 import { expandPostings, type ExpandableTransaction } from "./posting-expander.js";
+import { testMinorUnitOf } from "./posting-expander.test-support.js";
 
 /**
  * **CA-6 — the four-column copy-down, asserted leg by leg**
@@ -103,6 +104,7 @@ describe("expandPostings — cash-account copy-down (CA-6)", () => {
         feeAmount: new Decimal("5"),
         withholdingAmount: new Decimal("7"),
       }),
+      testMinorUnitOf,
     );
 
     // Asserted as one ordered tuple of `(currency, account)` pairs rather than
@@ -131,10 +133,12 @@ describe("expandPostings — cash-account copy-down (CA-6)", () => {
     };
     const before = expandPostings(
       txn({ ...base, cashAccountId: PRINCIPAL_ACCOUNT, targetCashAccountId: TARGET_ACCOUNT }),
+      testMinorUnitOf,
     );
     const otherTarget = "00000000-0000-7000-8000-0000000ac009";
     const after = expandPostings(
       txn({ ...base, cashAccountId: PRINCIPAL_ACCOUNT, targetCashAccountId: otherTarget }),
+      testMinorUnitOf,
     );
 
     expect(before[0]!.cashAccountId).toBe(PRINCIPAL_ACCOUNT);
@@ -166,6 +170,7 @@ describe("expandPostings — cash-account copy-down (CA-6)", () => {
         txnSettlementInstrumentId: SETTLEMENT_INSTRUMENT,
         cashAccountId: null,
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((posting) => posting.leg)).toEqual(["POSITION", "POSITION"]);
@@ -185,6 +190,7 @@ describe("expandPostings — cash-account copy-down (CA-6)", () => {
         txnCurrency: "EUR",
         cashAccountId: PRINCIPAL_ACCOUNT,
       }),
+      testMinorUnitOf,
     );
     expect(postings.map((posting) => [posting.leg, posting.cashAccountId] as const)).toEqual([
       ["POSITION", null],
@@ -209,6 +215,7 @@ describe("expandPostings — cash-account copy-down (CA-6)", () => {
         withholdingAmount: new Decimal("6"),
         feeAmount: new Decimal("1"),
       }),
+      testMinorUnitOf,
     );
 
     // All three legs are USD, so currency cannot distinguish them — which is
@@ -228,8 +235,8 @@ describe("expandPostings — cash-account copy-down (CA-6)", () => {
     // A resolver-by-currency implementation would return the same account for
     // both, which is the mechanism rejected here.
     const other = "00000000-0000-7000-8000-0000000ac00a";
-    const a = expandPostings(txn({ cashAccountId: PRINCIPAL_ACCOUNT }));
-    const b = expandPostings(txn({ cashAccountId: other }));
+    const a = expandPostings(txn({ cashAccountId: PRINCIPAL_ACCOUNT }), testMinorUnitOf);
+    const b = expandPostings(txn({ cashAccountId: other }), testMinorUnitOf);
     expect(a[0]!.currency).toBe(b[0]!.currency);
     expect(a[0]!.cashAccountId).toBe(PRINCIPAL_ACCOUNT);
     expect(b[0]!.cashAccountId).toBe(other);
