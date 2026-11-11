@@ -208,7 +208,9 @@ describe("platform/db — net-dividend: migration 0079 drops the withholding cur
     await ownerClient`
       DELETE FROM "transaction" WHERE id IN (${WITHHELD_DIVIDEND}::uuid, ${WITHHELD_INTEREST}::uuid)
     `;
-    await migrate(ownerDb, { migrationsFolder });
+    // Through `0079` only, so this suite keeps measuring `0079` as later
+    // migrations land.
+    await migrate(ownerDb, { migrationsFolder: folderThrough("0079_net-dividend") });
   }, 180_000);
 
   afterAll(async () => {

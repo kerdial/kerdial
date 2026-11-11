@@ -1,4 +1,4 @@
-import { Decimal } from "@kerdial/core-decimal";
+import { Decimal, ROUNDING_MODE } from "@kerdial/core-decimal";
 import { classifyFlows, type FlowClass, type TransactionLeg } from "@kerdial/core-domain";
 import type { transaction, transactionPosting } from "@kerdial/platform-db";
 
@@ -226,7 +226,72 @@ function required<T>(value: T | null | undefined, kind: string, missing: string)
  * regeneration on edit (delete + insert) safe: a re-expansion of an unchanged
  * row differs from its predecessor only in the freshly minted posting `id`s.
  */
-export function expandPostings(txn: ExpandableTransaction): readonly PostingDraft[] {
+export function expandPostings(
+  txn: ExpandableTransaction,
+  minorUnitOf: MinorUnitOf,
+): readonly PostingDraft[] {
+  return roundCashMovements(expandUnrounded(txn), minorUnitOf);
+}
+
+/**
+ * A currency's `minor_unit` (ISO 4217 exponent: 2 for EUR/USD, 0 for JPY, 3
+ * for KWD), read from the `currency` reference table by the caller — this
+ * file performs no I/O (NFR-13: no currency is hard-coded here).
+ */
+export type MinorUnitOf = (currency: string) => number;
+
+/**
+ * **A cash movement is settled to its currency's minor unit, one movement at
+ * a time.**
+ *
+ * A broker debits or credits each operation to the cent, so an account's
+ * balance is the sum of per-movement *rounded* amounts. Summing the
+ * unrounded legs and rounding only the total drifts away from the bank
+ * statement: a USD trade settled in a EUR account carries
+ * `gross × fx_rate` to twelve decimals, and ninety such sub-cent remainders
+ * add up to whole cents.
+ *
+ * The movement is the **net** of one transaction on one cash account — the
+ * principal, its withholding and its costs together — rounded `ROUND_HALF_UP`
+ * (the system-wide mode) to that account currency's minor unit. The rounding
+ * difference goes on the group's first CASH leg in `seq` order, which is the
+ * principal leg whenever the row has one; the withholding and cost legs keep
+ * the amounts stored on the row, so a total and its components are never
+ * counted twice. A CURRENCY_EXCHANGE's two legs are two groups (two accounts,
+ * two currencies), each rounded in its own currency.
+ *
+ * Only `amount_native` moves. `amount_base` is left exactly as expanded, so
+ * the sum-to-zero invariant on base is untouched and quantities, prices and
+ * rates are never rounded before the final movement. A position leg is never
+ * rounded. The transaction row itself is not modified: the rounding lives in
+ * this projection only.
+ */
+function roundCashMovements(
+  drafts: PostingDraft[],
+  minorUnitOf: MinorUnitOf,
+): readonly PostingDraft[] {
+  const groups = new Map<string, PostingDraft[]>();
+  for (const draft of drafts) {
+    if (draft.leg !== "CASH") continue;
+    const key = `${draft.cashAccountId ?? ""}|${(draft.currency ?? "").trim()}`;
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, [draft]);
+    else group.push(draft);
+  }
+  for (const group of groups.values()) {
+    const [first] = group;
+    if (first === undefined) continue;
+    const currency = (first.currency ?? "").trim();
+    const net = group.reduce((sum, draft) => sum.plus(draft.amountNative), new Decimal(0));
+    const rounded = net.toDecimalPlaces(minorUnitOf(currency), ROUNDING_MODE);
+    const difference = rounded.minus(net);
+    if (difference.isZero()) continue;
+    first.amountNative = first.amountNative.plus(difference);
+  }
+  return drafts;
+}
+
+function expandUnrounded(txn: ExpandableTransaction): PostingDraft[] {
   const drafts: PostingDraft[] = [];
   const { kind } = txn;
 

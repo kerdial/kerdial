@@ -7,6 +7,7 @@ import {
   PostingExpansionError,
   type ExpandableTransaction,
 } from "./posting-expander.js";
+import { testMinorUnitOf } from "./posting-expander.test-support.js";
 
 /**
  * **GATE-A (FT-11), independent test author.**
@@ -97,6 +98,7 @@ describe("expandPostings — L3 uniformity: the cross-currency principal leg on 
         cashCurrency: "CHF",
         cashAmount: new Decimal("880.00"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((p) => p.leg)).toEqual(["POSITION", "CASH"]);
@@ -133,6 +135,7 @@ describe("expandPostings — L3 uniformity: the cross-currency principal leg on 
         cashCurrency: "CHF",
         cashAmount: new Decimal("880.00"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((p) => p.leg)).toEqual(["POSITION", "CASH"]);
@@ -160,6 +163,7 @@ describe("expandPostings — L3 uniformity: the cross-currency principal leg on 
         cashCurrency: "CHF",
         cashAmount: new Decimal("960.00"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings).toHaveLength(1);
@@ -191,6 +195,7 @@ describe("expandPostings — L3 uniformity: the cross-currency principal leg on 
         cashAmount: new Decimal("176.00"),
         withholdingAmount: new Decimal("15.00"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((p) => p.leg)).toEqual(["CASH", "CASH"]);
@@ -240,6 +245,7 @@ describe("expandPostings — L3 uniformity: the cross-currency principal leg on 
         cashAmount: new Decimal("184.00"),
         feeAmount: new Decimal("9.90"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((p) => p.flowClass)).toEqual(["INCOME", "FEE"]);
@@ -269,6 +275,7 @@ describe("expandPostings — L3 uniformity: the cross-currency principal leg on 
         cashCurrency: "EUR",
         cashAmount: new Decimal("1380.00"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings).toHaveLength(1);
@@ -300,6 +307,7 @@ describe("expandPostings — the four sites `emitPrincipalCash` deliberately doe
         cashCurrency: "GBP",
         cashAmount: new Decimal("950.00"),
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((p) => p.leg)).toEqual(["CASH", "CASH"]);
@@ -332,6 +340,7 @@ describe("expandPostings — the four sites `emitPrincipalCash` deliberately doe
         fxRate: new Decimal("60000"),
         fxRateSource: "USER_PINNED",
       }),
+      testMinorUnitOf,
     );
 
     expect(postings.map((p) => p.leg)).toEqual(["POSITION", "POSITION"]);
@@ -367,6 +376,7 @@ describe("expandPostings — the implied rate is unbounded, and `fx_rate_applied
         // `numeric(38,12)`'s smallest storable positive value.
         cashAmount: new Decimal("0.000000000001"),
       }),
+      testMinorUnitOf,
     );
     expect(postings).toHaveLength(1);
     expect(postings[0]!.fxRateApplied.toString()).toBe("1000000000000000000");
@@ -416,6 +426,7 @@ describe("expandPostings — the two failure paths `emitPrincipalCash` introduce
           cashCurrency: null,
           cashAmount: null,
         }),
+        testMinorUnitOf,
       ),
     ).toThrow(/DEPOSIT.*currency but no cashCurrency/s);
   });
@@ -432,6 +443,7 @@ describe("expandPostings — the two failure paths `emitPrincipalCash` introduce
           cashCurrency: null,
           cashAmount: null,
         }),
+        testMinorUnitOf,
       ),
     ).toThrow(PostingExpansionError);
   });
@@ -446,6 +458,7 @@ describe("expandPostings — the two failure paths `emitPrincipalCash` introduce
           cashCurrency: "CHF",
           cashAmount: null,
         }),
+        testMinorUnitOf,
       ),
     ).toThrow(/WITHDRAWAL.*cashCurrency but no cashAmount/s);
   });
@@ -464,6 +477,7 @@ describe("expandPostings — the two failure paths `emitPrincipalCash` introduce
         cashCurrency: "EUR",
         cashAmount: null,
       }),
+      testMinorUnitOf,
     );
     expect(postings).toHaveLength(1);
     expect(postings[0]!.amountNative.toString()).toBe("-100");

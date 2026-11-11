@@ -32,7 +32,7 @@ import type { FxLeg, FxRateResolver, ResolvedRate } from "./fx-rate-resolver.js"
 import { InstrumentNotFoundError } from "./instrument-service.js";
 import { lockPortfolioRow, lockTenantWrites } from "./portfolio-lock.js";
 import { loadPositionTimeline } from "./position-replay.js";
-import { expandPostings } from "./posting-expander.js";
+import { expandPostings, type MinorUnitOf } from "./posting-expander.js";
 import { recomputeWithTransferPropagation } from "./transfer-link.js";
 
 /**
@@ -2300,6 +2300,8 @@ export class TransactionWriteService {
   readonly #clock: Clock;
   /** Non-null exactly while {@link TransactionWriteService.inWriteBatch}'s callback is running. See {@link WriteBatchState}. */
   #batch: WriteBatchState | null = null;
+  /** `currency.minor_unit` by code, filled lazily by {@link TransactionWriteService.#minorUnitsFor}. */
+  readonly #minorUnits = new Map<string, number>();
 
   constructor(deps: TransactionWriteServiceDeps) {
     this.#db = deps.db;
@@ -6335,6 +6337,39 @@ export class TransactionWriteService {
       .orderBy(asc(transactionPosting.seq));
   }
 
+  /**
+   * The `minor_unit` of every currency the row's CASH legs can be in (the
+   * principal's settling account and a CURRENCY_EXCHANGE's target), for
+   * `expandPostings`' per-movement rounding. Read from the `currency`
+   * reference table — shared, immutable after seeding — and kept for the
+   * service's lifetime, so a chunked import pays one lookup per currency, not
+   * one per row. A currency the table does not know is a hard failure: every
+   * CASH leg's currency is FK-bound to `cash_account.currency`, itself
+   * FK-bound to `currency`, so reaching it means an out-of-band row.
+   */
+  async #minorUnitsFor(tx: Tx, row: TransactionRecord): Promise<MinorUnitOf> {
+    const wanted = [row.cashCurrency, row.targetCurrency, row.txnCurrency]
+      .filter((code): code is string => code !== null)
+      .map((code) => code.trim())
+      .filter((code) => !this.#minorUnits.has(code));
+    if (wanted.length > 0) {
+      const rows = await tx
+        .select({ code: currency.code, minorUnit: currency.minorUnit })
+        .from(currency)
+        .where(inArray(currency.code, [...new Set(wanted)]));
+      for (const found of rows) this.#minorUnits.set(found.code.trim(), found.minorUnit);
+    }
+    return (code: string): number => {
+      const minorUnit = this.#minorUnits.get(code.trim());
+      if (minorUnit === undefined) {
+        throw new TransactionArgumentError(
+          `cash currency ${JSON.stringify(code)} has no minor unit in the currency table`,
+        );
+      }
+      return minorUnit;
+    };
+  }
+
   /** The delete + insert half of {@link TransactionWriteService.regeneratePostings}, for a row already in hand. */
   async #writePostings(tx: Tx, row: TransactionRecord): Promise<TransactionPostingRecord[]> {
     await tx
@@ -6346,7 +6381,7 @@ export class TransactionWriteService {
         ),
       );
 
-    const drafts = expandPostings(row);
+    const drafts = expandPostings(row, await this.#minorUnitsFor(tx, row));
     if (drafts.length === 0) return [];
     return tx
       .insert(transactionPosting)

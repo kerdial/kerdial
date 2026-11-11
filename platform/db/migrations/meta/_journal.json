@@ -561,6 +561,13 @@
       "when": 1793955411291,
       "tag": "0079_net-dividend",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1794382335834,
+      "tag": "0080_cash-movement-rounding",
+      "breakpoints": true
     }
   ]
 }

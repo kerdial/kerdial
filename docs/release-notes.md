@@ -6,6 +6,19 @@ from this file above the generated list of changes.
 
 ---
 
+## Unreleased
+
+### Cash balances match the bank to the cent
+
+A cash balance is now the sum of movements each settled to the cent (to the currency's own precision,
+rounding half up), as a broker settles them. Until now, a trade in a foreign currency settled in a euro
+account was carried with all the decimals of `amount × rate`, and only the total was rounded, so after
+many trades the balance could drift a few cents away from the bank statement. Quantities, prices and rates
+keep their full precision; only the cash movement is rounded. Your transactions are not modified.
+
+The database migration applied on upgrade re-rounds the cash movements already recorded and rebuilds the
+balances; the daily value history is recomputed on the next visit. No manual step.
+
 ## v0.2.0
 
 ### Breaking: upgrading from 0.1.x

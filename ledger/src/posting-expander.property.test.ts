@@ -171,6 +171,15 @@ const digits = (maxLength: number): fc.Arbitrary<string> =>
  */
 const PROPERTY_SEED = 1374383954;
 
+/**
+ * A minor unit finer than any figure these generators produce (they reach
+ * 31 decimals, far past the columns' 12), which makes the per-movement
+ * rounding the identity: the properties in this file are about the **structure** of
+ * the expansion. The rounding layer has its own properties in
+ * `posting-expander.cash-rounding.test.ts`.
+ */
+const noRounding = (): number => 1000;
+
 const AMOUNT_INT_DIGITS = 3;
 const AMOUNT_FRAC_DIGITS = 18;
 const RATE_INT_DIGITS = 3;
@@ -998,7 +1007,7 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
     fc.assert(
       fc.property(anyTransaction, ({ row, label }) => {
         shapesSeen.add(label);
-        const postings = expandPostings(row);
+        const postings = expandPostings(row, noRounding);
         expect(postings.length).toBeGreaterThan(0);
 
         const leakage = leakageBase(row);
@@ -1138,7 +1147,7 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
     fc.assert(
       fc.property(shareDistribution, ({ row }) => {
         seen += 1;
-        const postings = expandPostings(row);
+        const postings = expandPostings(row, noRounding);
 
         expect(postings).toHaveLength(1);
         const [only] = postings;
@@ -1189,7 +1198,7 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
         fc.oneof(securityTransfer("TRANSFER_OUT"), securityTransfer("TRANSFER_IN")),
         ({ row }) => {
           seen += 1;
-          const postings = expandPostings(row);
+          const postings = expandPostings(row, noRounding);
           expect(postings).toHaveLength(1);
           expect(postings.filter((posting) => posting.leg === "CASH")).toHaveLength(0);
           const [only] = postings;
@@ -1214,7 +1223,9 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
     // two transfer kinds joined the generator, and failed on the first one.
     fc.assert(
       fc.property(anyTransaction, ({ row }) => {
-        const external = expandPostings(row).filter((posting) => posting.flowClass === "EXTERNAL");
+        const external = expandPostings(row, noRounding).filter(
+          (posting) => posting.flowClass === "EXTERNAL",
+        );
         if (
           row.kind === "DEPOSIT" ||
           row.kind === "WITHDRAWAL" ||
@@ -1259,7 +1270,7 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
     // carrying an unexpected rate still fails, on the same row.
     fc.assert(
       fc.property(anyTransaction, ({ row }) => {
-        const postings = expandPostings(row);
+        const postings = expandPostings(row, noRounding);
         // FR-260: `feeFxRate` was the third entry until `0049`.
         // A cost carries the principal's rate now, which the first entry
         // already covers.
@@ -1388,7 +1399,7 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
             row.cashCurrency.trim() !== row.txnCurrency.trim();
           expect(crossCurrencySettled).toBe(false);
 
-          const postings = expandPostings(row);
+          const postings = expandPostings(row, noRounding);
           const principal = postings.find((posting) => posting.leg === "CASH");
           expect(principal).toBeDefined();
           seen += 1;
@@ -1422,7 +1433,7 @@ describe("expandPostings — property: postings sum to zero except for the fee/t
       let seenCostLegs = 0;
       fc.assert(
         fc.property(itemisedFiatTrade(true), ({ row }) => {
-          const postings = expandPostings(row);
+          const postings = expandPostings(row, noRounding);
           const costLegs = postings.filter(
             (posting) => posting.flowClass === "FEE" || posting.flowClass === "TAX",
           );
@@ -1614,7 +1625,7 @@ describe("expandPostings — FT-32: why the leakage is summed per component", ()
 
   it("the aggregate form `fee_amount × implied` breaks the exact isZero(), and the per-component sum does not", () => {
     const row = nonTerminatingItemisedRow();
-    const postings = expandPostings(row);
+    const postings = expandPostings(row, noRounding);
     const implied = impliedPrincipalRate(row);
     // Non-vacuity: the rate really is a non-terminating quotient carrying the
     // full 34 significant digits, which is the only condition under which the
@@ -1647,7 +1658,7 @@ describe("expandPostings — FT-32: why the leakage is summed per component", ()
     // If `leakageBase` were recomputed from the postings it would move with
     // them and the cross-check would be vacuous: this asserts it does not.
     const row = nonTerminatingItemisedRow();
-    const postings = expandPostings(row);
+    const postings = expandPostings(row, noRounding);
     const leakage = leakageBase(row);
 
     // Unperturbed, the invariant holds.

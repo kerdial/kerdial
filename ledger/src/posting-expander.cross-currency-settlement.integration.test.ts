@@ -21,6 +21,7 @@ import {
   type ExpandableTransaction,
   type PostingDraft,
 } from "./posting-expander.js";
+import { testMinorUnitOf } from "./posting-expander.test-support.js";
 
 /**
  * **AC-274 — phase 1's conformance gate: one worked example per case D1–D5**
@@ -335,7 +336,7 @@ function expectBaseSumsToZero(drafts: readonly PostingDraft[]): void {
 
 describe("expandPostings — D1–D5 conformance, one worked example per case (AC-274)", () => {
   it("D1 — `A = T = B`: 10 at 100,00 EUR from a EUR account, base EUR", () => {
-    const drafts = expandPostings(D1.row);
+    const drafts = expandPostings(D1.row, testMinorUnitOf);
     expect(drafts).toHaveLength(2);
     expect(render(drafts[0]!)).toEqual({
       seq: 1,
@@ -367,7 +368,7 @@ describe("expandPostings — D1–D5 conformance, one worked example per case (A
   });
 
   it("D2 — `A = T ≠ B`: 10 AAPL at 150,00 USD from a USD account, base EUR at 0,92", () => {
-    const drafts = expandPostings(D2.row);
+    const drafts = expandPostings(D2.row, testMinorUnitOf);
     expect(drafts).toHaveLength(2);
     expect(render(drafts[0]!)).toEqual({
       seq: 1,
@@ -400,7 +401,7 @@ describe("expandPostings — D1–D5 conformance, one worked example per case (A
   });
 
   it("D3 (AC-266) — `T = B ≠ A`: a 1 000,00 EUR deposit landing in a CHF account for 960,00", () => {
-    const drafts = expandPostings(D3.row);
+    const drafts = expandPostings(D3.row, testMinorUnitOf);
     expect(drafts).toHaveLength(1);
     expect(render(drafts[0]!)).toEqual({
       seq: 1,
@@ -422,7 +423,7 @@ describe("expandPostings — D1–D5 conformance, one worked example per case (A
   });
 
   it("D4 (AC-264) — `A = B ≠ T`: 10 AAPL at 150,00 USD debited 1 380,00 from a EUR account", () => {
-    const drafts = expandPostings(D4.row);
+    const drafts = expandPostings(D4.row, testMinorUnitOf);
     expect(drafts).toHaveLength(2);
     expect(render(drafts[0]!)).toEqual({
       seq: 1,
@@ -457,7 +458,7 @@ describe("expandPostings — D1–D5 conformance, one worked example per case (A
   });
 
   it("D5 (AC-265) — all three differ: 1 000,00 USD at 0,90 to EUR base, debited 880,00 CHF", () => {
-    const drafts = expandPostings(D5.row);
+    const drafts = expandPostings(D5.row, testMinorUnitOf);
     expect(drafts).toHaveLength(2);
     expect(render(drafts[0]!)).toEqual({
       seq: 1,
@@ -488,7 +489,7 @@ describe("expandPostings — D1–D5 conformance, one worked example per case (A
   });
 
   it("AC-265 — `amount_base` is authoritative: 880,00 × 1,022727272727 ≠ the stored 900,00", () => {
-    const cash = expandPostings(D5.row)[1]!;
+    const cash = expandPostings(D5.row, testMinorUnitOf)[1]!;
     const storedRate = new Decimal(cash.fxRateApplied.toFixed(12));
     const recomputed = cash.amountNative.abs().times(storedRate);
 
@@ -503,7 +504,7 @@ describe("expandPostings — D1–D5 conformance, one worked example per case (A
   });
 
   it("AC-263 — an asset-settled BUY emits no CASH leg and reads no cash denomination", () => {
-    const drafts = expandPostings(CRYPTO.row);
+    const drafts = expandPostings(CRYPTO.row, testMinorUnitOf);
     expect(drafts.map((draft) => draft.leg)).toEqual(["POSITION", "POSITION"]);
     expect(drafts.some((draft) => draft.leg === "CASH")).toBe(false);
     expect(drafts.every((draft) => draft.cashAccountId === null)).toBe(true);
@@ -558,7 +559,7 @@ describe("expandPostings — D1–D5 conformance, the persisted projection (AC-2
       fxRate: worked.row.fxRate,
       fxRateSource: worked.row.fxRateSource,
     });
-    const drafts = expandPostings(worked.row);
+    const drafts = expandPostings(worked.row, testMinorUnitOf);
     await ownerDb.insert(transactionPosting).values(
       drafts.map((draft) => ({
         ...draft,
