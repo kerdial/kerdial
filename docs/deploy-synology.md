@@ -118,7 +118,14 @@ curl -s -X POST http://127.0.0.1:3000/api/v1/auth/setup \
 
 Further household members are created from « Utilisateurs » in the app, in the same tenant, with no
 currency to choose. There is no scripted lock-out recovery for the sole instance admin — the only
-route left is a manual `UPDATE app_user SET password_hash = …` as the Postgres superuser.
+route left is a manual `UPDATE app_user SET password_hash = …` as the Postgres superuser. Unlike a
+password change made in the app, that manual update revokes nothing: in the same transaction, also end
+the user's sessions and access tokens, so that a credential created before the reset stops working.
+
+```sql
+UPDATE session SET revoked_at = now() WHERE user_id = '<user id>' AND revoked_at IS NULL;
+UPDATE personal_access_token SET revoked_at = now() WHERE user_id = '<user id>' AND revoked_at IS NULL;
+```
 
 If you are **moving** an existing deployment's database onto the NAS instead of starting fresh,
 adapt the runbook's §3 dump/restore procedure — restore into this compose stack's own `postgres`

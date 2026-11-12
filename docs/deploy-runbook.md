@@ -367,7 +367,8 @@ is no reverse proxy in this stack and none is required (§0 above). Putting ngin
 front of that port, with your own TLS and domain, is entirely your setup, outside this repository.
 
 `TRUST_PROXY` is a second, optional dial that does **not** affect exposure at all. It only tells the
-api whether to trust an `X-Forwarded-For` header for the per-client login-throttle bucket (§ below).
+api whether to trust an `X-Forwarded-For` header for the per-client login and access-token throttle
+buckets (§ below).
 Blank — what compose uses when `.env` does not set it; `.env.example` ships `1`, the first row of the
 table below — and the app works exactly the same whether or not you put a proxy in front; the only cost is that the login throttle then sees every client behind that proxy as one
 shared address, which the two rows below spell out.
@@ -407,15 +408,18 @@ If you run a proxy, it must set `X-Forwarded-For` (Caddy and nginx `proxy_set_he
 X-Forwarded-For $proxy_add_x_forwarded_for;` both do), or every client shares the proxy's address
 and one attacker's backoff locks everyone out.
 
-**What "every client shares the proxy's address" actually costs**. Two controls key on the
-client address, and both collapse into one shared bucket when the api cannot see it: the per-IP
+**What "every client shares the proxy's address" actually costs**. Three controls key on the
+client address, and all three collapse into one shared bucket when the api cannot see it: the per-IP
 half of the login backoff (a failed sign-in adds a growing delay for *every* device behind the
-proxy — the per-email lockout is unaffected, it never keys on an address), and the concurrency cap
+proxy — the per-email lockout is unaffected, it never keys on an address), the concurrency cap
 on `POST /auth/login` + `POST /auth/setup`, which allows 2 in flight **per client address** and 8
-across the whole instance. With `TRUST_PROXY` blank behind a proxy, one device with two sign-ins in
+across the whole instance, and the failed access-token window (30 requests with an invalid
+`Authorization: Bearer kdl_pat_…` token per 10 minutes, then `429` for every further invalid token
+from that address; valid tokens keep working, and a proxy's own `Basic` or `Bearer` header is
+ignored, never counted — see [`mcp.md`](mcp.md)). With `TRUST_PROXY` blank behind a proxy, one device with two sign-ins in
 flight uses up the only bucket there is and everyone else is answered `429` until it finishes. Set
 `TRUST_PROXY` to your proxy (the table above) and each device gets its own 2. Nothing outside these
-two controls depends on the address — there is no per-IP allow/deny list to configure, and no
+three controls depends on the address — there is no per-IP allow/deny list to configure, and no
 proxy-level rate limit is required for this.
 
 ### Three rules that do not depend on your row

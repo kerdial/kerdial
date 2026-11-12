@@ -56,6 +56,11 @@ mains. L'interface est en français.
   sur l'écran d'accueil (PWA).
 - **Un foyer, une installation.** Le premier compte est l'administrateur. Il peut créer des accès pour
   les autres membres du foyer, qui voient et gèrent alors les mêmes portefeuilles.
+- **Assistants IA, en lecture seule et sur demande.** Un jeton d'accès créé dans « Mon compte » permet
+  à un assistant comme Claude Code ou Claude Desktop de lire vos portefeuilles (positions, performances,
+  opérations, dividendes) sans rien pouvoir modifier. Rien n'est accessible tant que vous n'avez pas créé
+  de jeton ; une fois l'assistant connecté, ce qu'il lit quitte votre installation et part chez son
+  fournisseur. Voir [docs/mcp.md](docs/mcp.md) (en anglais).
 
 ## Captures d'écran
 

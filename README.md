@@ -49,6 +49,11 @@ or NAS, so your financial data never leaves your hands. The interface is in Fren
 - **On your phone.** Usable at phone width, and installable as an app on your home screen (PWA).
 - **A household, one instance.** The first account is the administrator. It can create logins for other
   members of the household, who then see and manage the same portfolios.
+- **AI assistants, read-only and opt-in.** A personal access token created in « Mon compte » lets an
+  assistant such as Claude Code or Claude Desktop read your portfolios (holdings, returns, transactions,
+  dividends) without being able to change anything. Nothing is reachable until you create a token; once
+  an assistant is connected, what it reads leaves your instance and goes to its provider. See
+  [docs/mcp.md](docs/mcp.md).
 
 ## Screenshots
 

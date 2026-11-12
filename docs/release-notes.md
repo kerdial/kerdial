@@ -6,6 +6,39 @@ from this file above the generated list of changes.
 
 ---
 
+## Unreleased
+
+### Read-only access for AI assistants
+
+You can now let an AI assistant such as Claude Code or Claude Desktop read your portfolios and answer
+questions about your holdings, returns, allocation, transactions, dividends, cash and watchlist. In
+« Mon compte », the new card « Accès pour assistants IA » creates a personal access token (your current
+password is asked; 90-day expiry by default, up to 10 active tokens each); a small MCP server, built from
+this repository and run on your own computer, gives the assistant eight read-only tools and five
+ready-made prompts. [docs/mcp.md](mcp.md) explains the set-up step by step.
+
+It is off until you create a token. A token can only read portfolio data — all of the household's, not
+only yours — and cannot change anything, export, import or reach the administration. Be aware that
+whatever the assistant reads leaves your instance and is sent to the assistant's provider under its own
+terms; revoking a token stops further access but cannot recall what was sent. Changing your password, or
+an administrator resetting it, revokes all your tokens. Kerdial still gives no investment advice: the
+tools return facts, and any analysis is the assistant's.
+
+Each token is limited to 60 requests a minute, and failed token attempts are throttled per client
+address; a valid token is never refused by that throttle. If your instance sits behind a reverse proxy,
+set `TRUST_PROXY` as the [runbook](deploy-runbook.md#1-exposure-api_bind-and-trust_proxy) describes, or
+every client shares the proxy's address and one client's failed attempts count against everyone's.
+Only an `Authorization: Bearer` header carrying a Kerdial token (`kdl_pat_…`) is read as a token: a
+proxy that forwards its own `Basic` or `Bearer` sign-in header keeps working with browser sessions as
+before.
+
+The API also gains a read endpoint, `GET /api/v1/portfolios/allocation?by=` (and
+`/portfolios/{id}/allocation?by=`), which splits the current value by instrument, currency, kind, sector
+or country, with shares that add up to exactly 100 %.
+
+The database migration applied on upgrade adds the access-token table and changes nothing else. No
+manual step.
+
 ## v0.2.1
 
 ### Cash balances match the bank to the cent
