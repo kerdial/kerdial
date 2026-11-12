@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ACCESS_TOKEN_MAX_ACTIVE,
   issueAccessToken,
+  listAccessTokens,
   recordAccessTokenUse,
   revokeAccessToken,
   validateAccessToken,
@@ -20,8 +21,8 @@ import {
 
 /**
  * ADR-0019 — the personal-access-token service against a real migrated
- * database (MCP-AC-4, MCP-AC-5, MCP-AC-6, MCP-AC-14, MCP-AC-15, MCP-L3,
- * MCP-L14). Every call under test runs as `app_web`, the role the API
+ * database (MCP-AC-4, MCP-AC-5, MCP-AC-6, MCP-AC-14, MCP-AC-15, MCP-FR-5,
+ * MCP-L3, MCP-L14). Every call under test runs as `app_web`, the role the API
  * connects as; the superuser client only seeds and moves clocks (DC-6).
  *
  * One user per capability, so no case depends on the token count another
@@ -48,6 +49,7 @@ describe("platform/auth — personal access tokens (ADR-0019, Testcontainers)", 
     frank: "00000000-0000-7000-8000-0000019a0005",
     grace: "00000000-0000-7000-8000-0000019a0006",
     heidi: "00000000-0000-7000-8000-0000019a0007",
+    ivan: "00000000-0000-7000-8000-0000019a0008",
     bob: "00000000-0000-7000-8000-0000019b0001",
   } as const;
   type UserName = keyof typeof users;
@@ -275,6 +277,35 @@ describe("platform/auth — personal access tokens (ADR-0019, Testcontainers)", 
 
     expect(reported).toEqual([1]);
     await expect(validateAccessToken(webDb, issued.token)).resolves.toBeNull();
+  });
+
+  it("MCP-FR-5 — an old active token stays listed, first, after more revoked and expired tokens than the list holds", async () => {
+    const sessionId = await sessionOf("ivan");
+    const longLived = await issueOk("ivan", sessionId, null);
+    for (let i = 0; i < 55; i += 1) {
+      const churned = await issueOk("ivan", sessionId);
+      await revokeAccessToken(webDb, {
+        tenantId: tenantA,
+        userId: users.ivan,
+        tokenId: churned.record.id,
+      });
+    }
+    // The newest row of all is one that has expired by the list's `now`, not
+    // revoked: it must sort after the active one too.
+    const expiring = await issueOk("ivan", sessionId, 1);
+    const twoDaysOn = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+
+    const listed = await listAccessTokens(webDb, {
+      tenantId: tenantA,
+      userId: users.ivan,
+      now: twoDaysOn,
+    });
+    expect(listed).toHaveLength(50);
+    expect(listed[0]?.id).toBe(longLived.record.id);
+    expect(listed[0]?.status).toBe("active");
+    expect(listed[1]?.id).toBe(expiring.record.id);
+    expect(listed[1]?.status).toBe("expired");
+    expect(listed.slice(1).filter((record) => record.status === "active")).toEqual([]);
   });
 
   it("MCP-FR-8 — a use is recorded at most once a minute", async () => {

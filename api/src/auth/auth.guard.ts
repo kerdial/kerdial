@@ -54,9 +54,12 @@ const NO_CLIENT_ADDRESS_KEY = "__no_client_address__";
  *
  * ADR-0019 adds a second credential: an `Authorization: Bearer` personal
  * access token. The header is read only after the `@Public()` check, and
- * only the `Bearer` scheme selects the token path (`bearer.ts`). On that path
- * an invalid token gets the same 401 as no cookie and **never falls back** to
- * a cookie the request also carries; a valid one wins over the cookie. The
+ * only a `Bearer kdl_pat_…` credential selects the token path (`bearer.ts`);
+ * any other `Authorization` value — a reverse proxy's own `Basic` or
+ * `Bearer` — is ignored and the cookie path runs as if it were absent. On
+ * the token path an invalid token gets the same 401 as no cookie and **never
+ * falls back** to a cookie the request also carries; a valid one wins over
+ * the cookie. The
  * token principal is a `SessionContext`, so every `@CurrentSession()`
  * consumer and every RLS-scoped read behaves exactly as for its owner's
  * cookie session, with two deliberate differences: `isInstanceAdmin` is
@@ -119,21 +122,33 @@ export class AuthGuard implements CanActivate {
   }
 
   /**
-   * The token path. In order: the failed-Bearer window for the client
-   * address, checked before any database work; the token lookup, whose one
-   * `null` covers malformed, unknown, wrong secret, revoked and expired; then
-   * the principal. `last_used_at` is recorded at most once a minute, and a
-   * failure to record it is logged and does not fail the request.
+   * The token path. In order: the token lookup, whose one `null` covers
+   * malformed, unknown, wrong secret, revoked and expired; then, on success,
+   * the principal. A valid token proceeds whatever the failed-Bearer window
+   * of its address holds, so failures from a shared address (a proxy, a NAT,
+   * an unset `TRUST_PROXY`) never lock out the valid tokens behind it. Only a
+   * failure consults the window: a full one answers 429 without counting
+   * another event, otherwise the failure is counted and answered 401. The
+   * lookup runs before the window is read; it is one primary-key read, the
+   * cost class of validating a session cookie, which is not throttled
+   * either. A success does not clear the window. `last_used_at` is recorded
+   * at most once a minute, and a failure to record it is logged and does not
+   * fail the request.
    */
   async #authenticateBearer(
     context: ExecutionContext,
     request: RequestWithSession,
     credential: string,
   ): Promise<void> {
-    const address =
-      request.ip !== undefined && request.ip !== "" ? request.ip : NO_CLIENT_ADDRESS_KEY;
-    const refusal = this.#failedBearer.check(address);
-    if (refusal !== null) {
+    const validated = await validateAccessToken(this.db, credential);
+    if (validated === null) {
+      const address =
+        request.ip !== undefined && request.ip !== "" ? request.ip : NO_CLIENT_ADDRESS_KEY;
+      const refusal = this.#failedBearer.check(address);
+      if (refusal === null) {
+        this.#failedBearer.record(address);
+        throw unauthenticated();
+      }
       if (refusal.firstRefusal) {
         rootLogger().warn("auth: bearer authentication throttled", {
           component: "api",
@@ -147,12 +162,6 @@ export class AuthGuard implements CanActivate {
         title: "Too many failed access-token authentications",
         code: "BEARER_AUTH_THROTTLED",
       });
-    }
-
-    const validated = await validateAccessToken(this.db, credential);
-    if (validated === null) {
-      this.#failedBearer.record(address);
-      throw unauthenticated();
     }
 
     request.session = {

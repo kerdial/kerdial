@@ -70,7 +70,13 @@ describe("tools", () => {
     const unknownKey = await h.call("get_holdings", { portfolio: PORTFOLIO_ID });
     const badId = await h.call("get_holdings", { portfolioId: "not-a-uuid" });
     const tooMany = await h.call("get_transactions", { limit: 201 });
-    expect([unknownKey.isError, badId.isError, tooMany.isError]).toEqual([true, true, true]);
+    const notAPreset = await h.call("get_watchlist", { window: "1M" });
+    expect([unknownKey.isError, badId.isError, tooMany.isError, notAPreset.isError]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
     expect(h.requests).toHaveLength(0);
   });
 

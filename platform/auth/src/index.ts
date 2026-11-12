@@ -19,6 +19,7 @@ export * from "./login-rate-limit.js";
 // star re-export count, and names are what it can attribute to consumers.
 export {
   ACCESS_TOKEN_MAX_ACTIVE,
+  ACCESS_TOKEN_PREFIX,
   issueAccessToken,
   listAccessTokens,
   recordAccessTokenUse,

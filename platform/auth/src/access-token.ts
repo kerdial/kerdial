@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, count, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, or, sql, type SQL } from "drizzle-orm";
 import {
   appUser,
   personalAccessToken,
@@ -29,13 +29,21 @@ import {
 /** MCP-L3: at most this many active (not revoked, not expired) tokens per user. */
 export const ACCESS_TOKEN_MAX_ACTIVE = 10;
 
-/** How many rows the management list returns. Active tokens (at most 10) always fit. */
+/**
+ * How many rows the management list returns. Active tokens (at most 10) are
+ * ordered first, so they always fit however many revoked or expired ones
+ * there are.
+ */
 const ACCESS_TOKEN_LIST_LIMIT = 50;
 
 /** `last_used_at` is written at most once per token per this interval (MCP-FR-8). */
 const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 
-const TOKEN_PREFIX = "kdl_pat_";
+/**
+ * Every issued token starts with this. The API's `Authorization` parse
+ * (`api/src/auth/bearer.ts`) selects the token path on it alone (ADR-0019).
+ */
+export const ACCESS_TOKEN_PREFIX = "kdl_pat_";
 
 /**
  * The one parse of a presented token. Never split on `_`: the base64url
@@ -77,7 +85,7 @@ function hashAccessToken(token: string): Buffer {
 }
 
 /** Compared against when the id resolves to no row, so the rejection path does the same work. */
-const DUMMY_HASH = hashAccessToken(`${TOKEN_PREFIX}${"0".repeat(32)}${"A".repeat(43)}`);
+const DUMMY_HASH = hashAccessToken(`${ACCESS_TOKEN_PREFIX}${"0".repeat(32)}${"A".repeat(43)}`);
 
 function uuidToHex(id: string): string {
   return id.replaceAll("-", "").toLowerCase();
@@ -94,6 +102,14 @@ function statusOf(
   if (row.revokedAt !== null) return "revoked";
   if (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime()) return "expired";
   return "active";
+}
+
+/** {@link statusOf}'s `"active"`, as SQL: not revoked, and no expiry or one after `now`. */
+function isActiveAt(now: Date): SQL {
+  return and(
+    isNull(personalAccessToken.revokedAt),
+    or(isNull(personalAccessToken.expiresAt), gt(personalAccessToken.expiresAt, now)),
+  )!;
 }
 
 const recordColumns = {
@@ -142,8 +158,8 @@ export async function issueAccessToken(
   const now = params.now ?? new Date();
   const id = randomUUID();
   const secret = randomBytes(32).toString("base64url");
-  const token = `${TOKEN_PREFIX}${uuidToHex(id)}${secret}`;
-  const hint = `${TOKEN_PREFIX}…${secret.slice(-4)}`;
+  const token = `${ACCESS_TOKEN_PREFIX}${uuidToHex(id)}${secret}`;
+  const hint = `${ACCESS_TOKEN_PREFIX}…${secret.slice(-4)}`;
   const expiresAt =
     params.expiresInDays === null ? null : new Date(now.getTime() + params.expiresInDays * DAY_MS);
 
@@ -171,13 +187,7 @@ export async function issueAccessToken(
     const [active] = await tx
       .select({ n: count() })
       .from(personalAccessToken)
-      .where(
-        and(
-          eq(personalAccessToken.userId, params.userId),
-          isNull(personalAccessToken.revokedAt),
-          or(isNull(personalAccessToken.expiresAt), gt(personalAccessToken.expiresAt, now)),
-        ),
-      );
+      .where(and(eq(personalAccessToken.userId, params.userId), isActiveAt(now)));
     if ((active?.n ?? 0) >= ACCESS_TOKEN_MAX_ACTIVE) return { ok: false, reason: "LIMIT_REACHED" };
 
     await tx.insert(personalAccessToken).values({
@@ -300,9 +310,12 @@ export async function recordAccessTokenUse(
 }
 
 /**
- * The caller's own tokens, newest first, at most 50 (MCP-FR-5). Revoked and
- * expired tokens are kept and listed as records; `status` is computed here so
- * no client does date arithmetic.
+ * The caller's own tokens, at most 50 (MCP-FR-5): active ones first, then
+ * newest first. Active-first is what keeps an old, still-active token
+ * listed — and so revocable — after many create/revoke cycles; it is
+ * evaluated against the same `now` as `status`. Revoked and expired tokens
+ * are kept and listed as records; `status` is computed here so no client
+ * does date arithmetic.
  */
 export async function listAccessTokens(
   db: Db,
@@ -314,7 +327,11 @@ export async function listAccessTokens(
       .select(recordColumns)
       .from(personalAccessToken)
       .where(eq(personalAccessToken.userId, params.userId))
-      .orderBy(desc(personalAccessToken.createdAt), desc(personalAccessToken.id))
+      .orderBy(
+        desc(isActiveAt(now)),
+        desc(personalAccessToken.createdAt),
+        desc(personalAccessToken.id),
+      )
       .limit(ACCESS_TOKEN_LIST_LIMIT),
   );
   return rows.map((row) => ({ ...row, status: statusOf(row, now) }));

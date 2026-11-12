@@ -19,11 +19,14 @@ import type { RegisteredRoute } from "./route-registry.js";
  * Own tenants, own users, and no `POST /instruments`: the one catalogue row
  * is inserted as the owner. Two apps: one with both token windows raised, so
  * the sweeps below never meet a 429, and one at the shipped limits for the
- * two rate tests and the fresh-instance case.
+ * rate tests and the fresh-instance case.
  */
 
 /** Well-formed (`kdl_pat_` + 32 hex + 43 base64url) and never issued. */
 const NEVER_ISSUED_TOKEN = `kdl_pat_${"f".repeat(32)}${"x".repeat(43)}`;
+
+/** A JWT-shaped credential, as an authenticating reverse proxy forwards it: not a Kerdial token. */
+const FOREIGN_JWT = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJwcm94eS11c2VyIn0.c2lnbmF0dXJl";
 
 const DUMMY_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -427,7 +430,7 @@ describe("api — personal access tokens on the request path (ADR-0019)", () => 
     expect(revoke.body.code).toBe("TOKEN_READ_ONLY");
   });
 
-  it("MCP-AC-9 — CSRF still binds cookies; an invalid Bearer never falls back to the cookie; a valid one makes the request read-only; another scheme is ignored", async () => {
+  it("MCP-AC-9 — CSRF still binds cookies; an invalid kdl_pat_ Bearer never falls back to the cookie; a valid one makes the request read-only; another scheme or a foreign Bearer is ignored", async () => {
     const withoutCsrf = await server()
       .post("/api/v1/portfolios")
       .set("Cookie", cookieHeader(ada))
@@ -462,6 +465,23 @@ describe("api — personal access tokens on the request path (ADR-0019)", () => 
       .send({ name: "Behind a basic-auth proxy" });
     expect(basicWrite.status).toBe(201);
     expect((await server().get("/api/v1/portfolios").set("Authorization", basic)).status).toBe(401);
+
+    // A reverse proxy's own Bearer (an OIDC token, say) is not a Kerdial
+    // credential: the cookie decides, exactly as with `Basic`.
+    const foreign = bearer(FOREIGN_JWT);
+    const foreignWithCookie = await cookieGet("/api/v1/portfolios").set("Authorization", foreign);
+    expect(foreignWithCookie.status).toBe(200);
+    expect(foreignWithCookie.body).toEqual((await cookieGet("/api/v1/portfolios")).body);
+    const foreignWrite = await server()
+      .post("/api/v1/portfolios")
+      .set("Cookie", cookieHeader(ada))
+      .set(CSRF_HEADER_NAME, ada.csrf)
+      .set("Authorization", foreign)
+      .send({ name: "Behind an OIDC proxy" });
+    expect(foreignWrite.status).toBe(201);
+    const foreignAlone = await server().get("/api/v1/portfolios").set("Authorization", foreign);
+    expect(foreignAlone.status).toBe(401);
+    expect(foreignAlone.body.code).toBe("UNAUTHENTICATED");
   });
 
   it("MCP-AC-10 — an invalid Bearer gets 401 from every non-public route", async () => {
@@ -586,9 +606,9 @@ describe("api — personal access tokens at the shipped rate limits (ADR-0019)",
     expect(response.body.code).toBe("UNAUTHENTICATED");
   });
 
-  it("MCP-AC-12 — the 31st failed Bearer in a row from one address is throttled; a valid token from another address is not", async () => {
+  it("MCP-AC-12 — the 31st failed Bearer in a row from one address is throttled; a valid token from that address or another is not", async () => {
     session = await loginAs(server(), userEmail, PASSWORD);
-    const token = await mintToken(server(), session, "Other address");
+    const token = await mintToken(server(), session, "Shared address");
 
     const attacker = "203.0.113.10";
     for (let attempt = 1; attempt <= 30; attempt += 1) {
@@ -600,7 +620,26 @@ describe("api — personal access tokens at the shipped rate limits (ADR-0019)",
     expect(throttled.body.code).toBe("BEARER_AUTH_THROTTLED");
     expect(Number(throttled.headers["retry-after"])).toBeGreaterThanOrEqual(1);
 
+    // A client behind the same address (a proxy, a NAT) keeps working.
+    expect((await tokenGetFrom(attacker, token.secret)).status).toBe(200);
     expect((await tokenGetFrom("203.0.113.20", token.secret)).status).toBe(200);
+    // A success does not clear the window.
+    expect((await tokenGetFrom(attacker, NEVER_ISSUED_TOKEN)).status).toBe(429);
+  });
+
+  it("MCP-AC-12 — a foreign Bearer is not a failed token authentication: forty from one address never meet the 429", async () => {
+    const proxy = "203.0.113.30";
+    for (let request = 1; request <= 40; request += 1) {
+      const response = await tokenGetFrom(proxy, FOREIGN_JWT);
+      expect(response.status, `request ${request}`).toBe(401);
+      expect(response.body.code, `request ${request}`).toBe("UNAUTHENTICATED");
+    }
+    // The address's window is empty: thirty Kerdial-shaped failures still fit before the 429.
+    for (let attempt = 1; attempt <= 30; attempt += 1) {
+      const response = await tokenGetFrom(proxy, NEVER_ISSUED_TOKEN);
+      expect(response.status, `attempt ${attempt}`).toBe(401);
+    }
+    expect((await tokenGetFrom(proxy, NEVER_ISSUED_TOKEN)).status).toBe(429);
   });
 
   it("MCP-AC-25 — the 61st sequential request with one token inside a minute is refused; another token is unaffected", async () => {

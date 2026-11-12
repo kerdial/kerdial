@@ -284,8 +284,9 @@ describe("api + @kerdial/mcp — the MCP server against the real API (MCP-AC-17,
     expect(dividends["months"]).toEqual(dividendsApi["months"]);
     expect((dividends["total"] as Body)["grossBase"]).not.toBe("0");
 
-    const watchlist = await tool("get_watchlist");
-    const watchlistApi = await api("/api/v1/watchlist");
+    const watchlist = await tool("get_watchlist", { window: "6M" });
+    const watchlistApi = await api("/api/v1/watchlist?window=6M");
+    expect((watchlist["window"] as Body)["preset"]).toBe("6M");
     const row = (watchlist["rows"] as Body[])[0];
     const rowApi = (watchlistApi["rows"] as Body[])[0];
     expect(row?.["instrumentId"]).toBe(shareId);

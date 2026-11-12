@@ -3,9 +3,12 @@
  * path (MCP-FR-17, MCP-L10).
  *
  * - **Failed Bearer authentications per client address**: at most 30 per
- *   10 minutes. Past that, every Bearer request from the address is refused
- *   with `429 BEARER_AUTH_THROTTLED` before any database work, until the oldest
- *   failure ages out. A success does not clear the window.
+ *   10 minutes. Past that, every further *invalid* `kdl_pat_…` token from the
+ *   address is refused with `429 BEARER_AUTH_THROTTLED`, without being
+ *   counted, until the oldest failure ages out. The token is looked up first
+ *   (one primary-key read, like a session cookie), so a valid token from the
+ *   same address is never refused by this window. A success does not clear
+ *   it. A non-Kerdial `Authorization` header never reaches it (`bearer.ts`).
  * - **Requests per token**: at most 60 per sliding 60 s, refused with
  *   `429 TOKEN_RATE_LIMITED`.
  *
