@@ -169,6 +169,18 @@ export class AdminController {
       tenantId: session.tenantId,
       targetUserId,
       newPassword,
+      // MCP-L14 — the target's access tokens go with their sessions; the
+      // audit line is written only when there were any.
+      onAccessTokensRevoked: (count) => {
+        if (count > 0) {
+          rootLogger().info("auth: access tokens revoked on a credential change", {
+            component: "api",
+            token_action: "revoke_all",
+            target_user_id: targetUserId,
+            count,
+          });
+        }
+      },
     });
     if (outcome === "NOT_FOUND") {
       // Unknown id, or a row outside the caller's tenant — RLS makes the two

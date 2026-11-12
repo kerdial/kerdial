@@ -14,6 +14,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { eq, sql } from "drizzle-orm";
 import { appUser, extractPostgresError, tenant, withTenant, type Db } from "@kerdial/platform-db";
 import { listCurrencies } from "@kerdial/ledger";
+import { rootLogger } from "@kerdial/platform-logging";
 import {
   changeEmail,
   changePassword,
@@ -627,6 +628,18 @@ export class AuthController {
           currentPassword,
           newPassword,
           keepSessionId: session.sessionId,
+          // MCP-L14 — every access token of the caller is revoked with the
+          // other sessions; the audit line is written only when there were any.
+          onAccessTokensRevoked: (count) => {
+            if (count > 0) {
+              rootLogger().info("auth: access tokens revoked on a credential change", {
+                component: "api",
+                token_action: "revoke_all",
+                target_user_id: session.userId,
+                count,
+              });
+            }
+          },
         });
         return { succeeded: result === "OK", result };
       },

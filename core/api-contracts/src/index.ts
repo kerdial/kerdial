@@ -23,3 +23,4 @@ export * from "./import-request.schema.js";
 export * from "./instrument-icon.schema.js";
 export * from "./valuation-price-gap.js";
 export * from "./rate-presets.schema.js";
+export * from "./access-token.schema.js";

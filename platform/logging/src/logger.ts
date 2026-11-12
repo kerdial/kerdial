@@ -91,6 +91,10 @@ export const REDACT_PATHS: readonly string[] = [
   "*.email",
   "password",
   "*.password",
+  // ADR-0019 — the response field that carries a new personal access token's
+  // secret. Never handed to a logger; listed so a slip is censored, not shipped.
+  "secret",
+  "*.secret",
 ];
 
 /**
@@ -229,6 +233,13 @@ const LOG_FIELD_ALLOWLIST: ReadonlySet<string> = new Set([
   "target_user_id",
   "target_tenant_id",
   "admin_action",
+  // ADR-0019 (MCP-FR-16, MCP-NFR-6) — the personal-access-token audit lines.
+  // `token_id` is the token row's uuid, the public half of the token and not
+  // a secret; `token_action` is one of `create`, `revoke`, `revoke_all`.
+  // The secret, its hash, the Authorization header and the label (free text)
+  // are never passed to the logger.
+  "token_id",
+  "token_action",
 ]);
 
 /**

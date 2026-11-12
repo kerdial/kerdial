@@ -16,6 +16,7 @@ import {
   instrument,
   instrumentIcon,
   manualPricePoint,
+  personalAccessToken,
   portfolio,
   portfolioDailyValuation,
   portfolioIcon,
@@ -208,6 +209,12 @@ describe("ledger — RLS & cross-tenant isolation (T-23, Testcontainers)", () =>
     { name: "manual_price_point", mut: "source_key = source_key" },
     { name: "fx_rate_user", mut: "rate = rate" },
     { name: "session", mut: "user_agent = user_agent" },
+    // `personal_access_token` (migration 0081, ADR-0019). `revoked_at` is one
+    // of the two columns `app_web` holds column-level UPDATE on, so the
+    // negative UPDATE reaches the policy and is filtered to zero rows rather
+    // than refused at the privilege layer; DELETE is not granted at all
+    // (42501), as for `rate_preset_list`.
+    { name: "personal_access_token", mut: "revoked_at = revoked_at", noDelete: true },
   ];
 
   /**
@@ -632,6 +639,28 @@ describe("ledger — RLS & cross-tenant isolation (T-23, Testcontainers)", () =>
       },
     ]);
 
+    // `personal_access_token` (migration 0081): one token per tenant, each
+    // owned by that tenant's user, with distinct 32-byte hashes (the table's
+    // unique index and `octet_length = 32` CHECK).
+    await ownerDb.insert(personalAccessToken).values([
+      {
+        id: "00000000-0000-7000-8000-000000230a10",
+        tenantId: tenantA,
+        userId: userA,
+        label: "A's token",
+        tokenHash: Buffer.alloc(32, 0xa1),
+        hint: "kdl_pat_…aaaa",
+      },
+      {
+        id: "00000000-0000-7000-8000-000000230b10",
+        tenantId: tenantB,
+        userId: userB,
+        label: "B's token",
+        tokenHash: Buffer.alloc(32, 0xb1),
+        hint: "kdl_pat_…bbbb",
+      },
+    ]);
+
     // The AC47 subject: a real USER_PINNED transaction written through T-19's
     // service as app_web (not a hand-crafted INSERT), so the negative test
     // below runs against a transaction that exists exactly as production would
@@ -702,7 +731,7 @@ describe("ledger — RLS & cross-tenant isolation (T-23, Testcontainers)", () =>
       expect(covered).toEqual(shouldCover);
       // And the exact count, so silently dropping a table from the
       // array (which would also drop it from `covered`) is caught too.
-      expect(TENANT_SCOPED_TABLES).toHaveLength(16);
+      expect(TENANT_SCOPED_TABLES).toHaveLength(17);
     });
   });
 

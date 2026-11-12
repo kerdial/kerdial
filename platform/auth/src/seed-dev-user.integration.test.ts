@@ -205,4 +205,25 @@ describe("scripts/seed-dev-user.ts (T-100, Testcontainers, real child process)",
     // that matched nobody revokes nobody's sessions.
     expect(await revokedAtOf(untouchedSessionId)).toBeNull();
   }, 120_000);
+
+  it("--reset-password revokes the user's live personal access tokens too, and reports the count (MCP-L14, DC-5)", async () => {
+    const tokenId = "00000000-0000-0000-0000-0000000005a3";
+    await owner`
+      INSERT INTO personal_access_token (id, tenant_id, user_id, label, token_hash, hint)
+      VALUES (${tokenId}, ${DEV_TENANT_ID}, ${DEV_USER_ID}, 'assistant',
+              ${Buffer.alloc(32, 0x5c)}, 'kdl_pat_…5c5c')
+    `;
+    const tokenRevokedAt = async (): Promise<Date | null> => {
+      const [row] = await owner`SELECT revoked_at FROM personal_access_token WHERE id = ${tokenId}`;
+      if (row === undefined) throw new Error("no token row — the fixture is not as assumed");
+      return row["revoked_at"] as Date | null;
+    };
+    expect(await tokenRevokedAt()).toBeNull();
+
+    const run = await runSeed(["--reset-password", DEV_EMAIL], RESET_PASSWORD);
+
+    expect(run.code).toBe(0);
+    expect(run.stdout).toContain("1 access token(s)");
+    expect(await tokenRevokedAt()).not.toBeNull();
+  }, 120_000);
 });

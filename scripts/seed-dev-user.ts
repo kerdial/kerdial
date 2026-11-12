@@ -92,6 +92,10 @@ async function main(): Promise<void> {
     // path is the one reset that does not go through it, and it does the same. One transaction, so an
     // interrupted run can never leave the new hash stored with the old
     // sessions still valid.
+    //
+    // Every personal access token of the user is revoked in the same
+    // transaction (MCP-L14, ADR-0019), as the two in-app resets do: a token is
+    // a credential the recovery must cut just like a session.
     const passwordHash = await hashPassword(password);
     const outcome = await client.begin(async (tx) => {
       const updated = await tx`
@@ -104,14 +108,19 @@ async function main(): Promise<void> {
          WHERE user_id = ${updated[0]!["id"] as string} AND revoked_at IS NULL
         RETURNING id
       `;
-      return { revoked: revoked.length };
+      const revokedTokens = await tx`
+        UPDATE personal_access_token SET revoked_at = now()
+         WHERE user_id = ${updated[0]!["id"] as string} AND revoked_at IS NULL
+        RETURNING id
+      `;
+      return { revoked: revoked.length, revokedTokens: revokedTokens.length };
     });
     if (outcome === undefined) {
       console.error(`seed-dev-user: no such user ${resetEmail} — nothing was changed.`);
       process.exitCode = 1;
     } else {
       console.log(
-        `seed-dev-user: reset the password of ${resetEmail}, revoked ${String(outcome.revoked)} session(s).`,
+        `seed-dev-user: reset the password of ${resetEmail}, revoked ${String(outcome.revoked)} session(s) and ${String(outcome.revokedTokens)} access token(s).`,
       );
     }
     await client.end();
