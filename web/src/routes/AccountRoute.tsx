@@ -6,6 +6,8 @@ import { ACCOUNT_COPY } from "../lib/copy/account.js";
 import { AUTH_COPY } from "../lib/copy/auth.js";
 import { fill } from "../lib/copy/fill.js";
 import { messageForError } from "../lib/problem-messages.js";
+import { ACCESS_TOKENS_QUERY_KEY } from "../lib/queries.js";
+import { AccessTokensSettings } from "../components/AccessTokensSettings.js";
 import { RatePresetsSettings } from "../components/RatePresetsSettings.js";
 import { Banner, Button, Card, Input } from "../components/ui/index.js";
 
@@ -13,7 +15,8 @@ import { Banner, Button, Card, Input } from "../components/ui/index.js";
  * `/account` — **« Mon compte »** (`account-setup` FR-409, UR-67–UR-69).
  *
  * Two forms, two mutations, and **no navigation** (a third card,
- * `RatePresetsSettings`, owns its own read and save — FR-665): a change of email and a
+ * `RatePresetsSettings`, owns its own read and save — FR-665; a fourth,
+ * `AccessTokensSettings`, the personal access tokens — ADR-0019): a change of email and a
  * change of password are independent writes, each reporting its own outcome
  * in place (UR-69). Nothing here redirects, nothing here toasts —
  * `ui/Banner`'s in-place treatment is the whole convention
@@ -95,13 +98,16 @@ export function AccountRoute() {
     // global handler has already navigated away from the screen that renders
     // it.
     meta: { skipGlobal401: true },
-    onSuccess: () => {
+    onSuccess: async () => {
       setSucceeded("password");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setNewPasswordTouched(false);
       setConfirmTouched(false);
+      // MCP-L14: a password change revokes every access token server-side,
+      // so the tokens card refetches and lists them all revoked.
+      await queryClient.invalidateQueries({ queryKey: ACCESS_TOKENS_QUERY_KEY });
     },
   });
 
@@ -257,6 +263,10 @@ export function AccountRoute() {
       {/* transaction-dialog-refresh FR-665 (TDR-D6): the third
           card — the household's rate presets, saved on their own. */}
       <RatePresetsSettings />
+
+      {/* ADR-0019 (MCP-L15): the fourth card — personal access tokens for an
+          AI assistant, read-only. */}
+      <AccessTokensSettings />
     </section>
   );
 }

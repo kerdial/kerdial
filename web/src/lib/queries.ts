@@ -20,3 +20,4 @@ export * from "./queries/fx.js";
 export * from "./queries/dividends.js";
 export * from "./queries/watchlist.js";
 export * from "./queries/settings.js";
+export * from "./queries/access-tokens.js";

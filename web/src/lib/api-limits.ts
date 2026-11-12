@@ -166,3 +166,12 @@ export const NEW_PASSWORD_MIN_LENGTH = 8;
  * a document this application refuses to read is not one it should hand out.
  */
 export const KERDIAL_JSON_MAX_FILE_BYTES = 33_554_432;
+
+/**
+ * ← `platform/auth/src/access-token.ts`'s `ACCESS_TOKEN_MAX_ACTIVE` (MCP-L3).
+ *
+ * The « Accès pour assistants IA » card names the cap when the server refuses
+ * an eleventh active token (`409 ACCESS_TOKEN_LIMIT_REACHED`), and naming a
+ * number means mirroring it here rather than typing it into the sentence.
+ */
+export const ACCESS_TOKEN_MAX_ACTIVE = 10;

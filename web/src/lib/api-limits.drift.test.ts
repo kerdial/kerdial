@@ -55,6 +55,7 @@ import { NEW_PASSWORD_MIN_LENGTH as sourceNewPasswordMinLength } from "../../../
 // `@kerdial/importer`'s barrel — the same "name the file the constant lives
 // in" rule every import above follows.
 import { KERDIAL_JSON_LIMITS as sourceKerdialJsonLimits } from "../../../importer/src/limits.js";
+import { ACCESS_TOKEN_MAX_ACTIVE as sourceAccessTokenMaxActive } from "../../../platform/auth/src/access-token.js";
 import {
   MAX_PORTFOLIOS_PER_TENANT,
   MAX_CASH_ACCOUNTS_PER_PORTFOLIO,
@@ -72,6 +73,7 @@ import {
   WATCHLIST_SERIES_MAX_POINTS,
   NEW_PASSWORD_MIN_LENGTH,
   KERDIAL_JSON_MAX_FILE_BYTES,
+  ACCESS_TOKEN_MAX_ACTIVE,
 } from "./api-limits.js";
 
 /**
@@ -193,5 +195,10 @@ describe("api-limits.ts — drift guard against the real server-side constants",
     // otherwise be the user's only warning of. A server-side change of the
     // ceiling that did not reach here would ship a screen quoting the old one.
     expect(KERDIAL_JSON_MAX_FILE_BYTES).toBe(sourceKerdialJsonLimits.maxFileBytes);
+  });
+
+  it("ACCESS_TOKEN_MAX_ACTIVE matches platform/auth/src/access-token.ts", () => {
+    // MCP-L3: the limit refusal on « Mon compte » names this cap in French.
+    expect(ACCESS_TOKEN_MAX_ACTIVE).toBe(sourceAccessTokenMaxActive);
   });
 });

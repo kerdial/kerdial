@@ -9,6 +9,7 @@ import {
   INSTRUMENT_ICON_MAX_PIXELS,
 } from "@kerdial/core-reference-data";
 import {
+  ACCESS_TOKEN_MAX_ACTIVE,
   INSTRUMENT_ICON_TENANT_ROW_CAP,
   MANUAL_PRICE_POINT_CLOSE_MAX_DECIMAL_PLACES,
   MANUAL_PRICE_POINT_TENANT_ROW_CAP,
@@ -770,6 +771,31 @@ export const MESSAGE_TABLE: Readonly<Record<string, UiMessage>> = {
   },
   USER_NOT_FOUND: {
     text: "Ce compte n'existe plus.",
+    tone: "error",
+  },
+  // The login backoff, on every route that re-authenticates (the two
+  // « Mon compte » forms and token creation): a wrong current password
+  // counts as a failed login. The 429 status-class default (« Trop de
+  // requêtes simultanées ») would tell someone who typed one password too
+  // many times that they sent too many requests at once.
+  LOGIN_RATE_LIMITED: {
+    text: "Trop de tentatives avec un mot de passe incorrect. Patientez quelques minutes puis réessayez.",
+    tone: "warning",
+  },
+  LOGIN_LOCKED: {
+    text: "Trop de tentatives échouées : la vérification du mot de passe est bloquée pour le moment. Réessayez plus tard.",
+    tone: "warning",
+  },
+
+  // --- ADR-0019 personal access tokens (« Mon compte »).
+  ACCESS_TOKEN_LIMIT_REACHED: {
+    // 409, MCP-L3. The cap comes from `api-limits.ts`, never typed here.
+    text: `Vous avez atteint la limite de ${frCount(ACCESS_TOKEN_MAX_ACTIVE)} jetons actifs. Révoquez-en un pour en créer un nouveau.`,
+    tone: "error",
+  },
+  ACCESS_TOKEN_NOT_FOUND: {
+    // 404 on revoke: unknown, another user's, or already revoked — one answer.
+    text: "Ce jeton n'existe plus ou a déjà été révoqué.",
     tone: "error",
   },
 };

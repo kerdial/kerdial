@@ -13,8 +13,11 @@ import { z } from "zod";
  * `400` body or a log line must not carry it.
  */
 
-/** Characters, after trimming. The table's CHECK carries the same literal. */
-const ACCESS_TOKEN_LABEL_MAX = 60;
+/**
+ * Characters, after trimming. The table's CHECK carries the same literal; the
+ * web dialog reads it for its label field's `maxLength`.
+ */
+export const ACCESS_TOKEN_LABEL_MAX = 60;
 
 /** MCP-L2: an expiry of 1..365 days, or `null` for « Jamais ». */
 const ACCESS_TOKEN_EXPIRY_MAX_DAYS = 365;
