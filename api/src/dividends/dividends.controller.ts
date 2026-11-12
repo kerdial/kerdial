@@ -15,6 +15,7 @@ import {
   toDividendSummaryResponse,
   type DividendSummaryResponse,
 } from "./dividends.schema.js";
+import { TokenReadable } from "../auth/token-readable.decorator.js";
 
 /**
  * `/dividends/*` — the Dividendes screen's one read
@@ -61,6 +62,7 @@ export class DividendsController {
    * routes do) would add a second query to a route whose whole point is being
    * one.
    */
+  @TokenReadable()
   @Get("summary")
   async summary(
     @Query() query: Record<string, string | undefined>,

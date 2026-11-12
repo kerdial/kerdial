@@ -38,9 +38,12 @@ export interface SessionContext {
   readonly userId: string;
   readonly sessionId: string;
   /**
-   * LD-4/FR-427 — a fast-fail signal only. The `SECURITY DEFINER` functions
-   * of migration `0065` re-check the caller's own `app_user` row themselves,
-   * and that check, not this field, is the enforcement point.
+   * LD-4/FR-427 — the flag `InstanceAdminGuard` reads, and since migration
+   * `0067` dropped the `SECURITY DEFINER` admin functions of `0065` it is the
+   * enforcement point for `/admin/*`: nothing below the guard re-checks the
+   * `app_user` row. Every construction site therefore has to get it right —
+   * `validateSession` copies it from the row, and the personal-access-token
+   * principal (ADR-0019) hard-codes `false`.
    *
    * Required rather than optional on purpose: an optional field would let a
    * non-conforming construction site silently default to `undefined`

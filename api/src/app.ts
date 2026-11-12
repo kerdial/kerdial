@@ -13,6 +13,7 @@ import { registerHealthRoute } from "./health.js";
 import { RouteRegistry } from "./route-registry.js";
 import { resolveAdmissionBound } from "./common/admission-bound.interceptor.js";
 import { securityHeadersFor } from "./security-headers.js";
+import type { TokenAuthLimits } from "./auth/token-auth-limits.js";
 import {
   DEFAULT_KERDIAL_LIMIT_SETS,
   type KerdialLimitSets,
@@ -205,6 +206,15 @@ export interface BuildAppOptions {
    * from `DB_POOL_MAX`'s resolved default the same way.
    */
   readonly admissionBound?: number;
+  /**
+   * ADR-0019 — test-only override of the personal-access-token windows
+   * (`auth/token-auth-limits.ts`): the failed-Bearer cap per client address
+   * and the per-token request cap. Omitted (every caller but the token suites,
+   * and always `main.ts`) ⇒ `DEFAULT_TOKEN_AUTH_LIMITS`. A suite that sweeps
+   * every route with one token or one bad credential raises them, or would
+   * collect 429s part-way through.
+   */
+  readonly tokenAuthLimits?: TokenAuthLimits;
 }
 
 export interface BuiltApp {
@@ -488,6 +498,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       importLimits,
       options.admissionBound ?? resolveAdmissionBound(requestConcurrencyCeiling()),
       kerdialLimits,
+      options.tokenAuthLimits,
     ),
     new FastifyAdapter({
       trustProxy: options.trustProxy ?? false,

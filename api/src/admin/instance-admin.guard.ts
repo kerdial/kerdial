@@ -19,12 +19,13 @@ import { IS_INSTANCE_ADMIN_KEY } from "./instance-admin.decorator.js";
  * `getClass()` — the same discipline `auth.guard.ts` follows for `@Public()`
  * (security review finding L1), mirrored rather than re-derived.
  *
- * **Fast-fail only.** A `403` here saves a database round trip and gives the
- * client the specific `NOT_INSTANCE_ADMIN` code, but it is not what keeps a
- * non-admin out: each admin handler passes `session.userId` to a
- * `SECURITY DEFINER` function that re-checks the flag against the real
- * `app_user` row and raises `42501`. `SessionContext.isInstanceAdmin` is a
- * copy taken when the session was validated; the row is the truth.
+ * **This guard is the enforcement point** for `/admin/*`. Migration `0067`
+ * dropped the `SECURITY DEFINER` functions that used to re-check the flag
+ * against the caller's `app_user` row, so no layer below this one keeps a
+ * non-admin out. `SessionContext.isInstanceAdmin` is what it trusts: copied
+ * from the row when a session is validated, and hard-coded `false` on a
+ * personal-access-token principal (ADR-0019), which additionally never reaches
+ * an admin handler because none of them is `@TokenReadable()`.
  */
 @Injectable()
 export class InstanceAdminGuard implements CanActivate {

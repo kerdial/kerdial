@@ -21,6 +21,8 @@ export {
   ACCESS_TOKEN_MAX_ACTIVE,
   issueAccessToken,
   listAccessTokens,
+  recordAccessTokenUse,
   revokeAccessToken,
+  validateAccessToken,
   type AccessTokenRecord,
 } from "./access-token.js";

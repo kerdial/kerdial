@@ -9,6 +9,7 @@ import {
   runWithJobContext,
   runWithRequestContext,
   setRequestTenant,
+  setRequestTokenId,
   type Logger,
 } from "./logger.js";
 
@@ -109,6 +110,20 @@ describe("AC-26 — every line under an authenticated request carries tenant_id 
     expect(line?.["client_ip"]).toBe("203.0.113.7");
     // ...and neither is treated as something to redact.
     expect(JSON.stringify(line)).not.toContain(REDACTED);
+  });
+});
+
+describe("MCP-AC-11 — every line under a token-authenticated request carries token_id", () => {
+  it("arrives by mutating the open store, is absent before it is set, and cannot be shadowed", () => {
+    const { logger, lines } = capture();
+    runWithRequestContext({ request_id: "req-4", tenant_id: null }, () => {
+      logger.info("before auth");
+      setRequestTokenId("00000000-0000-7000-8000-00000000c002");
+      logger.info("after auth", { token_id: "00000000-0000-7000-8000-0000000000ff" });
+    });
+    const [pre, post] = lines();
+    expect(pre).not.toHaveProperty("token_id");
+    expect(post?.["token_id"]).toBe("00000000-0000-7000-8000-00000000c002");
   });
 });
 
@@ -299,7 +314,16 @@ describe("output shape (FR-29, FR-31)", () => {
 
   it("the context field set is exactly what is documented", () => {
     expect([...LOG_CONTEXT_FIELDS].sort()).toEqual(
-      ["client_ip", "instrument_id", "job_id", "peer", "queue", "request_id", "tenant_id"].sort(),
+      [
+        "client_ip",
+        "instrument_id",
+        "job_id",
+        "peer",
+        "queue",
+        "request_id",
+        "tenant_id",
+        "token_id",
+      ].sort(),
     );
   });
 });

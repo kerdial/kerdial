@@ -83,6 +83,7 @@ import {
   validatePortfolioIconUpload,
   type PortfolioIconRejectionCode,
 } from "./portfolio-icon.validate.js";
+import { TokenReadable } from "../auth/token-readable.decorator.js";
 
 /** ISO `YYYY-MM-DD` — today's date, in UTC, matching every other `today` default in this codebase's schema layer (`instruments.schema.ts`'s `resolvePriceHistoryWindow`). */
 function todayIsoDate(): string {
@@ -169,6 +170,7 @@ export class PortfoliosController {
    * compute the MWR figure this response needs) — nothing here was actually
    * independent work these two calls needed to overlap.
    */
+  @TokenReadable()
   @Get("overview")
   async overviewCombined(
     @Query() query: Record<string, string | undefined>,
@@ -201,6 +203,7 @@ export class PortfoliosController {
    * correctly weighted PMP (`@kerdial/valuation`'s `valueHoldingsForTenant`),
    * never listed twice.
    */
+  @TokenReadable()
   @Get("holdings")
   async holdingsCombined(@CurrentSession() session: SessionContext): Promise<HoldingsResponse> {
     try {
@@ -237,6 +240,7 @@ export class PortfoliosController {
    * to sequence, and peak pooled connections per request stay bounded by
    * `FAN_OUT_CONCURRENCY` rather than twice it.
    */
+  @TokenReadable()
   @Get("closed-positions")
   async closedPositionsCombined(
     @CurrentSession() session: SessionContext,
@@ -260,6 +264,7 @@ export class PortfoliosController {
    * valuation-read budget as the performance read — the range this serves
    * is the range that read already materialises.
    */
+  @TokenReadable()
   @Get("value-series")
   async valueSeriesCombined(
     @Query() query: Record<string, string | undefined>,
@@ -286,6 +291,7 @@ export class PortfoliosController {
    * Bounded by the instance-wide admission bound (formerly MEDIUM-2's
    * shared per-tenant cheap-read cap).
    */
+  @TokenReadable()
   @Get()
   async list(
     @Query() query: Record<string, string | undefined>,
@@ -948,6 +954,7 @@ export class PortfoliosController {
    * `portfolios-overview.e2e.test.ts`'s "finding 5" describe for the
    * behavioral proof.
    */
+  @TokenReadable()
   @Get(":id/overview")
   async overview(
     @Param("id") rawId: string,
@@ -979,6 +986,7 @@ export class PortfoliosController {
   }
 
   /** `GET /portfolios/:id/holdings` (FR-35, AC25). */
+  @TokenReadable()
   @Get(":id/holdings")
   async holdings(
     @Param("id") rawId: string,
@@ -1014,6 +1022,7 @@ export class PortfoliosController {
    * `GET /portfolios/:id/value-series` already has. Stated so it is not read as
    * a gap.
    */
+  @TokenReadable()
   @Get(":id/closed-positions")
   async closedPositions(
     @Param("id") rawId: string,
@@ -1035,6 +1044,7 @@ export class PortfoliosController {
   }
 
   /** `GET /portfolios/:id/performance?from=&to=` (FR-25, FR-26, FR-30, FR-33). */
+  @TokenReadable()
   @Get(":id/performance")
   async performance(
     @Param("id") rawId: string,
@@ -1060,6 +1070,7 @@ export class PortfoliosController {
   }
 
   /** `GET /portfolios/:id/value-series?from=&to=` — FR-262's per-portfolio half; see the combined route above for the contract. */
+  @TokenReadable()
   @Get(":id/value-series")
   async valueSeries(
     @Param("id") rawId: string,

@@ -37,14 +37,11 @@ import {
  * `admin-users.e2e.test.ts`'s AC-385 sweep asserts against the live route
  * registry rather than against this comment.
  *
- * **The guard is not the enforcement point** (LD-4). `@InstanceAdmin()` on
- * each handler is a fast-fail that saves a round trip and names the failure;
- * each handler then passes `session.userId` to a `SECURITY DEFINER` function
- * of migration `0065` that re-reads the caller's own `app_user` row and
- * raises `42501` if the flag is false. That is why every handler below still
- * maps `42501` to the *same* `403 NOT_INSTANCE_ADMIN` the guard produces:
- * with the decorator removed the route stays closed, it just closes one layer
- * later.
+ * **The guard is the enforcement point.** Migration `0067` dropped the
+ * `SECURITY DEFINER` functions of `0065` that used to re-read the caller's
+ * own `app_user` row, so `@InstanceAdmin()` on each handler, read by
+ * `InstanceAdminGuard`, is what keeps a non-admin out — with the decorator
+ * removed the route would be open to any signed-in member (ADR-0019).
  *
  * **No OpenAPI module**, matching `/auth/*`: this is a single-operator
  * surface, not a documented public API (FR-447's stated precedent).

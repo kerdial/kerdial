@@ -10,6 +10,7 @@ export {
   rootLogger,
   runWithRequestContext,
   setRequestTenant,
+  setRequestTokenId,
   setRootLoggerForTest,
   type JobLogContext,
   type LogContext,
