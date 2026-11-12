@@ -1,0 +1,21 @@
+{
+  "name": "@kerdial/mcp",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Read-only MCP server for a Kerdial instance, over its HTTP API with a personal access token.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "kerdial-mcp": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "^4.4.3"
+  }
+}

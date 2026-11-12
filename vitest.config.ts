@@ -130,6 +130,9 @@ export default defineConfig({
       // Without this line the file is collected by nothing — `test:main`
       // would never run it, which is the vacuous-coverage shape.
       "scripts/**/*.test.ts",
+      // mcp-readonly: the stdio MCP server package. Same trap as the line
+      // above — without it its suites are collected by nothing.
+      "mcp/**/src/**/*.test.ts",
     ],
     exclude: ["**/node_modules/**", "**/dist/**", "**/__fixtures__/**"],
     // Testcontainers pulls a Postgres image on a cold cache and starts a

@@ -36,7 +36,9 @@
   "devDependencies": {
     "@kerdial/market-ingestion": "workspace:*",
     "@kerdial/market-test-support": "workspace:*",
+    "@kerdial/mcp": "workspace:*",
     "@kerdial/platform-test-support": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@testcontainers/postgresql": "^10.16.0",
     "@types/supertest": "^6.0.2",
     "fast-check": "^3.23.2",

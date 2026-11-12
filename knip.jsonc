@@ -101,5 +101,12 @@
       "entry": ["src/index.ts"],
       "project": "src/**/*.ts",
     },
+    // mcp-readonly: the stdio MCP server, gated from day one like `ledger`
+    // and `importer`. Named re-exports only, so the star-re-export budget in
+    // `scripts/unused-exports-gate.ts` is untouched.
+    "mcp": {
+      "entry": ["src/index.ts", "src/main.ts"],
+      "project": "src/**/*.ts",
+    },
   },
 }

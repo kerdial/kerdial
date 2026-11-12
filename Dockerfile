@@ -77,6 +77,7 @@ COPY market/adapters/package.json market/adapters/
 COPY market/composition/package.json market/composition/
 COPY market/ingestion/package.json market/ingestion/
 COPY market/ports/package.json market/ports/
+COPY mcp/package.json mcp/
 COPY platform/auth/package.json platform/auth/
 COPY platform/db/package.json platform/db/
 COPY platform/logging/package.json platform/logging/
@@ -118,12 +119,19 @@ RUN pnpm build
 # entrypoint is `worker-main.js`), each with `...` for its workspace
 # dependencies. `web` is deliberately not in it — the SPA ships as built
 # static files, so react/tanstack/radix have no business in the runtime tree.
+#
+# `@kerdial/mcp` is excluded by name: `api` lists it as a devDependency (for
+# one end-to-end test), and `...` also selects devDependency workspace
+# packages, whose own production dependencies would then be installed. The
+# MCP server runs on the user's machine, never in this image, so its SDK and
+# that SDK's HTTP stack stay out of the runtime tree.
 # ---------------------------------------------------------------------------
 FROM manifests AS prod-deps
 
 RUN pnpm install --frozen-lockfile --prod \
       --filter "@kerdial/api..." \
-      --filter "@kerdial/market-composition..."
+      --filter "@kerdial/market-composition..." \
+      --filter "!@kerdial/mcp"
 
 # ---------------------------------------------------------------------------
 # runtime

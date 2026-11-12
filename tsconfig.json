@@ -19,6 +19,7 @@
     { "path": "./importer" },
     { "path": "./api" },
     { "path": "./tools/deploy-tests" },
-    { "path": "./tools/gates" }
+    { "path": "./tools/gates" },
+    { "path": "./mcp" }
   ]
 }
