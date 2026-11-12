@@ -39,6 +39,7 @@ import {
   TooManySaleLotsError,
   UnresolvablePriceError,
   UnresolvableRateError,
+  allocateValuedHoldings,
   computeCombinedPortfolioReturns,
   computeCombinedPortfolioValueSeries,
   computePortfolioReturns,
@@ -57,6 +58,7 @@ import { parseIdParam } from "../common/id-param.schema.js";
 import { buildCursorPage, decodeOffsetCursor, parsePageLimit } from "../common/pagination.js";
 import { CurrentSession } from "../auth/current-session.decorator.js";
 import {
+  allocationQuerySchema,
   createPortfolioBodySchema,
   listPortfoliosQuerySchema,
   overviewQuerySchema,
@@ -64,6 +66,7 @@ import {
   valueSeriesQuerySchema,
   patchPortfolioBodySchema,
   resolveReturnWindow,
+  toAllocationResponse,
   toClosedPositionsResponse,
   toHoldingsResponse,
   toOverviewResponse,
@@ -71,6 +74,7 @@ import {
   toValueSeriesResponse,
   toPortfolioIconMetaResponse,
   toPortfolioResponse,
+  type AllocationResponse,
   type ClosedPositionsResponse,
   type HoldingsResponse,
   type OverviewResponse,
@@ -212,6 +216,31 @@ export class PortfoliosController {
         asOfDate: todayIsoDate(),
       });
       return toHoldingsResponse(holdings);
+    } catch (err) {
+      throw await this.#mapValuationError(err, session.tenantId);
+    }
+  }
+
+  /**
+   * `GET /portfolios/allocation?by=` — the combined tenant-wide allocation
+   * (MCP-L7): `holdingsCombined`'s exact valuation, grouped by `by`. Archived
+   * portfolios are included like everywhere else (MCP-L4); an unpriced
+   * holding or a missing FX rate refuses the whole read with the holdings
+   * route's own 422, never a partial denominator.
+   */
+  @TokenReadable()
+  @Get("allocation")
+  async allocationCombined(
+    @Query() query: Record<string, string | undefined>,
+    @CurrentSession() session: SessionContext,
+  ): Promise<AllocationResponse> {
+    const { by } = parseOrThrow(allocationQuerySchema, query);
+    try {
+      const holdings = await valueHoldingsForTenant(this.db, {
+        tenantId: session.tenantId,
+        asOfDate: todayIsoDate(),
+      });
+      return toAllocationResponse(allocateValuedHoldings(holdings, by));
     } catch (err) {
       throw await this.#mapValuationError(err, session.tenantId);
     }
@@ -1002,6 +1031,30 @@ export class PortfoliosController {
         asOfDate: todayIsoDate(),
       });
       return toHoldingsResponse(holdings);
+    } catch (err) {
+      throw await this.#mapValuationError(err, session.tenantId);
+    }
+  }
+
+  /** `GET /portfolios/:id/allocation?by=` — one portfolio's allocation; see `allocationCombined` for the contract. */
+  @TokenReadable()
+  @Get(":id/allocation")
+  async allocation(
+    @Param("id") rawId: string,
+    @Query() query: Record<string, string | undefined>,
+    @CurrentSession() session: SessionContext,
+  ): Promise<AllocationResponse> {
+    const id = parseIdParam(rawId);
+    await this.#requirePortfolio(id, session.tenantId);
+    const { by } = parseOrThrow(allocationQuerySchema, query);
+
+    try {
+      const holdings = await valueHoldingsAsOf(this.db, {
+        tenantId: session.tenantId,
+        portfolioId: id,
+        asOfDate: todayIsoDate(),
+      });
+      return toAllocationResponse(allocateValuedHoldings(holdings, by));
     } catch (err) {
       throw await this.#mapValuationError(err, session.tenantId);
     }

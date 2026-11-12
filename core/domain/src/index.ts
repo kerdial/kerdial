@@ -22,7 +22,8 @@
  * `transferCarriedCost` (the exact cost basis a security transfer's source
  * leg carries into its target portfolio). `portfolio-cash` adds `valueCash` /
  * `cashBalancesBefore` (cash converted to base at the valuation date's market
- * rate, never throwing on a missing rate).
+ * rate, never throwing on a missing rate). `mcp-readonly` adds `allocate`
+ * (bucket values and largest-remainder shares for the allocation read).
  *
  * This package may import nothing but
  * `core/decimal` — see `locf.ts`/`types.ts`/`flow-class.ts`, none of which
@@ -112,3 +113,5 @@ export type { CurrencyPair, CurrencyCode, DatedObservation, IsoDate } from "./ty
 export { mergeProvenance, summarizeProvenance } from "./provenance.js";
 export type { ProvenanceSummary, ProvenanceSummaryLeaf } from "./provenance.js";
 export type { DerivedFromFlag } from "./provenance.js";
+export { allocate } from "./allocation.js";
+export type { AllocationRow } from "./allocation.js";
