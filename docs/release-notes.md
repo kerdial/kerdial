@@ -6,7 +6,7 @@ from this file above the generated list of changes.
 
 ---
 
-## Unreleased
+## v0.3.0
 
 ### Read-only access for AI assistants
 
