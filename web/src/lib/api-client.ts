@@ -22,3 +22,4 @@ export * from "./api/market-data.js";
 export * from "./api/dividends.js";
 export * from "./api/watchlist.js";
 export * from "./api/settings.js";
+export * from "./api/access-tokens.js";

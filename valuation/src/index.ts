@@ -30,6 +30,16 @@ export {
   type ValuedPortfolioHoldings,
 } from "./holdings-valuation.js";
 /**
+ * `mcp-readonly` (MCP-L7): the allocation read's grouping of a valued
+ * holdings result. `ALLOCATION_DIMENSIONS` is here because `api`'s query
+ * schema validates `by` against it rather than re-typing the set.
+ */
+export {
+  allocateValuedHoldings,
+  ALLOCATION_DIMENSIONS,
+  type HoldingsAllocation,
+} from "./holdings-allocation.js";
+/**
  * `closed-positions` (T-51). The two error classes are here because
  * `api`'s `#mapValuationError` catches them by `instanceof`; the two constants
  * because `web/src/lib/api-limits.ts` mirrors them and

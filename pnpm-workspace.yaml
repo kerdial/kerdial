@@ -8,3 +8,4 @@ packages:
   - "api"
   - "web"
   - "tools/*"
+  - "mcp"

@@ -9,6 +9,7 @@ import {
   runWithJobContext,
   runWithRequestContext,
   setRequestTenant,
+  setRequestTokenId,
   type Logger,
 } from "./logger.js";
 
@@ -109,6 +110,20 @@ describe("AC-26 — every line under an authenticated request carries tenant_id 
     expect(line?.["client_ip"]).toBe("203.0.113.7");
     // ...and neither is treated as something to redact.
     expect(JSON.stringify(line)).not.toContain(REDACTED);
+  });
+});
+
+describe("MCP-AC-11 — every line under a token-authenticated request carries token_id", () => {
+  it("arrives by mutating the open store, is absent before it is set, and cannot be shadowed", () => {
+    const { logger, lines } = capture();
+    runWithRequestContext({ request_id: "req-4", tenant_id: null }, () => {
+      logger.info("before auth");
+      setRequestTokenId("00000000-0000-7000-8000-00000000c002");
+      logger.info("after auth", { token_id: "00000000-0000-7000-8000-0000000000ff" });
+    });
+    const [pre, post] = lines();
+    expect(pre).not.toHaveProperty("token_id");
+    expect(post?.["token_id"]).toBe("00000000-0000-7000-8000-00000000c002");
   });
 });
 
@@ -299,7 +314,16 @@ describe("output shape (FR-29, FR-31)", () => {
 
   it("the context field set is exactly what is documented", () => {
     expect([...LOG_CONTEXT_FIELDS].sort()).toEqual(
-      ["client_ip", "instrument_id", "job_id", "peer", "queue", "request_id", "tenant_id"].sort(),
+      [
+        "client_ip",
+        "instrument_id",
+        "job_id",
+        "peer",
+        "queue",
+        "request_id",
+        "tenant_id",
+        "token_id",
+      ].sort(),
     );
   });
 });
@@ -351,5 +375,31 @@ describe("account-setup NFR-48/NFR-49 — the admin audit line's four fields sur
     expect(raw()).not.toContain("victim@example.com");
     expect(raw()).not.toContain("correct horse battery staple");
     expect(raw()).toContain("admin_reset_password");
+  });
+});
+
+describe("ADR-0019 — the access-token audit fields survive the allow-list, the secret does not", () => {
+  /**
+   * Reads a real emitted line, for this file's recorded reason: an unlisted
+   * field is silently dropped, so a test of what the caller passed would pass
+   * with the allow-list edit missing.
+   */
+  it("token_id and token_action reach the output; a secret passed alongside never does", () => {
+    const { logger, lines, raw } = capture();
+    const fakeSecret =
+      "kdl_pat_0123456789abcdef0123456789abcdefFAKEfakeFAKEfakeFAKEfakeFAKEfakeFAKEfakeFAK";
+
+    logger.info("auth: access token created", {
+      component: "api",
+      token_action: "create",
+      token_id: "00000000-0000-7000-8000-00000000c001",
+      actor_user_id: "00000000-0000-7000-8000-00000000a001",
+      secret: fakeSecret,
+    });
+
+    const line = lines()[0];
+    expect(line?.["token_action"]).toBe("create");
+    expect(line?.["token_id"]).toBe("00000000-0000-7000-8000-00000000c001");
+    expect(raw()).not.toContain(fakeSecret);
   });
 });

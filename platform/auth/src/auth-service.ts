@@ -10,6 +10,7 @@ import {
 } from "@kerdial/platform-db";
 import { getDummyPasswordHash, hashPassword, verifyPassword } from "./password.js";
 import { hashSessionToken, issueSessionToken } from "./session-token.js";
+import { revokeAllAccessTokensForUser } from "./access-token.js";
 
 /** Sliding window and absolute cap. */
 export const SESSION_SLIDING_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -37,9 +38,12 @@ export interface SessionContext {
   readonly userId: string;
   readonly sessionId: string;
   /**
-   * LD-4/FR-427 — a fast-fail signal only. The `SECURITY DEFINER` functions
-   * of migration `0065` re-check the caller's own `app_user` row themselves,
-   * and that check, not this field, is the enforcement point.
+   * LD-4/FR-427 — the flag `InstanceAdminGuard` reads, and since migration
+   * `0067` dropped the `SECURITY DEFINER` admin functions of `0065` it is the
+   * enforcement point for `/admin/*`: nothing below the guard re-checks the
+   * `app_user` row. Every construction site therefore has to get it right —
+   * `validateSession` copies it from the row, and the personal-access-token
+   * principal (ADR-0019) hard-codes `false`.
    *
    * Required rather than optional on purpose: an optional field would let a
    * non-conforming construction site silently default to `undefined`
@@ -455,7 +459,19 @@ export async function verifyCurrentPassword(
  * existing tenant-scoped `FOR ALL` policy (`0007`), which is also why this
  * cannot reach another tenant's sessions.
  *
- * The Argon2id hash is computed outside the transaction; only the two writes
+ * The same transaction also revokes **every** personal access token of this
+ * user (MCP-L14, ADR-0019) — including tokens minted from the session that
+ * survives: a token is a separate credential, and a password change is the
+ * moment a user re-asserts who holds their credentials. `app_user` is updated
+ * first, which is the row `issueAccessToken` locks, so a concurrent token
+ * creation either commits before this revocation (and is revoked by it) or
+ * waits and then finds its session revoked.
+ *
+ * `onAccessTokensRevoked` receives how many tokens were revoked, for the
+ * caller's audit line. A callback rather than a widened return value: the
+ * `"OK" | "WRONG_PASSWORD"` outcome is what every existing caller branches on.
+ *
+ * The Argon2id hash is computed outside the transaction; only the writes
  * are inside it (NFR-50).
  */
 export async function changePassword(
@@ -466,6 +482,7 @@ export async function changePassword(
     readonly currentPassword: string;
     readonly newPassword: string;
     readonly keepSessionId: string;
+    readonly onAccessTokensRevoked?: (count: number) => void;
   },
 ): Promise<"OK" | "WRONG_PASSWORD"> {
   const correct = await verifyCurrentPassword(db, {
@@ -478,7 +495,7 @@ export async function changePassword(
   const passwordHash = await hashPassword(params.newPassword);
   const revokedAt = new Date();
 
-  await withTenant(db, params.tenantId, async (tx) => {
+  const revokedTokens = await withTenant(db, params.tenantId, async (tx) => {
     await tx.update(appUser).set({ passwordHash }).where(eq(appUser.id, params.userId));
     await tx
       .update(session)
@@ -490,7 +507,9 @@ export async function changePassword(
           isNull(session.revokedAt),
         ),
       );
+    return revokeAllAccessTokensForUser(tx, params.userId, revokedAt);
   });
+  params.onAccessTokensRevoked?.(revokedTokens);
 
   return "OK";
 }
@@ -544,6 +563,10 @@ export async function adminListUsers(db: Db, tenantId: string): Promise<AdminUse
  * `"NOT_FOUND"` rather than raised; the controller turns that into 404. The
  * hash is computed before the transaction opens, so the pooled connection is
  * not held across ~100 ms of Argon2id.
+ *
+ * On `"OK"` the same transaction revokes every personal access token of the
+ * target too (MCP-L14), after the sessions, and `onAccessTokensRevoked`
+ * receives the count — `changePassword`'s shape, for the same reason.
  */
 export async function adminResetPassword(
   db: Db,
@@ -551,20 +574,25 @@ export async function adminResetPassword(
     readonly tenantId: string;
     readonly targetUserId: string;
     readonly newPassword: string;
+    readonly onAccessTokensRevoked?: (count: number) => void;
   },
 ): Promise<"OK" | "NOT_FOUND"> {
   const passwordHash = await hashPassword(params.newPassword);
-  return withTenant(db, params.tenantId, async (tx) => {
+  const revokedTokens = await withTenant(db, params.tenantId, async (tx) => {
     const updated = await tx
       .update(appUser)
       .set({ passwordHash })
       .where(eq(appUser.id, params.targetUserId))
       .returning({ id: appUser.id });
-    if (updated.length === 0) return "NOT_FOUND";
+    if (updated.length === 0) return null;
+    const revokedAt = new Date();
     await tx
       .update(session)
-      .set({ revokedAt: new Date() })
+      .set({ revokedAt })
       .where(and(eq(session.userId, params.targetUserId), isNull(session.revokedAt)));
-    return "OK";
+    return revokeAllAccessTokensForUser(tx, params.targetUserId, revokedAt);
   });
+  if (revokedTokens === null) return "NOT_FOUND";
+  params.onAccessTokensRevoked?.(revokedTokens);
+  return "OK";
 }

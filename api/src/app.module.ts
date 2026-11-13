@@ -10,6 +10,14 @@ import { AuthModule } from "./auth/auth.module.js";
 import { AuthGuard } from "./auth/auth.guard.js";
 import { CsrfGuard } from "./auth/csrf.guard.js";
 import { CsrfSecretModule } from "./auth/csrf-secret.module.js";
+import { TokenAccessGuard } from "./auth/token-access.guard.js";
+import {
+  DEFAULT_TOKEN_AUTH_LIMITS,
+  FAILED_BEARER_WINDOW,
+  PER_TOKEN_WINDOW,
+  SlidingWindowLimiter,
+  type TokenAuthLimits,
+} from "./auth/token-auth-limits.js";
 import { createAdmissionBoundInterceptor } from "./common/admission-bound.interceptor.js";
 import { ProblemJsonExceptionFilter } from "./common/problem-json.filter.js";
 import { CurrenciesModule } from "./currencies/currencies.module.js";
@@ -41,8 +49,15 @@ import { WatchlistModule } from "./watchlist/watchlist.module.js";
  * never CsrfGuard's 403, and `CsrfGuard` can safely assume a session is
  * either attached or the route is `@Public()`.
  *
- * `InstanceAdminGuard` (`account-setup` FR-427/LD-4) is registered **third**,
- * after both, for the same reason: by the time it runs `request.session` is
+ * `TokenAccessGuard` (ADR-0019) sits between the two: `AuthGuard` has
+ * resolved the principal, and a personal-access-token request is held to its
+ * rate cap, GET/HEAD and the `@TokenReadable()` handlers before `CsrfGuard`
+ * (which a token cannot satisfy) or any handler runs. Its per-token window and
+ * `AuthGuard`'s failed-Bearer window are pre-constructed here (`useValue`), one
+ * counter each for the process, for the DI hazard named below.
+ *
+ * `InstanceAdminGuard` (`account-setup` FR-427/LD-4) is registered **last**,
+ * after those, for the same reason: by the time it runs `request.session` is
  * attached and CSRF has been checked, so a request with no session gets
  * `AuthGuard`'s 401 rather than its own 403 — which is what lets
  * `auth.e2e.test.ts`'s AC32 sweep demand a 401 from the three `/admin/*`
@@ -68,6 +83,8 @@ export class AppModule {
     // tokens) and to `ExportsModule` (KD4.1: the export's refusal threshold is
     // the catalogue import's own `maxFileBytes`, one value, not two copies).
     kerdialLimits: KerdialLimitSets = DEFAULT_KERDIAL_LIMIT_SETS,
+    // ADR-0019 — the personal-access-token windows (`token-auth-limits.ts`).
+    tokenAuthLimits: TokenAuthLimits = DEFAULT_TOKEN_AUTH_LIMITS,
   ): DynamicModule {
     return {
       module: AppModule,
@@ -89,7 +106,22 @@ export class AppModule {
         ExportsModule.forRoot(kerdialLimits.json),
       ],
       providers: [
+        {
+          provide: FAILED_BEARER_WINDOW,
+          useValue: new SlidingWindowLimiter(
+            tokenAuthLimits.failedBearerMax,
+            tokenAuthLimits.failedBearerWindowMs,
+          ),
+        },
+        {
+          provide: PER_TOKEN_WINDOW,
+          useValue: new SlidingWindowLimiter(
+            tokenAuthLimits.perTokenMax,
+            tokenAuthLimits.perTokenWindowMs,
+          ),
+        },
         { provide: APP_GUARD, useClass: AuthGuard },
+        { provide: APP_GUARD, useClass: TokenAccessGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: APP_GUARD, useClass: InstanceAdminGuard },
         { provide: APP_FILTER, useClass: ProblemJsonExceptionFilter },

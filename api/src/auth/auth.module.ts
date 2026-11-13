@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AccessTokensController } from "./access-tokens.controller.js";
 import { AuthController } from "./auth.controller.js";
 import { COOKIE_SECURE, resolveCookieSecure } from "./cookie-secure.js";
 import { SETUP_TOKEN, SetupTokenAnnouncer, resolveSetupToken } from "./setup-token.js";
@@ -25,9 +26,13 @@ import { SETUP_TOKEN, SetupTokenAnnouncer, resolveSetupToken } from "./setup-tok
  * controller is the only place cookies are minted or cleared, and a factory
  * resolved once per application is what lets a test boot an app with the
  * flag off and assert the `Set-Cookie` it actually emits.
+ *
+ * `AccessTokensController` (`/auth/tokens`, ADR-0019) manages the caller's
+ * own personal access tokens; it shares this module because it is cookie
+ * session only and re-authenticates through the same login rate limiter.
  */
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, AccessTokensController],
   providers: [
     { provide: SETUP_TOKEN, useFactory: () => resolveSetupToken() },
     { provide: COOKIE_SECURE, useFactory: () => resolveCookieSecure() },

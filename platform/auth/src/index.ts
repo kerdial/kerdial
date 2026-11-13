@@ -15,3 +15,15 @@ export * from "./password.js";
 export * from "./session-token.js";
 export * from "./auth-service.js";
 export * from "./login-rate-limit.js";
+// ADR-0019 — named, not `export *`: the unused-exports gate pins this entry's
+// star re-export count, and names are what it can attribute to consumers.
+export {
+  ACCESS_TOKEN_MAX_ACTIVE,
+  ACCESS_TOKEN_PREFIX,
+  issueAccessToken,
+  listAccessTokens,
+  recordAccessTokenUse,
+  revokeAccessToken,
+  validateAccessToken,
+  type AccessTokenRecord,
+} from "./access-token.js";

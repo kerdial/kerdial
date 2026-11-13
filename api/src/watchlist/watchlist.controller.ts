@@ -43,6 +43,7 @@ import {
   type WatchlistItemResponse,
   type WatchlistResponse,
 } from "./watchlist.schema.js";
+import { TokenReadable } from "../auth/token-readable.decorator.js";
 
 /** ISO `YYYY-MM-DD` — today's date, in UTC, matching every other `today` default in this codebase (`portfolios.controller.ts`'s own copy). */
 function todayIsoDate(): string {
@@ -118,6 +119,7 @@ export class WatchlistController {
    * and one unpriceable *held* instrument, unrelated to anything watched,
    * cannot 422 this screen.
    */
+  @TokenReadable()
   @Get()
   async list(
     @Query() query: Record<string, string | undefined>,

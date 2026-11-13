@@ -137,3 +137,33 @@ export async function withSessionTokenLookup<T>(
     return run(tx);
   });
 }
+
+/**
+ * The access-token counterpart to {@link withSessionTokenLookup} (ADR-0019,
+ * DC-3): resolving a Bearer token happens before `tenantId` is known (the
+ * token row is exactly what reveals it). Migration
+ * `0081_personal-access-token.sql` adds a narrow PERMISSIVE `SELECT`-only
+ * policy on `personal_access_token`, gated on equality against this
+ * function's `app.auth_lookup_access_token_id` GUC, so a query in this
+ * transaction sees at most the one row whose primary key the caller presented
+ * — never another tenant's tokens. The id is the public half of the token;
+ * what makes a presented token valid is the hash comparison the caller does
+ * on that one row.
+ *
+ * `tokenId` is checked as a UUID before it reaches `set_config`, so a value
+ * that could never match a row fails here rather than as a cast error inside
+ * the policy.
+ *
+ * Only `platform/auth`'s access-token validation path is the intended caller.
+ */
+export async function withAccessTokenLookup<T>(
+  db: Db,
+  tokenId: string,
+  run: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  assertUuid(tokenId, "tokenId");
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.auth_lookup_access_token_id', ${tokenId}, true)`);
+    return run(tx);
+  });
+}

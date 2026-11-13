@@ -49,6 +49,17 @@ export class CsrfGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithSession>();
     if (!STATE_CHANGING_METHODS.has(request.method.toUpperCase())) return true;
 
+    // ADR-0019 — a personal access token never carries a CSRF token and may
+    // never mutate. `TokenAccessGuard` refuses this first today; the line
+    // keeps "a token never skips CSRF on a mutation" true if the guards are
+    // ever reordered.
+    if (request.accessTokenId !== undefined) {
+      throw problemException(403, {
+        title: "This access token is read-only",
+        code: "TOKEN_READ_ONLY",
+      });
+    }
+
     // `AuthGuard` runs before `CsrfGuard` (provider-registration order,
     // `app.module.ts`) and throws before reaching here if it did not resolve
     // a session, so `request.session` is guaranteed set for every

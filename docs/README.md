@@ -8,6 +8,7 @@ Guides for running, operating and feeding data into Kerdial.
 | [`deploy-synology.md`](deploy-synology.md) | The same deployment on a Synology NAS: prerequisites, the `.env` for a reverse proxy on another machine, the nginx rule and its checks, and day-to-day operation on DSM. |
 | [`run-local.md`](run-local.md) | Running Kerdial from source for development: the database container, seeding, environment variables. |
 | [`import-export-format.md`](import-export-format.md) | The two export/import files (`kerdial-instruments.json`, `kerdial-transactions.csv`): the CSV dialect and its columns, a minimal hand-written example, how an import merges into existing data, and the limits. **Written in French**, like the interface. |
+| [`mcp.md`](mcp.md) | Letting an AI assistant (Claude Code, Claude Desktop) read your portfolios: what leaves your instance, creating a read-only access token, building and configuring the MCP server, its tools and prompts, keeping the token safe, and troubleshooting. |
 | [`release-notes.md`](release-notes.md) | What changed in each release, and any manual step an upgrade needs. |
 
 To contribute, see [`CONTRIBUTING.md`](../CONTRIBUTING.md). To report a vulnerability, see

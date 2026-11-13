@@ -184,6 +184,19 @@ module.exports = {
       to: { path: "^market/ingestion" },
     },
     {
+      // mcp-readonly MCP-FR-24 / MCP-NFR-4: the MCP server talks to Kerdial over
+      // the HTTP API only, so it imports no server-side package — no database,
+      // no valuation, no shared type at runtime. A graph property rather than
+      // a convention, which is also what keeps the package publishable on its
+      // own. The reverse edge (an `api` e2e suite driving the server) is fine.
+      name: "mcp-no-repo-imports",
+      comment:
+        "mcp/ is a standalone HTTP client of the Kerdial API: it must not import any other workspace package (MCP-FR-24, MCP-NFR-4).",
+      severity: "error",
+      from: { path: "^mcp" },
+      to: { path: "^(api|platform|market|ledger|valuation|importer|web|core)($|/)" },
+    },
+    {
       name: "valuation-no-market-ports",
       comment:
         "valuation must not import market/ports at all — this is what makes 'recomputation never re-fetches an FX rate' a compile-time property.",

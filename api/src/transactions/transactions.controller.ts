@@ -47,6 +47,7 @@ import {
   type TransactionCalendarResponse,
   type TransactionResponse,
 } from "./transactions.schema.js";
+import { TokenReadable } from "../auth/token-readable.decorator.js";
 
 /**
  * `/transactions/*` — T-38. Thin
@@ -134,6 +135,7 @@ export class TransactionsController {
    * Bounded by the instance-wide admission bound (formerly MEDIUM-2's
    * shared per-tenant cheap-read cap).
    */
+  @TokenReadable()
   @Get()
   async list(
     @Query() query: Record<string, string | undefined>,
@@ -177,6 +179,7 @@ export class TransactionsController {
    * currency-bounds refusal, same shared cheap-read concurrency cap. No
    * `calcEpoch` — a direct read of write-time state, like the list.
    */
+  @TokenReadable()
   @Get("calendar")
   async calendar(
     @Query() query: Record<string, string | undefined>,
@@ -203,6 +206,7 @@ export class TransactionsController {
    *
    * MEDIUM-2 (security review): see `list`'s own doc comment.
    */
+  @TokenReadable()
   @Get(":id")
   async getOne(
     @Param("id") rawId: string,

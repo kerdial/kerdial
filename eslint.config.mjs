@@ -96,6 +96,10 @@ export default tseslint.config(
       "importer/**/*.ts",
       "api/**/*.ts",
       "tools/**/*.ts",
+      // mcp-readonly: the MCP server package. It holds no `Decimal`, so this
+      // block gives it typed linting; the syntactic ban further down is the
+      // no-floats control that actually bites there.
+      "mcp/**/*.ts",
     ],
     languageOptions: {
       parser: tseslint.parser,
@@ -176,6 +180,34 @@ export default tseslint.config(
           selector: 'MemberExpression[property.name="toFixed"]',
           message:
             "Do not format a number with .toFixed() — use @kerdial/core-decimal's formatMonetary/formatQuantity/formatPercentage/formatFxRate instead (the no-floats rule; web has no Decimal-typed value to key a type-aware rule off, so this is the syntactic equivalent for web/).",
+        },
+      ],
+    },
+  },
+  {
+    // mcp-readonly MCP-NFR-3: the MCP server relays the API's decimal strings
+    // and never turns an amount into a number. It has no `Decimal` type for
+    // the type-aware rule to key on, so this is the same syntactic ban as
+    // `web/src`'s block above. `Number.parseInt` (a header or an env value) is
+    // a `MemberExpression` callee and stays allowed.
+    files: ["mcp/src/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name=/^(Number|parseFloat)$/]",
+          message:
+            "Do not convert to a number with Number()/parseFloat() — the MCP server relays the API's decimal strings unchanged (MCP-NFR-3).",
+        },
+        {
+          selector: 'UnaryExpression[operator="+"]',
+          message:
+            "Do not convert to a number with unary + — the MCP server relays the API's decimal strings unchanged (MCP-NFR-3).",
+        },
+        {
+          selector: 'MemberExpression[property.name="toFixed"]',
+          message:
+            "Do not format a number with .toFixed() — the MCP server relays the API's decimal strings unchanged (MCP-NFR-3).",
         },
       ],
     },

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import postgres from "postgres";
 import type { ImportLimits } from "@kerdial/importer";
 import type { KerdialLimitSets } from "../imports/import-limits.tokens.js";
+import type { TokenAuthLimits } from "../auth/token-auth-limits.js";
 import type { MarketRuntime } from "@kerdial/market-composition";
 import { createDb, type Db } from "@kerdial/platform-db";
 import { startMigratedPostgres } from "@kerdial/platform-test-support";
@@ -114,6 +115,8 @@ export interface StartTestAppOptions {
    * byte-for-byte as before.
    */
   readonly appWebQueryDebug?: (connection: number, query: string) => void;
+  /** ADR-0019 — forwarded to `buildApp` verbatim; omitted ⇒ the shipped token windows. */
+  readonly tokenAuthLimits?: TokenAuthLimits;
 }
 
 export async function startTestApp(options: StartTestAppOptions = {}): Promise<TestApp> {
@@ -148,6 +151,7 @@ export async function startTestApp(options: StartTestAppOptions = {}): Promise<T
     ...(options.trustProxy === undefined ? {} : { trustProxy: options.trustProxy }),
     ...(options.importLimits === undefined ? {} : { importLimits: options.importLimits }),
     ...(options.kerdialLimits === undefined ? {} : { kerdialLimits: options.kerdialLimits }),
+    ...(options.tokenAuthLimits === undefined ? {} : { tokenAuthLimits: options.tokenAuthLimits }),
   });
 
   return {

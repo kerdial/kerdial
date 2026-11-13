@@ -568,6 +568,13 @@
       "when": 1794382335834,
       "tag": "0080_cash-movement-rounding",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1794477965155,
+      "tag": "0081_personal-access-token",
+      "breakpoints": true
     }
   ]
 }

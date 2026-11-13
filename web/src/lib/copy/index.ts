@@ -1,3 +1,4 @@
+import { ACCESS_TOKENS_COPY } from "./access-tokens.js";
 import { ACCOUNT_COPY } from "./account.js";
 import { ACTIVITY_COPY } from "./activity.js";
 import { ADMIN_COPY } from "./admin.js";
@@ -83,6 +84,7 @@ import { WATCHLIST_COPY } from "./watchlist.js";
  * moving them is a separate decision rather than this issue's.
  */
 export const COPY_CATALOGUE = {
+  accessTokens: ACCESS_TOKENS_COPY,
   account: ACCOUNT_COPY,
   activity: ACTIVITY_COPY,
   admin: ADMIN_COPY,

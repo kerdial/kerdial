@@ -53,6 +53,8 @@ vi.mock("../lib/api-client.js", async () => {
     // a 401 from it would be exactly the logout this file guards against.
     fetchRatePresets: vi.fn(),
     saveRatePresets: vi.fn(),
+    // ADR-0019: the fourth card's read, stubbed for the same reason.
+    fetchAccessTokens: vi.fn(),
   };
 });
 
@@ -130,6 +132,8 @@ beforeEach(() => {
   vi.mocked(apiClient.fetchRatePresets).mockReset();
   vi.mocked(apiClient.fetchRatePresets).mockResolvedValue({ items: RATE_PRESET_DEFAULTS });
   vi.mocked(apiClient.saveRatePresets).mockReset();
+  vi.mocked(apiClient.fetchAccessTokens).mockReset();
+  vi.mocked(apiClient.fetchAccessTokens).mockResolvedValue({ items: [] });
 });
 
 describe("« Mon compte » — the « Taux prédéfinis » card (transaction-dialog-refresh FR-665)", () => {
@@ -363,5 +367,38 @@ describe("« Mon compte » — the email form (UR-69, LD-3)", () => {
     );
     expect(harness.navigateToLogin).not.toHaveBeenCalled();
     expect(vi.mocked(apiClient.changeEmail)).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("« Mon compte » — the « Accès pour assistants IA » card (ADR-0019)", () => {
+  it("refetches the tokens after a password change, which revoked them all server-side (MCP-L14)", async () => {
+    const token = {
+      id: "00000000-0000-7000-8000-00000000a001",
+      label: "Claude Desktop",
+      hint: "kdl_pat_…xxxx",
+      createdAt: "2026-11-12T09:00:00.000Z",
+      expiresAt: null,
+      lastUsedAt: null,
+      revokedAt: null,
+    };
+    vi.mocked(apiClient.fetchAccessTokens)
+      .mockResolvedValueOnce({ items: [{ ...token, status: "active" }] })
+      .mockResolvedValueOnce({
+        items: [{ ...token, status: "revoked", revokedAt: "2026-11-12T10:00:00.000Z" }],
+      });
+    vi.mocked(apiClient.changePassword).mockResolvedValue({});
+    renderAccount();
+
+    expect(await screen.findByTestId(`access-token-status-${token.id}`)).toHaveTextContent("Actif");
+
+    await fill("account-password-current", "the right one");
+    await fill("account-password-new", VALID_PASSWORD);
+    await fill("account-password-confirm", VALID_PASSWORD);
+    fireEvent.click(screen.getByTestId("account-password-submit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId(`access-token-status-${token.id}`)).toHaveTextContent("Révoqué");
+    });
+    expect(vi.mocked(apiClient.fetchAccessTokens)).toHaveBeenCalledTimes(2);
   });
 });

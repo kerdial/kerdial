@@ -31,7 +31,7 @@
     "test:e2e": "pnpm --filter @kerdial/web run test:e2e",
     "test:e2e:static-tier": "pnpm --filter @kerdial/web run test:e2e:static-tier",
     "dev:up": "bash scripts/dev-up.sh",
-    "depcruise": "depcruise --config .dependency-cruiser.cjs core platform market ledger valuation api importer web/src",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs core platform market ledger valuation api importer mcp web/src",
     "check:sparkline-chunk": "tsx scripts/check-sparkline-chunk.ts",
     "no-floats-schema-gate": "tsx tools/gates/src/no-floats-schema/cli.ts platform/db/migrations",
     "import-vocabulary-gate": "tsx tools/gates/src/import-vocabulary/cli.ts importer",

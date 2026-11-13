@@ -91,6 +91,10 @@ export const REDACT_PATHS: readonly string[] = [
   "*.email",
   "password",
   "*.password",
+  // ADR-0019 — the response field that carries a new personal access token's
+  // secret. Never handed to a logger; listed so a slip is censored, not shipped.
+  "secret",
+  "*.secret",
 ];
 
 /**
@@ -229,6 +233,15 @@ const LOG_FIELD_ALLOWLIST: ReadonlySet<string> = new Set([
   "target_user_id",
   "target_tenant_id",
   "admin_action",
+  // ADR-0019 (MCP-FR-16, MCP-NFR-6) — the personal-access-token audit lines.
+  // `token_id` is the token row's uuid, the public half of the token and not
+  // a secret; `token_action` is one of `create`, `revoke`, `revoke_all`,
+  // `use`, `throttled`. `token_id` is also an ambient request-context field
+  // (`setRequestTokenId`).
+  // The secret, its hash, the Authorization header and the label (free text)
+  // are never passed to the logger.
+  "token_id",
+  "token_action",
 ]);
 
 /**
@@ -240,6 +253,7 @@ export const LOG_CONTEXT_FIELDS: readonly string[] = [
   "tenant_id",
   "peer",
   "client_ip",
+  "token_id",
   "job_id",
   "queue",
   "instrument_id",
@@ -254,6 +268,12 @@ export interface RequestLogContext {
   readonly peer?: string | undefined;
   /** The *derived* client address (`request.ip`), which is what the trust configuration believes. */
   readonly client_ip?: string | undefined;
+  /**
+   * ADR-0019 — the personal access token that authenticated this request, set
+   * by `AuthGuard` through {@link setRequestTokenId}; absent on cookie and
+   * unauthenticated requests. The token row's uuid, never the secret.
+   */
+  token_id?: string | undefined;
 }
 
 export interface JobLogContext {
@@ -300,6 +320,17 @@ export function setRequestTenant(tenantId: string): void {
   if (context !== undefined && context.kind === "request") context.tenant_id = tenantId;
 }
 
+/**
+ * ADR-0019 — {@link setRequestTenant}'s twin for a token-authenticated
+ * request: mutates the same store, for the same reason, so every line emitted
+ * below `AuthGuard` (an unexpected 500 included) names the token. A no-op
+ * outside a request context.
+ */
+export function setRequestTokenId(tokenId: string): void {
+  const context = storage.getStore();
+  if (context !== undefined && context.kind === "request") context.token_id = tokenId;
+}
+
 /** The ambient context as loggable fields — `{}` outside any context. */
 export function logContextFields(): LogFields {
   const context = storage.getStore();
@@ -310,6 +341,7 @@ export function logContextFields(): LogFields {
       tenant_id: context.tenant_id,
       ...(context.peer === undefined ? {} : { peer: context.peer }),
       ...(context.client_ip === undefined ? {} : { client_ip: context.client_ip }),
+      ...(context.token_id === undefined ? {} : { token_id: context.token_id }),
     };
   }
   return {

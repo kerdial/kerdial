@@ -59,6 +59,8 @@ entrypoint refuses to start without them (no fallback secret, by design).
 `TRUST_PROXY` stays unset locally: there is no reverse proxy, so per-IP login
 throttling treats everything as one client, which is correct here. A deployment
 behind its own proxy sets it; see [`deploy-runbook.md`](deploy-runbook.md).
+To point the read-only MCP server at this local API, see [`mcp.md`](mcp.md);
+`KERDIAL_URL=http://localhost:3000` needs no insecure-http override (loopback).
 
 ## 3. Web app
 

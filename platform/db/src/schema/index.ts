@@ -12,6 +12,7 @@ export * from "./currency.js";
 export * from "./tenant.js";
 export * from "./app-user.js";
 export * from "./session.js";
+export * from "./personal-access-token.js";
 export * from "./instrument.js";
 export * from "./instrument-provider-map.js";
 export * from "./instrument-icon.js";

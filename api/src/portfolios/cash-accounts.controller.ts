@@ -24,6 +24,7 @@ import {
   type CashAccountResponse,
   type PortfolioCashResponse,
 } from "./cash-accounts.schema.js";
+import { TokenReadable } from "../auth/token-readable.decorator.js";
 
 /**
  * `/portfolios/:id/cash-accounts*` (CA-14) and `/portfolios/:id/cash`
@@ -229,6 +230,7 @@ export class CashAccountsController {
    * money is not. This is therefore a stated reliance on the write-path cap,
    * asserted in `cash-account-balances.integration.test.ts` rather than assumed.
    */
+  @TokenReadable()
   @Get(":id/cash")
   async getCashBalances(
     @Param("id") rawPortfolioId: string,

@@ -5,6 +5,8 @@ import {
   type InstrumentIconContentType,
   type PortfolioAccentColor,
 } from "@kerdial/core-reference-data";
+import { formatMonetary } from "@kerdial/core-decimal";
+import { ALLOCATION_DIMENSIONS, type HoldingsAllocation } from "@kerdial/valuation";
 import type {
   PortfolioReturns,
   PortfolioValueSeries,
@@ -210,6 +212,8 @@ export const overviewQuerySchema = z.object({
 export const performanceQuerySchema = overviewQuerySchema;
 /** FR-262: same `?from=&to=` window contract as the performance read — same bounds, same rejection posture. */
 export const valueSeriesQuerySchema = overviewQuerySchema;
+/** MCP-L7: `by` is required — missing or unknown is a 400, never a default grouping. */
+export const allocationQuerySchema = z.strictObject({ by: z.enum(ALLOCATION_DIMENSIONS) });
 
 /**
  * The default `[from, to]` window when neither is supplied, and the maximum
@@ -712,5 +716,66 @@ export function toClosedPositionsResponse(view: ValuedClosedPositions): ClosedPo
     closedPositions: view.closedPositions.map(toClosedPositionResponse),
     calcEpoch: serializeCalcEpoch(view.calcEpoch),
     portfolioCount: view.portfolioCount,
+  };
+}
+
+/**
+ * `GET /portfolios/allocation` / `GET /portfolios/:id/allocation` response
+ * (MCP-L7, MCP-L18). Every amount is a decimal string in `currency`, the
+ * tenant's base. Invariants, string-exact: Σ `buckets[].value` = `total` = the
+ * holdings route's `totalValue.amount`; when `sharesAvailable`, Σ
+ * `buckets[].sharePercent` = `"100.00"`, each with exactly two decimals.
+ * Cash currencies with no rate are excluded from `total` and listed in
+ * `cash.unconverted` with their native amount.
+ */
+export interface AllocationResponse {
+  readonly asOfDate: string;
+  readonly by: HoldingsAllocation["by"];
+  readonly currency: string;
+  readonly total: string;
+  readonly sharesAvailable: boolean;
+  readonly buckets: readonly {
+    readonly key: string;
+    readonly label: string;
+    readonly symbol?: string;
+    readonly value: string;
+    readonly sharePercent: string | null;
+    readonly holdingCount: number;
+  }[];
+  readonly basis?: HoldingsAllocation["basis"];
+  readonly cash: {
+    readonly totalBase: string;
+    readonly unconverted: readonly { readonly currency: string; readonly amount: string }[];
+  };
+  readonly calcEpoch: string;
+  readonly portfolioCount: number;
+}
+
+export function toAllocationResponse(allocation: HoldingsAllocation): AllocationResponse {
+  return {
+    asOfDate: allocation.asOfDate,
+    by: allocation.by,
+    currency: allocation.baseCurrency,
+    total: serializeDecimal(allocation.total),
+    sharesAvailable: allocation.sharesAvailable,
+    buckets: allocation.buckets.map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      ...(bucket.symbol !== undefined ? { symbol: bucket.symbol } : {}),
+      value: serializeDecimal(bucket.value),
+      // A whole number of hundredths, so two places never round.
+      sharePercent: bucket.sharePercent === null ? null : formatMonetary(bucket.sharePercent, 2),
+      holdingCount: bucket.holdingCount,
+    })),
+    ...(allocation.basis !== undefined ? { basis: allocation.basis } : {}),
+    cash: {
+      totalBase: serializeDecimal(allocation.cash.totalBase),
+      unconverted: allocation.cash.unconverted.map((line) => ({
+        currency: line.currency,
+        amount: serializeDecimal(line.amount),
+      })),
+    },
+    calcEpoch: serializeCalcEpoch(allocation.calcEpoch),
+    portfolioCount: allocation.portfolioCount,
   };
 }

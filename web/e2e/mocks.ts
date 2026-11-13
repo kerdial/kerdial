@@ -208,6 +208,10 @@ export async function mockAuthenticatedSession(
   // {@link mockWatchedInstrumentIds} of its own afterwards, and Playwright
   // matches the later handler first.
   await mockWatchedInstrumentIds(page, []);
+  // ADR-0019: « Mon compte » reads `GET /auth/tokens`, so an authenticated
+  // session answers it with the opt-in default — no token. A spec that needs
+  // tokens registers its own `GET` handler afterwards (`access-tokens.spec.ts`).
+  await mockNoAccessTokens(page);
   await page.route("**/api/v1/auth/me", async (route) => {
     await route.fulfill({
       status: 200,
@@ -224,6 +228,25 @@ export async function mockAuthenticatedSession(
         baseCurrency: "EUR",
         isInstanceAdmin: options.isInstanceAdmin ?? false,
       }),
+    });
+  });
+}
+
+/**
+ * `GET /api/v1/auth/tokens` (ADR-0019) — the opt-in default, no token. Any
+ * other method falls through; a spec that needs tokens registers its own
+ * handler afterwards, which Playwright matches first.
+ */
+async function mockNoAccessTokens(page: RoutableTarget): Promise<void> {
+  await page.route("**/api/v1/auth/tokens", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [] }),
     });
   });
 }
