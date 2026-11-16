@@ -6,7 +6,7 @@ export const getHoldings = defineTool({
   name: "get_holdings",
   title: "Get holdings",
   description:
-    "Current positions with quantity, cost basis, price, value and unrealised gain, plus the cash block and the total value, as of today. Without portfolioId: all portfolios combined (one line per instrument). Amounts are decimal strings next to their currency.",
+    "Current positions with quantity, cost basis, price, value and unrealised gain, plus the cash block and the total value, as of today. Without portfolioId: all portfolios combined (one line per instrument). Amounts are decimal strings next to their currency. sectorWeights / countryWeights, when present, are the user's hand-entered percentages (two-decimal strings).",
   inputSchema: z.strictObject({ portfolioId: portfolioIdSchema.optional() }),
   run: async ({ portfolioId }, { client }) =>
     withoutFieldsIn(
