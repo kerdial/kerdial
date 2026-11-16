@@ -3,8 +3,10 @@ import type {
   InstrumentBackfillStatusRecord,
   InstrumentIconMeta,
   InstrumentPriceFreshnessRecord,
+  InstrumentExposureWeights,
   InstrumentRecord,
   PriceHistoryPoint,
+  StoredExposureWeight,
 } from "@kerdial/ledger";
 // `Decimal` is imported here (not merely re-exported from `@kerdial/ledger`'s
 // types) so the TypeScript declaration emitter reuses THIS module specifier
@@ -23,8 +25,10 @@ import {
   INSTRUMENT_KIND_VALUES,
   createInstrumentBodySchema,
   isValidIsinCheckDigit,
+  serializeExposureWeight,
   serializeSubscriptionFeePct,
   updateInstrumentClassificationBodySchema,
+  updateInstrumentExposureWeightsBodySchema,
   updateInstrumentIdentityBodySchema,
   updateInstrumentScpiAttributesBodySchema,
   type CreateInstrumentBody,
@@ -67,12 +71,15 @@ import {
  * request contracts cannot disagree about what a sector code is (FR-31).
  * `updateInstrumentScpiAttributesBodySchema` (`scpi` SCD-8) joins it on the
  * same grounds: built from the two attribute schemas the create body uses.
+ * `updateInstrumentExposureWeightsBodySchema` (`exposure-weights`) joins it
+ * too: the web weights editor and this controller share the one object.
  */
 export {
   INSTRUMENT_KIND_VALUES,
   createInstrumentBodySchema,
   isValidIsinCheckDigit,
   updateInstrumentClassificationBodySchema,
+  updateInstrumentExposureWeightsBodySchema,
   updateInstrumentIdentityBodySchema,
   updateInstrumentScpiAttributesBodySchema,
 };
@@ -350,6 +357,27 @@ export interface InstrumentResponse {
    */
   readonly managementCompany?: string | null;
   readonly subscriptionFeePct?: string | null;
+  /**
+   * `exposure-weights` (FR-725): the instrument's hand-entered sector and
+   * country weight sets, each `{ code, weight }` with the weight a two-decimal
+   * string (`"60.00"`), sorted by weight descending then code. **Present only
+   * when the set is non-empty** — absent, never `[]`, so an instrument without
+   * weights answers exactly the body it answered before (additive, FR-725).
+   */
+  readonly sectorWeights?: readonly ExposureWeightResponse[];
+  readonly countryWeights?: readonly ExposureWeightResponse[];
+}
+
+/** One weight on the wire: a bucket code and a two-decimal string, never a JSON number. */
+export interface ExposureWeightResponse {
+  readonly code: string;
+  readonly weight: string;
+}
+
+function toExposureWeightResponses(
+  weights: readonly StoredExposureWeight[],
+): ExposureWeightResponse[] {
+  return weights.map((w) => ({ code: w.code, weight: serializeExposureWeight(w.weight) }));
 }
 
 /**
@@ -367,8 +395,21 @@ export interface InstrumentResponse {
  * `listInstrumentIdsWithIcon` lookup per request (one statement
  * for a page of 100, not 100); `create` from the literal `false`, because an
  * instrument inserted a moment ago cannot yet carry this tenant's icon.
+ *
+ * **`weights` is a REQUIRED third parameter for the same reason**
+ * (`exposure-weights`, FR-725): a call site that forgot to load the sets is a
+ * type error, not a silently absent field. Every read and every write
+ * response gets them from one `listInstrumentExposureWeights` per request
+ * (one statement for a page of 100); the weights route from the writer's own
+ * return value; `create` from the literal `{}` — the creation path writes no
+ * weight except a catalogue import's legacy single sector, and the API's
+ * create body refuses a sector for every kind that could carry one.
  */
-export function toInstrumentResponse(row: InstrumentRecord, hasIcon: boolean): InstrumentResponse {
+export function toInstrumentResponse(
+  row: InstrumentRecord,
+  hasIcon: boolean,
+  weights: InstrumentExposureWeights,
+): InstrumentResponse {
   return {
     id: row.id,
     kind: row.kind,
@@ -401,6 +442,13 @@ export function toInstrumentResponse(row: InstrumentRecord, hasIcon: boolean): I
         row.subscriptionFeePct === null
           ? null
           : serializeSubscriptionFeePct(row.subscriptionFeePct),
+    }),
+    // FR-725: a key only for a stored, non-empty set.
+    ...(weights.sectorWeights !== undefined && {
+      sectorWeights: toExposureWeightResponses(weights.sectorWeights),
+    }),
+    ...(weights.countryWeights !== undefined && {
+      countryWeights: toExposureWeightResponses(weights.countryWeights),
     }),
   };
 }

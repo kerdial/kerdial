@@ -16,6 +16,7 @@ export * from "./personal-access-token.js";
 export * from "./instrument.js";
 export * from "./instrument-provider-map.js";
 export * from "./instrument-icon.js";
+export * from "./instrument-exposure-weight.js";
 export * from "./watchlist-item.js";
 export * from "./fx-rate-daily.js";
 export * from "./fx-rate-user.js";

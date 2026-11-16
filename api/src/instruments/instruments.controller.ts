@@ -27,7 +27,10 @@ import {
   type ProviderSymbolMatch,
 } from "@kerdial/market-ports";
 import type { Db } from "@kerdial/platform-db";
+import type { ExposureWeightDimension, ExposureWeightRefusal } from "@kerdial/api-contracts";
 import {
+  ExposureWeightSetRefusedError,
+  ExposureWeightsNotApplicableError,
   InstrumentAlreadyExistsError,
   InstrumentAttributesNotApplicableError,
   InstrumentFigiAlreadySetError,
@@ -44,15 +47,18 @@ import {
   getInstrumentBackfillTarget,
   getInstrumentById,
   getInstrumentIcon,
+  listInstrumentExposureWeights,
   listInstrumentIdsWithIcon,
   listInstrumentPriceHistory,
   listInstruments,
   removeInstrumentIcon,
+  replaceInstrumentExposureWeights,
   setInstrumentIcon,
   updateInstrumentClassification,
   updateInstrumentIdentity,
   updateInstrumentScpiAttributes,
   upsertManualPricePoint,
+  type InstrumentExposureWeights,
   type InstrumentIconBoundsViolation,
   type InstrumentKind,
   deleteInstrument,
@@ -77,6 +83,7 @@ import {
   toInstrumentIconMetaResponse,
   toInstrumentResponse,
   updateInstrumentClassificationBodySchema,
+  updateInstrumentExposureWeightsBodySchema,
   updateInstrumentIdentityBodySchema,
   updateInstrumentScpiAttributesBodySchema,
   toPriceHistoryPointResponse,
@@ -122,6 +129,24 @@ function iconRejectionCodeForBoundsViolation(
       return "INSTRUMENT_ICON_UNSUPPORTED_FORMAT";
   }
 }
+
+/**
+ * `exposure-weights` (FR-720): each refusal of the shared validator → its
+ * problem code. An exhaustive `Record`, so a fifth refusal reason is a compile
+ * error here until it has a code.
+ */
+const EXPOSURE_WEIGHT_REFUSAL_CODES: Readonly<Record<ExposureWeightRefusal, string>> = {
+  OUT_OF_RANGE: "EXPOSURE_WEIGHT_OUT_OF_RANGE",
+  UNKNOWN_BUCKET: "EXPOSURE_WEIGHT_UNKNOWN_BUCKET",
+  DUPLICATE_BUCKET: "EXPOSURE_WEIGHT_DUPLICATE_BUCKET",
+  TOTAL_ABOVE_100: "EXPOSURE_WEIGHT_TOTAL_ABOVE_100",
+};
+
+/** The body key that names a dimension — the `params.field` of every weight refusal. */
+const EXPOSURE_WEIGHT_FIELDS: Readonly<Record<ExposureWeightDimension, string>> = {
+  sector: "sectorWeights",
+  country: "countryWeights",
+};
 
 /**
  * `/instruments/*` — T-37. Thin
@@ -175,12 +200,20 @@ export class InstrumentsController {
       tenantId: session.tenantId,
       instrumentIds: page.items.map((row) => row.id),
     });
+    // FR-725: the same one bounded lookup for the weight sets (shared
+    // catalogue data, so no tenant), and no statement for an empty page.
+    const weights = await listInstrumentExposureWeights(
+      this.db,
+      page.items.map((row) => row.id),
+    );
     return {
       // Never `.map(toInstrumentResponse)`: the flag is a second parameter, so
       // a bare reference would hand the array index in as `hasIcon` — which
       // the required parameter turns into a compile error rather than a page
       // whose first row is the only un-iconed one.
-      items: page.items.map((row) => toInstrumentResponse(row, iconed.has(row.id))),
+      items: page.items.map((row) =>
+        toInstrumentResponse(row, iconed.has(row.id), weights.get(row.id) ?? {}),
+      ),
       nextCursor: page.nextCursor,
     };
   }
@@ -286,8 +319,10 @@ export class InstrumentsController {
 
     // IK-10: the literal `false`, and no lookup — an instrument inserted a
     // moment ago cannot already carry this tenant's icon, so a query here
-    // would spend a statement to learn a known answer.
-    return toInstrumentResponse(row, false);
+    // would spend a statement to learn a known answer. The same for its
+    // weights (FR-724): this body refuses a sector on every kind that could
+    // carry one as a weight, so the row has none.
+    return toInstrumentResponse(row, false, {});
   }
 
   /**
@@ -799,7 +834,7 @@ export class InstrumentsController {
       tenantId: session.tenantId,
       instrumentIds: [id],
     });
-    return toInstrumentResponse(row, iconed.has(id));
+    return toInstrumentResponse(row, iconed.has(id), await this.#weightsOf(id));
   }
 
   /**
@@ -872,7 +907,7 @@ export class InstrumentsController {
         tenantId: session.tenantId,
         instrumentIds: [id],
       });
-      return toInstrumentResponse(row, iconed.has(id));
+      return toInstrumentResponse(row, iconed.has(id), await this.#weightsOf(id));
     } catch (err) {
       if (err instanceof InstrumentNotFoundError) {
         throw problemException(404, {
@@ -880,11 +915,12 @@ export class InstrumentsController {
           code: "INSTRUMENT_NOT_FOUND",
         });
       }
-      // (FR-608/N11): a non-null sector or industry on an SCPI — the
+      // (FR-608/N11): a non-null sector or industry on an SCPI, or (FR-747(b))
+      // a non-null sector on a kind whose sector is a weight set — the
       // scpi-attributes route's code, nothing stored.
       if (err instanceof InstrumentAttributesNotApplicableError) {
         throw problemException(400, {
-          title: "An SCPI carries no sector and no industry",
+          title: "This attribute does not apply to this instrument kind",
           code: "INSTRUMENT_ATTRIBUTES_NOT_APPLICABLE",
           detail: err.message,
         });
@@ -933,7 +969,7 @@ export class InstrumentsController {
         tenantId: session.tenantId,
         instrumentIds: [id],
       });
-      return toInstrumentResponse(row, iconed.has(id));
+      return toInstrumentResponse(row, iconed.has(id), await this.#weightsOf(id));
     } catch (err) {
       if (err instanceof InstrumentNotFoundError) {
         throw problemException(404, {
@@ -988,7 +1024,7 @@ export class InstrumentsController {
         tenantId: session.tenantId,
         instrumentIds: [id],
       });
-      return toInstrumentResponse(row, iconed.has(id));
+      return toInstrumentResponse(row, iconed.has(id), await this.#weightsOf(id));
     } catch (err) {
       if (err instanceof InstrumentNotFoundError) {
         throw problemException(404, {
@@ -1005,6 +1041,85 @@ export class InstrumentsController {
       }
       throw err;
     }
+  }
+
+  /**
+   * `PATCH /instruments/:id/exposure-weights` (`exposure-weights`; FR-719,
+   * FR-720, FR-722, FR-723, FR-725) — the hand-entered sector and country
+   * weight sets of a catalogue instrument. A sibling route, not a wider
+   * classification body: that route keeps its three-field body and its
+   * three-column grant.
+   *
+   * Body `{ sectorWeights?, countryWeights? }`, strict, at least one key; each
+   * named dimension is replaced whole, `[]` clears it, an absent key leaves it
+   * alone. Returns `200` and the full `InstrumentResponse` with the real icon
+   * flag and the sets the writer stored.
+   *
+   * Refusals, in this order: body shape → `400 VALIDATION_ERROR`; set
+   * validity, sector before country → `400 EXPOSURE_WEIGHT_*` with
+   * `params { field, index }`, nothing stored; unknown instrument → `404
+   * INSTRUMENT_NOT_FOUND`; kind gate → `400 EXPOSURE_WEIGHTS_NOT_APPLICABLE`
+   * with `params { field }` (400, like `INSTRUMENT_ATTRIBUTES_NOT_APPLICABLE`).
+   *
+   * **Shared catalogue (EW-L3)**: one tenant's write is every tenant's read,
+   * like a classification edit. No route-level throttle (the instance-wide
+   * admission bound covers it), no epoch bump (a weight moves no value), no
+   * log line. **Not `@TokenReadable()`**: a write, so a personal access token
+   * is refused with `403 TOKEN_READ_ONLY`.
+   */
+  @Patch(":id/exposure-weights")
+  async updateExposureWeights(
+    @Param("id") rawId: string,
+    @Body() body: unknown,
+    @CurrentSession() session: SessionContext,
+  ): Promise<InstrumentResponse> {
+    const id = parseIdParam(rawId);
+    const parsed = parseOrThrow(updateInstrumentExposureWeightsBodySchema, body);
+
+    try {
+      const weights = await replaceInstrumentExposureWeights(this.db, id, {
+        ...(parsed.sectorWeights !== undefined ? { sectorWeights: parsed.sectorWeights } : {}),
+        ...(parsed.countryWeights !== undefined ? { countryWeights: parsed.countryWeights } : {}),
+      });
+      const row = await getInstrumentById(this.db, id);
+      if (!row) {
+        throw new InstrumentNotFoundError(id);
+      }
+      const iconed = await listInstrumentIdsWithIcon(this.db, {
+        tenantId: session.tenantId,
+        instrumentIds: [id],
+      });
+      return toInstrumentResponse(row, iconed.has(id), weights);
+    } catch (err) {
+      if (err instanceof ExposureWeightSetRefusedError) {
+        throw problemException(400, {
+          title: "Exposure weight set refused",
+          code: EXPOSURE_WEIGHT_REFUSAL_CODES[err.reason],
+          detail: err.message,
+          params: { field: EXPOSURE_WEIGHT_FIELDS[err.dimension], index: err.index },
+        });
+      }
+      if (err instanceof InstrumentNotFoundError) {
+        throw problemException(404, {
+          title: "Instrument not found",
+          code: "INSTRUMENT_NOT_FOUND",
+        });
+      }
+      if (err instanceof ExposureWeightsNotApplicableError) {
+        throw problemException(400, {
+          title: "This instrument kind carries no weights in this dimension",
+          code: "EXPOSURE_WEIGHTS_NOT_APPLICABLE",
+          detail: err.message,
+          params: { field: EXPOSURE_WEIGHT_FIELDS[err.dimension] },
+        });
+      }
+      throw err;
+    }
+  }
+
+  /** One instrument's stored weight sets (FR-725): one statement, `{}` when it has none. */
+  async #weightsOf(id: string): Promise<InstrumentExposureWeights> {
+    return (await listInstrumentExposureWeights(this.db, [id])).get(id) ?? {};
   }
 
   /**

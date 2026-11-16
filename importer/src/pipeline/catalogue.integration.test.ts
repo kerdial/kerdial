@@ -5,6 +5,7 @@ import {
   createInstrumentByIsin,
   createProviderMapping,
   deletePortfolio,
+  listInstrumentExposureWeights,
   listUserFxRates,
 } from "@kerdial/ledger";
 import {
@@ -703,6 +704,54 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
         .from(instrumentPriceDaily)
         .where(eq(instrumentPriceDaily.instrumentId, created.id)),
     ).toEqual(providerBefore);
+  });
+
+  it("EW-L18: a legacy single sector on an ETF entry is that sector at 100 %, for a new ETF and an existing one (FR-747)", async () => {
+    const existing = await createInstrumentByIsin(db, {
+      kind: "ETF",
+      isin: "EI20ETFSEC02",
+      exchangeMic: "XPAR",
+      listingCurrency: "EUR",
+      displayName: "ETF existant",
+    });
+    const etfEntry = (
+      isin: string,
+      sectorCode: "ENERGIE" | "SANTE",
+    ): Omit<CatalogueInstrumentEntry, "at"> => ({
+      identity: { kind: "ETF", isin, exchangeMic: "XPAR" },
+      private: false,
+      listingCurrency: "EUR",
+      displayName: isin === "EI20ETFSEC02" ? "ETF existant" : "ETF nouveau",
+      primaryIdentifier: "ISIN",
+      quotePolicy: "AUTO",
+      status: "ACTIVE",
+      sectorCode,
+      manualPrices: [],
+    });
+
+    const result = await run(
+      tenantMain,
+      draftOf({
+        instruments: [etfEntry("EI20ETFSEC01", "ENERGIE"), etfEntry("EI20ETFSEC02", "SANTE")],
+      }),
+    );
+    expect(result.summary).toMatchObject({ imported: 2, rejected: 0 });
+
+    const [created] = await ownerDb
+      .select()
+      .from(instrument)
+      .where(eq(instrument.isin, "EI20ETFSEC01"));
+    const weights = await listInstrumentExposureWeights(ownerDb, [created!.id, existing.id]);
+    for (const [id, code] of [
+      [created!.id, "ENERGIE"],
+      [existing.id, "SANTE"],
+    ] as const) {
+      const [row] = await ownerDb.select().from(instrument).where(eq(instrument.id, id));
+      expect(row?.sectorCode).toBeNull();
+      expect(
+        weights.get(id)?.sectorWeights?.map((w) => ({ code: w.code, weight: w.weight.toFixed(2) })),
+      ).toEqual([{ code, weight: "100.00" }]);
+    }
   });
 
   it("counts the shared instruments it changes, and those losing their price series", async () => {

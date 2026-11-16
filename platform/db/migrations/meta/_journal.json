@@ -575,6 +575,13 @@
       "when": 1794477965155,
       "tag": "0081_personal-access-token",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794833485928,
+      "tag": "0082_instrument-exposure-weight",
+      "breakpoints": true
     }
   ]
 }

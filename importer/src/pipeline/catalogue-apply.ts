@@ -14,6 +14,7 @@ import {
   createInstrumentScpi,
   createPortfolio,
   createProviderMapping,
+  replaceInstrumentExposureWeights,
   setCashAccountArchived,
   setInstrumentIcon,
   setPortfolioArchived,
@@ -667,6 +668,7 @@ async function applyInstrument(
     figi,
     status,
     sectorCode,
+    sectorAsWeight,
     industryLabel,
     domicileCountry,
     managementCompany,
@@ -690,6 +692,13 @@ async function applyInstrument(
       ...(sectorCode !== undefined && { sectorCode }),
       ...(industryLabel !== undefined && { industryLabel }),
       ...(domicileCountry !== undefined && { domicileCountry }),
+    });
+  }
+  // EW-L18, FR-747: a legacy single sector on an ETF/FUND is that sector at
+  // 100 %, through the one weights writer (its lock, its kind gate).
+  if (sectorAsWeight !== undefined) {
+    await replaceInstrumentExposureWeights(ctx.db, instrumentId, {
+      sectorWeights: [{ code: sectorAsWeight, weight: "100.00" }],
     });
   }
   // SCPI only: set, never cleared — the plan carries a

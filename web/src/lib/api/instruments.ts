@@ -99,8 +99,22 @@ export interface InstrumentDetailResponse {
   readonly managementCompany?: string | null;
   /** Canonical two-decimal percentage string (`"8.50"`), SCPI only — never parsed into a JS number. */
   readonly subscriptionFeePct?: string | null;
+  /**
+   * exposure-weights (FR-725) — the hand-entered sector and country weight
+   * sets, each weight a two-decimal string (`"60.00"`), sorted by weight
+   * descending. **Present only when the set is non-empty**: an instrument
+   * without weights carries no such key, never `[]`.
+   */
+  readonly sectorWeights?: readonly InstrumentExposureWeight[];
+  readonly countryWeights?: readonly InstrumentExposureWeight[];
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** One stored weight on the wire: a bucket code and a decimal string — never parsed into a JS number. */
+interface InstrumentExposureWeight {
+  readonly code: string;
+  readonly weight: string;
 }
 
 export function fetchInstrument(

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import postgres from "postgres";
+import { EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND } from "@kerdial/api-contracts";
 import type { Decimal } from "@kerdial/core-decimal";
 import {
   extractPostgresError,
@@ -9,6 +10,10 @@ import {
   type Db,
   type Tx,
 } from "@kerdial/platform-db";
+import {
+  kindCarriesExposureWeights,
+  writeCreationSectorWeight,
+} from "./instrument-exposure-weight-service.js";
 
 /** `foreign_key_violation` — the backstop {@link deleteInstrument} maps to a 409. */
 const FOREIGN_KEY_VIOLATION = "23503";
@@ -207,9 +212,12 @@ export interface CreateInstrumentByIsinParams {
    * written in this function's **same single `INSERT … RETURNING`**: no extra
    * round trip, no provider call on the write path (AC-7, NFR-15).
    *
-   * Only ever set for `kind = "SHARE"` (FR-7) — `createInstrumentBodySchema`'s
-   * `superRefine` rejects both fields for every other kind at the HTTP
-   * boundary, so this path never receives them for an ETF or FUND.
+   * `createInstrumentBodySchema`'s `superRefine` rejects both fields for every
+   * kind but SHARE at the HTTP boundary (FR-7). The catalogue import can still
+   * pass a sector for an ETF or FUND: on a kind that can carry sector weights
+   * it is stored as a 100 % sector weight in the creation transaction, never
+   * in `sector_code` (FR-747(c), EW-L18 — the column's CHECK keeps it NULL for
+   * such a kind).
    */
   readonly sectorCode?: InstrumentSectorCode;
   /** The opaque provider detail label (FR-6) — display-only, never a key. */
@@ -248,8 +256,14 @@ export async function createInstrumentByIsin(
   // reading it back later (e.g. `listInstruments`'s search) should still see
   // the same normalised form every symbol-carrying row uses.
   const symbol = params.symbol !== undefined ? normalizeSymbol(params.symbol) : null;
-  try {
-    const [row] = await db
+  // FR-747(c): a sector on a kind that can carry sector weights is a 100 %
+  // weight, written beside the row; the column stays NULL.
+  const sectorAsWeight =
+    params.sectorCode !== undefined && kindCarriesExposureWeights(params.kind, "sector")
+      ? params.sectorCode
+      : undefined;
+  const insertRow = async (dbOrTx: DbLike): Promise<InstrumentRecord> => {
+    const [row] = await dbOrTx
       .insert(instrument)
       .values({
         id,
@@ -267,11 +281,21 @@ export async function createInstrumentByIsin(
         // NULL (AC-5), never a sentinel. `domicile_country` is deliberately
         // **not** settable here at all (AC-10: never MIC-derived, never
         // ISIN-derived, only a verified seed or an explicit user entry).
-        sectorCode: params.sectorCode ?? null,
+        sectorCode: sectorAsWeight === undefined ? (params.sectorCode ?? null) : null,
         industryLabel: params.industryLabel ?? null,
       })
       .returning();
     return row!;
+  };
+  try {
+    if (sectorAsWeight === undefined) {
+      return await insertRow(db);
+    }
+    return await db.transaction(async (tx) => {
+      const row = await insertRow(tx);
+      await writeCreationSectorWeight(tx, row.id, sectorAsWeight);
+      return row;
+    });
   } catch (err) {
     if (isUniqueViolation(err, ISIN_EXCHANGE_MIC_CONSTRAINT)) {
       throw new InstrumentAlreadyExistsError(
@@ -654,6 +678,15 @@ export async function applyProviderClassification(
     .where(eq(instrument.id, id));
 }
 
+/**
+ * The kinds whose sector is a weight set (ETF, FUND today), read off the one
+ * eligibility list, never re-listed: on these `sector_code` stays NULL
+ * (FR-747(b)).
+ */
+const SECTOR_WEIGHTED_KINDS: readonly InstrumentKind[] = (
+  Object.keys(EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND) as InstrumentKind[]
+).filter((kind) => EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND[kind].includes("sector"));
+
 export interface UpdateInstrumentClassificationParams {
   /** A Kerdial code, or `null` to clear the classification back to « Non classé » (FR-3). Never a provider string — the enum is the column's own. */
   readonly sectorCode?: InstrumentSectorCode | null;
@@ -713,13 +746,19 @@ export async function updateInstrumentClassification(
     throw new TypeError("updateInstrumentClassification requires at least one field to update");
   }
 
-  // `scpi` FR-608/N11: an SCPI carries no sector and no industry.
-  // Only a non-null value is refused — `null` (the web form's hidden fields,
-  // or clearing a pre-existing one) stays a valid write. The kind gate rides
-  // in the `WHERE`, the {@link updateInstrumentScpiAttributes} shape.
-  const setsSectorOrIndustry =
-    (patch.sectorCode !== undefined && patch.sectorCode !== null) ||
-    (patch.industryLabel !== undefined && patch.industryLabel !== null);
+  // Two kind gates, one mechanism. `scpi` FR-608/N11: an SCPI carries no
+  // sector and no industry. FR-747(b), EW-L18: on a kind that can carry sector
+  // weights (ETF, FUND) a single sector *is* a 100 % weight, edited through
+  // the weights route, so the column refuses one (its CHECK too). Only a
+  // non-null value is refused — `null` (the web form's hidden fields, or
+  // clearing a pre-existing one) stays a valid write. The gate rides in the
+  // `WHERE`, the {@link updateInstrumentScpiAttributes} shape.
+  const setsSector = patch.sectorCode !== undefined && patch.sectorCode !== null;
+  const setsIndustry = patch.industryLabel !== undefined && patch.industryLabel !== null;
+  const refusedKinds: InstrumentKind[] = [
+    ...(setsSector || setsIndustry ? (["SCPI"] as const) : []),
+    ...(setsSector ? SECTOR_WEIGHTED_KINDS : []),
+  ];
 
   const [row] = await db
     .update(instrument)
@@ -730,14 +769,14 @@ export async function updateInstrumentClassification(
       updatedAt: new Date(),
     })
     .where(
-      setsSectorOrIndustry
-        ? and(eq(instrument.id, id), ne(instrument.kind, "SCPI"))
+      refusedKinds.length > 0
+        ? and(eq(instrument.id, id), notInArray(instrument.kind, refusedKinds))
         : eq(instrument.id, id),
     )
     .returning();
   if (row) return row;
 
-  if (setsSectorOrIndustry) {
+  if (refusedKinds.length > 0) {
     const [existing] = await db
       .select({ kind: instrument.kind })
       .from(instrument)
@@ -746,7 +785,9 @@ export async function updateInstrumentClassification(
       throw new InstrumentAttributesNotApplicableError(
         id,
         existing.kind,
-        `Instrument ${id} is an SCPI; an SCPI carries no sector and no industry`,
+        existing.kind === "SCPI"
+          ? `Instrument ${id} is an SCPI; an SCPI carries no sector and no industry`
+          : `Instrument ${id} is a ${existing.kind}; its sector is a sector weight set, not a single sector`,
       );
     }
   }
@@ -757,7 +798,8 @@ export async function updateInstrumentClassification(
  * Surfaced by {@link updateInstrumentScpiAttributes} when `id` resolves to an
  * instrument that is not an SCPI (`scpi`, SCD-8), and by
  * {@link updateInstrumentClassification} when a sector or industry is set on
- * an SCPI.
+ * an SCPI, or a sector on a kind whose sector is a weight set (ETF, FUND;
+ * FR-747(b)).
  */
 export class InstrumentAttributesNotApplicableError extends Error {
   readonly instrumentId: string;
@@ -1185,11 +1227,11 @@ export interface DeleteInstrumentResult {
  *
  * ## Only the parent row is deleted, deliberately
  *
- * Eight tables carry `ON DELETE CASCADE` to `instrument`
+ * Nine tables carry `ON DELETE CASCADE` to `instrument`
  * (`instrument_price_daily`, `manual_price_point`, `instrument_price_gap`,
  * `instrument_provider_map`, `instrument_quote_latest`,
- * `instrument_backfill_state`, `instrument_icon`, `watchlist_item`), and three
- * of those FORCE row-level security. **Do not "tidy up" the children first.**
+ * `instrument_backfill_state`, `instrument_icon`, `watchlist_item`,
+ * `instrument_exposure_weight`), and three of those FORCE row-level security. **Do not "tidy up" the children first.**
  * Measured against the live schema 2026-09-18, in a rolled-back transaction: a
  * direct `DELETE FROM manual_price_point` as `app_owner` reports `DELETE 0`
  * (the policy is `TO app_web`, so the owner matches no policy and FORCE denies

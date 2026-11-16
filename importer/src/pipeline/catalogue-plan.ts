@@ -1,4 +1,4 @@
-import { isValidIsinCheckDigit } from "@kerdial/api-contracts";
+import { EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND, isValidIsinCheckDigit } from "@kerdial/api-contracts";
 import type { Decimal } from "@kerdial/core-decimal";
 import type { InstrumentIconContentType } from "@kerdial/core-reference-data";
 import {
@@ -257,6 +257,13 @@ interface InstrumentFieldChanges {
   /** Fill-once: only ever present when the destination's own value is absent (`setInstrumentFigi` refuses an overwrite, by design). */
   readonly figi?: string;
   readonly sectorCode?: NonNullable<InstrumentRecord["sectorCode"]>;
+  /**
+   * EW-L18, FR-747: a file's single `sectorCode` on an existing instrument of a
+   * kind whose sector is a weight set (ETF, FUND) — written as that sector at
+   * 100 % through the one weights writer, never into `sector_code`. Never
+   * present together with {@link sectorCode}.
+   */
+  readonly sectorAsWeight?: NonNullable<InstrumentRecord["sectorCode"]>;
   readonly industryLabel?: string;
   readonly domicileCountry?: string;
   /** SCPI only; written by `updateInstrumentScpiAttributes`. Never cleared: an absent key is no statement. */
@@ -1102,8 +1109,15 @@ function instrumentChanges(
     ...(entry.displayName !== baseline.displayName && { displayName: entry.displayName }),
     ...(entry.status !== baseline.status && { status: entry.status }),
     ...(entry.figi !== undefined && baseline.figi === null && { figi: entry.figi }),
+    // EW-L18: on a kind whose sector is a weight set the column is always NULL
+    // once stored, so a create (whose baseline carries the file's sector, and
+    // whose create path writes it as the 100 % weight) plans nothing here and
+    // an existing row plans the weight write.
     ...(entry.sectorCode !== undefined &&
-      entry.sectorCode !== baseline.sectorCode && { sectorCode: entry.sectorCode }),
+      entry.sectorCode !== baseline.sectorCode &&
+      (EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND[entry.identity.kind].includes("sector")
+        ? { sectorAsWeight: entry.sectorCode }
+        : { sectorCode: entry.sectorCode })),
     ...(entry.industryLabel !== undefined &&
       entry.industryLabel !== baseline.industryLabel && { industryLabel: entry.industryLabel }),
     ...(entry.domicileCountry !== undefined &&
