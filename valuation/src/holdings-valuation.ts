@@ -30,6 +30,7 @@ import {
 // which is why depending on it here costs `valuation` nothing.
 import { micToCountryCode } from "@kerdial/core-reference-data";
 import {
+  listInstrumentExposureWeights,
   listPortfolios,
   loadPositionTimeline,
   type InstrumentKind,
@@ -715,6 +716,12 @@ export interface LoadedHoldingsInputs {
    * `ValuedHolding.currency` still comes from `valuePortfolio`, unchanged.
    */
   readonly listingCurrencyByInstrumentId: ReadonlyMap<string, CurrencyCode>;
+  /**
+   * The hand-entered exposure weights (FR-721), keyed by `instrumentId`, over
+   * the same `instrumentIds` superset; an instrument without weights is absent.
+   * Empty when the load ran without `withExposureWeights` (closed positions).
+   */
+  readonly exposureWeightsByInstrumentId: ReadonlyMap<string, ValuedHolding["exposureWeights"]>;
   /** The as-of cash (`loadCashAsOf`), present iff the load ran `withCash`. */
   readonly cash?: CashAsOf;
   /** Every transaction row this portfolio has dated on or before `asOfDate` (superset of what either provenance lookup below needs — see this function's own header). */
@@ -761,6 +768,13 @@ export async function loadHoldingsInputs(
      * and for the tenant fan-out, which loads the tenant's cash once.
      */
     readonly withCash: boolean;
+    /**
+     * FR-721: load the instruments' exposure weights — **one** statement over
+     * the same `instrumentIds` the instrument read uses, whatever the holding
+     * count, none when there is no instrument. `false` for closed positions,
+     * which classify nothing.
+     */
+    readonly withExposureWeights: boolean;
   },
 ): Promise<LoadedHoldingsInputs> {
   const { tenantId, portfolioId, asOfDate } = params;
@@ -894,6 +908,24 @@ export async function loadHoldingsInputs(
     }
   }
 
+  // FR-721: the weights ride the same transaction as the instrument read, one
+  // statement for the whole id set (the reader issues none for `[]`) — never
+  // one per holding.
+  const exposureWeightsByInstrumentId = new Map<string, ValuedHolding["exposureWeights"]>();
+  if (options.withExposureWeights) {
+    const stored = await listInstrumentExposureWeights(tx, instrumentIds);
+    for (const [instrumentId, sets] of stored) {
+      exposureWeightsByInstrumentId.set(instrumentId, {
+        ...(sets.sectorWeights !== undefined && {
+          sector: sets.sectorWeights.map(({ code, weight }) => ({ key: code, weight })),
+        }),
+        ...(sets.countryWeights !== undefined && {
+          country: sets.countryWeights.map(({ code, weight }) => ({ key: code, weight })),
+        }),
+      });
+    }
+  }
+
   const transactionRows = await tx
     .select({
       id: transaction.id,
@@ -929,6 +961,7 @@ export async function loadHoldingsInputs(
     displayNameByInstrumentId,
     referenceByInstrumentId,
     listingCurrencyByInstrumentId,
+    exposureWeightsByInstrumentId,
   };
 }
 
@@ -958,6 +991,7 @@ function assembleHoldings(
     kindByInstrumentId,
     displayNameByInstrumentId,
     referenceByInstrumentId,
+    exposureWeightsByInstrumentId,
   } = loaded;
 
   const truncated = timeline.filter((event) => event.txn.tradeDate <= asOfDate);
@@ -1103,10 +1137,9 @@ function assembleHoldings(
       // is the honest state — never to a rendered `<img>` for bytes that may
       // not exist.
       hasIcon: referenceByInstrumentId.get(state.instrumentId)?.hasIcon ?? false,
-      // Placeholder: nothing can store a weight yet (FR-724), so every holding
-      // has none. Replaced by the weights loaded with the instrument read
-      // above, once the weights table exists.
-      exposureWeights: {},
+      // FR-721: loaded with the instrument read; an instrument without
+      // weights has none in either dimension.
+      exposureWeights: exposureWeightsByInstrumentId.get(state.instrumentId) ?? {},
       quantity: state.quantity,
       currency: val.currency,
       pmp: { amount: state.pmpUnitBase, currency: baseCurrency, provenance: pmpProvenance },
@@ -1290,7 +1323,10 @@ export async function valueHoldingsAsOf(
   params: ValueHoldingsAsOfParams,
 ): Promise<ValuedPortfolioHoldings> {
   const loaded = await withTenant(db, params.tenantId, (tx) =>
-    loadHoldingsInputs(tx, params, { withCash: params.cash !== "omit" }),
+    loadHoldingsInputs(tx, params, {
+      withCash: params.cash !== "omit",
+      withExposureWeights: true,
+    }),
   );
   return assembleHoldings(loaded, params);
 }

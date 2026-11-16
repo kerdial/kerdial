@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import supertest from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Decimal, parseDecimalString, toDecimalString } from "@kerdial/core-decimal";
+import { createInstrumentByIsin } from "@kerdial/ledger";
 import { createUser } from "@kerdial/platform-auth";
 import { fxRateDaily, instrument, instrumentPriceDaily, tenant } from "@kerdial/platform-db";
 import { cash, seedCashAccountsForPortfolio } from "@kerdial/platform-test-support";
@@ -489,5 +490,258 @@ describe("api — GET /portfolios[/:id]/allocation known answers (MCP-AC-19, MCP
       expect(byToken.status, path).toBe(200);
       expect(byToken.body, path).toEqual(byCookie.body);
     }
+  });
+
+  /*
+   * exposure-weights EW-T13: hand-entered weights, written through the real
+   * route, reach the allocation read. Two tenants of their own, so the
+   * known-answer suite above is untouched:
+   *
+   *   cyd, one portfolio M (deposit 10 000, so no cash):
+   *     ETF-A    1 × 6000 EUR, weights written by PATCH
+   *     SHARE-B  1 × 4000 EUR, domicile FR, sector FINANCE
+   *   dee:
+   *     W  ETF-A alone                                  (AC-627 WEIGHTED)
+   *     K  ETF-X 1 × 6000, created with sector TECHNOLOGIE (EW-L18: stored as
+   *        a 100 % weight), SHARE-S 1 × 4000, sector SANTE  (AC-651)
+   */
+  describe("exposure-weights — weighted allocation end to end (AC-623, AC-645, AC-627, AC-651)", () => {
+    let cyd: SessionCookies;
+    let dee: SessionCookies;
+    let portfolioM: string;
+    let portfolioW: string;
+    let portfolioK: string;
+    const weighted = {
+      etfA: randomUUID(),
+      shareB: randomUUID(),
+      shareS: randomUUID(),
+      etfX: "",
+    };
+
+    function putWeights(instrumentId: string, body: object) {
+      return write("patch", `/api/v1/instruments/${instrumentId}/exposure-weights`, body, cyd);
+    }
+
+    async function addUser(label: string): Promise<SessionCookies> {
+      const tenantId = randomUUID();
+      const email = `${label}-allocation-weights-${randomUUID()}@example.com`;
+      await testApp.ownerDb.insert(tenant).values({ id: tenantId });
+      await createUser(testApp.db, { id: randomUUID(), tenantId, email, password: PASSWORD });
+      return loginAs(server(), email, PASSWORD);
+    }
+
+    async function fundedPortfolio(
+      name: string,
+      session: SessionCookies,
+      deposit: string,
+      lines: readonly [instrumentId: string, unitPrice: string][],
+    ): Promise<string> {
+      const id = await newPortfolio(name, session);
+      await txn(
+        {
+          kind: "DEPOSIT",
+          portfolioId: id,
+          tradeDate: "2026-01-02",
+          amount: deposit,
+          currency: "EUR",
+          cashAccountId: cash(id, "EUR"),
+        },
+        session,
+      );
+      for (const [instrumentId, unitPrice] of lines) {
+        await buy(id, instrumentId, "1", unitPrice, "EUR", session);
+      }
+      return id;
+    }
+
+    beforeAll(async () => {
+      cyd = await addUser("cyd");
+      dee = await addUser("dee");
+
+      const base = {
+        primaryIdentifier: "SYMBOL" as const,
+        quotePolicy: "AUTO" as const,
+        listingCurrency: "EUR",
+        exchangeMic: "XPAR",
+      };
+      await testApp.ownerDb.insert(instrument).values([
+        { ...base, kind: "ETF", id: weighted.etfA, displayName: "Weights ETF-A", symbol: "EWETFA" },
+        {
+          ...base,
+          kind: "SHARE",
+          id: weighted.shareB,
+          displayName: "Weights SHARE-B",
+          symbol: "EWSHRB",
+          sectorCode: "FINANCE",
+          domicileCountry: "FR",
+        },
+        {
+          ...base,
+          kind: "SHARE",
+          id: weighted.shareS,
+          displayName: "Weights SHARE-S",
+          symbol: "EWSHRS",
+          sectorCode: "SANTE",
+          domicileCountry: "FR",
+        },
+      ]);
+      // EW-L18: the creation path turns a single sector on an ETF into a 100 %
+      // sector weight; the row itself keeps no sector.
+      const etfX = await createInstrumentByIsin(testApp.db, {
+        kind: "ETF",
+        isin: "ZZEWT13X0001",
+        exchangeMic: "XPAR",
+        listingCurrency: "EUR",
+        displayName: "Weights ETF-X",
+        sectorCode: "TECHNOLOGIE",
+      });
+      expect(etfX.sectorCode).toBeNull();
+      weighted.etfX = etfX.id;
+
+      const close = { priceDate: PRICE_DATE, sourceKey: "yahoo", quality: "EOD" as const };
+      await testApp.ownerDb.insert(instrumentPriceDaily).values([
+        { ...close, instrumentId: weighted.etfA, closeRaw: new Decimal("6000"), currency: "EUR" },
+        { ...close, instrumentId: weighted.shareB, closeRaw: new Decimal("4000"), currency: "EUR" },
+        { ...close, instrumentId: weighted.etfX, closeRaw: new Decimal("6000"), currency: "EUR" },
+        { ...close, instrumentId: weighted.shareS, closeRaw: new Decimal("4000"), currency: "EUR" },
+      ]);
+
+      const written = await putWeights(weighted.etfA, {
+        countryWeights: [
+          { code: "US", weight: "60.00" },
+          { code: "JP", weight: "25.00" },
+          { code: "GB", weight: "10.00" },
+        ],
+        sectorWeights: [
+          { code: "TECHNOLOGIE", weight: "30.00" },
+          { code: "FINANCE", weight: "20.00" },
+        ],
+      });
+      expect(written.status, JSON.stringify(written.body)).toBe(200);
+
+      portfolioM = await fundedPortfolio("Weights M", cyd, "10000", [
+        [weighted.etfA, "6000"],
+        [weighted.shareB, "4000"],
+      ]);
+      portfolioW = await fundedPortfolio("Weights W", dee, "6000", [[weighted.etfA, "6000"]]);
+      portfolioK = await fundedPortfolio("Weights K", dee, "10000", [
+        [weighted.etfX, "6000"],
+        [weighted.shareS, "4000"],
+      ]);
+    }, 180_000);
+
+    it("AC-623 through HTTP, then AC-645: after a second write the very next holdings and allocation reads show the new buckets", async () => {
+      const holdings = await get("/api/v1/portfolios/holdings", cyd);
+      expect(holdings.status).toBe(200);
+      expect(holdings.body.totalValue.amount).toBe("10000");
+      const lines = holdings.body.holdings as Record<string, unknown>[];
+      const etfA = lines.find((h) => h["instrumentId"] === weighted.etfA);
+      const shareB = lines.find((h) => h["instrumentId"] === weighted.shareB);
+      expect(etfA?.["countryWeights"]).toEqual([
+        { code: "US", weight: "60.00" },
+        { code: "JP", weight: "25.00" },
+        { code: "GB", weight: "10.00" },
+      ]);
+      expect(etfA?.["sectorWeights"]).toEqual([
+        { code: "TECHNOLOGIE", weight: "30.00" },
+        { code: "FINANCE", weight: "20.00" },
+      ]);
+      expect(Object.hasOwn(shareB ?? {}, "countryWeights")).toBe(false);
+      expect(Object.hasOwn(shareB ?? {}, "sectorWeights")).toBe(false);
+
+      const country = await allocation("/api/v1/portfolios/allocation", "country", cyd);
+      expect(country.total).toBe(holdings.body.totalValue.amount);
+      expect(country.basis).toBe("MIXED");
+      expect(country.buckets).toEqual([
+        { key: "FR", label: "FR", value: "4000", sharePercent: "40.00", holdingCount: 1 },
+        { key: "US", label: "US", value: "3600", sharePercent: "36.00", holdingCount: 1 },
+        { key: "JP", label: "JP", value: "1500", sharePercent: "15.00", holdingCount: 1 },
+        { key: "GB", label: "GB", value: "600", sharePercent: "6.00", holdingCount: 1 },
+        {
+          key: "UNCLASSIFIED",
+          label: "Unclassified",
+          value: "300",
+          sharePercent: "3.00",
+          holdingCount: 1,
+        },
+      ]);
+      const sector = await allocation("/api/v1/portfolios/allocation", "sector", cyd);
+      expect(sector.total).toBe(holdings.body.totalValue.amount);
+      expect(sector.buckets).toEqual([
+        { key: "FINANCE", label: "FINANCE", value: "5200", sharePercent: "52.00", holdingCount: 2 },
+        {
+          key: "TECHNOLOGIE",
+          label: "TECHNOLOGIE",
+          value: "1800",
+          sharePercent: "18.00",
+          holdingCount: 1,
+        },
+        {
+          key: "UNCLASSIFIED",
+          label: "Unclassified",
+          value: "3000",
+          sharePercent: "30.00",
+          holdingCount: 1,
+        },
+      ]);
+
+      // AC-645 (server half): a weight edit moves no calc_epoch, so nothing
+      // keyed on it may answer the next read.
+      const rewritten = await putWeights(weighted.etfA, {
+        countryWeights: [
+          { code: "DE", weight: "70" },
+          { code: "US", weight: "30" },
+        ],
+      });
+      expect(rewritten.status, JSON.stringify(rewritten.body)).toBe(200);
+
+      const expectedAfter = [
+        { key: "DE", label: "DE", value: "4200", sharePercent: "42.00", holdingCount: 1 },
+        { key: "FR", label: "FR", value: "4000", sharePercent: "40.00", holdingCount: 1 },
+        { key: "US", label: "US", value: "1800", sharePercent: "18.00", holdingCount: 1 },
+      ];
+      for (const path of [
+        "/api/v1/portfolios/allocation",
+        `/api/v1/portfolios/${portfolioM}/allocation`,
+      ]) {
+        const after = await allocation(path, "country", cyd);
+        expect(after.buckets, path).toEqual(expectedAfter);
+      }
+      const holdingsAfter = await get(`/api/v1/portfolios/${portfolioM}/holdings`, cyd);
+      expect(
+        (holdingsAfter.body.holdings as Record<string, unknown>[]).find(
+          (h) => h["instrumentId"] === weighted.etfA,
+        )?.["countryWeights"],
+      ).toEqual([
+        { code: "DE", weight: "70.00" },
+        { code: "US", weight: "30.00" },
+      ]);
+    });
+
+    it("AC-627: a portfolio placed only by weights reports WEIGHTED; AC-651: an ETF created with one sector counts in it at 100 %, no Unclassified", async () => {
+      const onlyWeighted = await allocation(
+        `/api/v1/portfolios/${portfolioW}/allocation`,
+        "country",
+        dee,
+      );
+      expect(onlyWeighted.basis).toBe("WEIGHTED");
+
+      const converted = await allocation(
+        `/api/v1/portfolios/${portfolioK}/allocation`,
+        "sector",
+        dee,
+      );
+      expect(converted.total).toBe("10000");
+      expect(converted.buckets).toEqual([
+        {
+          key: "TECHNOLOGIE",
+          label: "TECHNOLOGIE",
+          value: "6000",
+          sharePercent: "60.00",
+          holdingCount: 1,
+        },
+        { key: "SANTE", label: "SANTE", value: "4000", sharePercent: "40.00", holdingCount: 1 },
+      ]);
+    });
   });
 });
