@@ -555,6 +555,19 @@
   font-size: var(--size-body-s);
   color: var(--text-loss);
 }
+/* « Répartition saisie manuellement » (FR-733): one line per bucket inside
+   the definition value, the remainder last. */
+.k-inst-weights-title {
+  margin: 0 0 var(--space-1);
+  font: var(--text-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+.k-inst-weights-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 /* ─────────────────────  detail: the price-point table  ──────────────────── */
 
@@ -792,6 +805,71 @@
 @media (max-width: 640px) {
   .k-inst-form-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The exposure-weights editor (FR-734): one fieldset per dimension, a row
+   per bucket — bucket control, percentage, remove — on one line at desktop
+   width; at phone width the bucket takes the whole line and the percentage and
+   the remove button share the next, so nothing widens the dialog. Every
+   control keeps the 44 px tap target its own component gives it. */
+.k-weights {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.k-weights-title {
+  padding: 0;
+  font: var(--text-body-s);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}
+.k-weights-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.k-weights-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem auto;
+  gap: var(--space-2);
+  /* Top-aligned: an open country list grows the bucket cell downward, and
+     the percentage and remove controls stay level with the bucket field. */
+  align-items: start;
+  min-width: 0;
+}
+.k-weights-bucket,
+.k-weights-percent {
+  min-width: 0;
+}
+/* A label-high spacer above the remove button keeps it level with the two
+   labelled fields beside it. */
+.k-weights-remove {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.k-weights-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.k-weights-total {
+  margin: 0;
+  font-size: var(--size-body-s);
+  color: var(--text-muted);
+}
+@media (max-width: 640px) {
+  .k-weights-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .k-weights-bucket {
+    grid-column: 1 / -1;
   }
 }
 .k-inst-form-actions {

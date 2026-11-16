@@ -1,5 +1,5 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ import type {
   HoldingsResponse,
   InstrumentDetailResponse,
 } from "../lib/api-client.js";
+import { sectorText } from "../components/InstrumentTable.js";
 import { InstrumentDetailView } from "./InstrumentDetailView.js";
 
 /**
@@ -37,6 +38,8 @@ vi.mock("../lib/api-client.js", async () => {
     // exposure-weights AC-640: the classification form's save, now that its
     // domicile field is the country picker.
     updateInstrumentClassification: vi.fn(),
+    // exposure-weights FR-734: the weights half of the same dialog's save.
+    updateInstrumentExposureWeights: vi.fn(),
     fetchCurrencies: vi.fn(),
     // `watchlist` FR-371/W-6: this screen mounts one
     // `GET /watchlist/ids` read, from which each row's `<WatchToggle>` derives
@@ -939,4 +942,305 @@ describe("<InstrumentDetailView> — the domicile picker (AC-640)", () => {
 
     expect(await savedDomicile()).toBe("XK");
   });
+});
+
+/**
+ * exposure-weights FR-734/FR-736 (EW-L18): the weights editor inside the real
+ * classification dialog. The layout comes from the contract's per-kind
+ * eligibility list, so every kind is rendered here, not only the first of a
+ * family.
+ */
+describe("<InstrumentDetailView> — the weights editor (FR-734, AC-633, AC-634)", () => {
+  async function openDialog(detail: InstrumentDetailResponse): Promise<void> {
+    mockedApiClient.fetchInstrument.mockResolvedValue(detail);
+    mockedApiClient.fetchInstrumentHistoryStatus.mockResolvedValue(historyStatus());
+    mockedApiClient.fetchHoldings.mockResolvedValue(holdingsResponse([]));
+    mockedApiClient.updateInstrumentClassification.mockResolvedValue(detail);
+    mockedApiClient.updateInstrumentExposureWeights.mockResolvedValue(detail);
+    renderView();
+    await screen.findByTestId("instrument-detail-name");
+    fireEvent.click(screen.getByTestId("instrument-detail-edit"));
+    await screen.findByTestId("instrument-detail-edit-dialog");
+  }
+
+  function chooseCountry(row: HTMLElement, query: string, name: string): void {
+    const input = within(row).getByRole("combobox");
+    fireEvent.change(input, { target: { value: query } });
+    const option = within(row)
+      .getAllByRole("option")
+      .find((candidate) => candidate.textContent === name);
+    if (option === undefined) throw new Error(`« ${name} » is not offered`);
+    fireEvent.click(option);
+  }
+
+  function typePercent(row: HTMLElement, value: string): void {
+    fireEvent.change(within(row).getByTestId(/-percent$/), { target: { value } });
+  }
+
+  it.each([
+    { kind: "SHARE", sectorSelect: true, industry: true, sectors: false, countries: false },
+    { kind: "CRYPTO", sectorSelect: true, industry: true, sectors: false, countries: false },
+    { kind: "INDEX", sectorSelect: true, industry: true, sectors: false, countries: false },
+    { kind: "ETF", sectorSelect: false, industry: true, sectors: true, countries: true },
+    { kind: "FUND", sectorSelect: false, industry: true, sectors: true, countries: true },
+    { kind: "SCPI", sectorSelect: false, industry: false, sectors: false, countries: true },
+  ])(
+    "$kind: single « Secteur » select $sectorSelect, « Secteur détaillé » $industry, sector weights $sectors, country weights $countries",
+    async ({ kind, sectorSelect, industry, sectors, countries }) => {
+      await openDialog(instrumentDetail({ kind }));
+      const present = (testId: string): boolean => screen.queryByTestId(testId) !== null;
+      expect(present("instrument-classification-sector-select")).toBe(sectorSelect);
+      expect(present("instrument-classification-industry-input")).toBe(industry);
+      expect(present("instrument-weights-sector")).toBe(sectors);
+      expect(present("instrument-weights-country")).toBe(countries);
+      // The domicile stays its own field for every kind (FR-139), and the
+      // shared-catalogue note stays and now covers the weights too (AC-648).
+      expect(present("instrument-classification-domicile-input")).toBe(true);
+      expect(screen.getByTestId("instrument-classification-shared-note")).toHaveTextContent(
+        "Le catalogue d'instruments est partagé",
+      );
+    },
+  );
+
+  it("a country chosen in one row is not offered in another (AC-633)", async () => {
+    await openDialog(
+      instrumentDetail({ kind: "ETF", countryWeights: [{ code: "US", weight: "60.00" }] }),
+    );
+    fireEvent.click(screen.getByTestId("instrument-weights-country-add"));
+    const [, second] = screen.getAllByTestId("instrument-weights-country-row");
+    if (second === undefined) throw new Error("no second row");
+    fireEvent.change(within(second).getByRole("combobox"), { target: { value: "unis" } });
+    const offered = within(second)
+      .getAllByRole("option")
+      .map((option) => option.getAttribute("data-code"));
+    expect(offered).toContain("AE");
+    expect(offered).not.toContain("US");
+  });
+
+  it("live total and remainder; over 100 disables saving and says why (AC-633)", async () => {
+    await openDialog(instrumentDetail({ kind: "FUND" }));
+    const add = screen.getByTestId("instrument-weights-country-add");
+    fireEvent.click(add);
+    fireEvent.click(add);
+    fireEvent.click(add);
+    const rowsOf = () => screen.getAllByTestId("instrument-weights-country-row");
+    chooseCountry(rowsOf()[0]!, "unis", "États-Unis");
+    typePercent(rowsOf()[0]!, "60");
+    chooseCountry(rowsOf()[1]!, "japon", "Japon");
+    typePercent(rowsOf()[1]!, "25");
+    chooseCountry(rowsOf()[2]!, "royaume", "Royaume-Uni");
+    typePercent(rowsOf()[2]!, "10");
+
+    const total = screen.getByTestId("instrument-weights-country-total");
+    expect(total).toHaveTextContent("Total 95.00% · Reste non classé 5.00%");
+    expect(screen.getByTestId("instrument-classification-submit")).toBeEnabled();
+
+    typePercent(rowsOf()[1]!, "30");
+    typePercent(rowsOf()[2]!, "15");
+    expect(total).toHaveTextContent("Total 105.00%");
+    expect(total).not.toHaveTextContent("Reste");
+    expect(within(rowsOf()[2]!).getByRole("alert")).toHaveTextContent("Le total dépasse 100 %.");
+    expect(screen.getByTestId("instrument-classification-submit")).toBeDisabled();
+  });
+
+  it("AC-634: a converted ETF opens with one row TECHNOLOGIE 100,00 and no single select; removing it and saving sends sectorWeights [] first, then a classification PATCH without sectorCode", async () => {
+    await openDialog(
+      instrumentDetail({
+        kind: "ETF",
+        sectorCode: null,
+        sectorWeights: [{ code: "TECHNOLOGIE", weight: "100.00" }],
+      }),
+    );
+    expect(screen.queryByTestId("instrument-classification-sector-select")).toBeNull();
+    const [only] = screen.getAllByTestId("instrument-weights-sector-row");
+    if (only === undefined) throw new Error("no prefilled row");
+    expect(within(only).getByTestId("instrument-weights-sector-sector-select")).toHaveValue(
+      "TECHNOLOGIE",
+    );
+    expect(within(only).getByTestId("instrument-weights-sector-percent")).toHaveValue("100,00");
+
+    fireEvent.click(within(only).getByTestId("instrument-weights-sector-remove"));
+    expect(screen.queryAllByTestId("instrument-weights-sector-row")).toHaveLength(0);
+    // A classification field changes too, so the second write is issued.
+    fireEvent.change(screen.getByTestId("instrument-classification-industry-input"), {
+      target: { value: "Large caps" },
+    });
+    fireEvent.click(screen.getByTestId("instrument-classification-submit"));
+
+    await screen.findByTestId("instrument-detail-classification-saved");
+    expect(mockedApiClient.updateInstrumentExposureWeights).toHaveBeenCalledTimes(1);
+    const weightsBody = mockedApiClient.updateInstrumentExposureWeights.mock.calls[0]?.[0];
+    expect(Object.keys(weightsBody ?? {}).sort()).toEqual(["instrumentId", "sectorWeights"]);
+    expect(weightsBody?.sectorWeights).toEqual([]);
+
+    expect(mockedApiClient.updateInstrumentClassification).toHaveBeenCalledTimes(1);
+    const classificationBody = mockedApiClient.updateInstrumentClassification.mock.calls[0]?.[0];
+    expect(Object.keys(classificationBody ?? {}).sort()).toEqual([
+      "domicileCountry",
+      "industryLabel",
+      "instrumentId",
+    ]);
+    expect(classificationBody?.industryLabel).toBe("Large caps");
+    expect(
+      mockedApiClient.updateInstrumentExposureWeights.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(mockedApiClient.updateInstrumentClassification.mock.invocationCallOrder[0]!);
+  });
+
+  it("an eligible kind with only a weight change issues no classification PATCH", async () => {
+    await openDialog(instrumentDetail({ kind: "SCPI" }));
+    fireEvent.click(screen.getByTestId("instrument-weights-country-add"));
+    const [row] = screen.getAllByTestId("instrument-weights-country-row");
+    chooseCountry(row!, "fran", "France");
+    typePercent(row!, "12,5");
+    fireEvent.click(screen.getByTestId("instrument-classification-submit"));
+
+    await screen.findByTestId("instrument-detail-classification-saved");
+    expect(mockedApiClient.updateInstrumentExposureWeights.mock.calls[0]?.[0]).toEqual({
+      instrumentId: INSTRUMENT_ID,
+      countryWeights: [{ code: "FR", weight: "12.50" }],
+    });
+    expect(mockedApiClient.updateInstrumentClassification).not.toHaveBeenCalled();
+  });
+
+  it("a SHARE still sends today's single three-field classification PATCH", async () => {
+    await openDialog(instrumentDetail({ kind: "SHARE", sectorCode: "SANTE" }));
+    fireEvent.click(screen.getByTestId("instrument-classification-submit"));
+
+    await screen.findByTestId("instrument-detail-classification-saved");
+    expect(mockedApiClient.updateInstrumentExposureWeights).not.toHaveBeenCalled();
+    const body = mockedApiClient.updateInstrumentClassification.mock.calls[0]?.[0];
+    expect(Object.keys(body ?? {}).sort()).toEqual([
+      "domicileCountry",
+      "industryLabel",
+      "instrumentId",
+      "sectorCode",
+    ]);
+    expect(body?.sectorCode).toBe("SANTE");
+  });
+
+  it("the classification write failing after the weights were saved says so", async () => {
+    await openDialog(instrumentDetail({ kind: "ETF" }));
+    mockedApiClient.updateInstrumentClassification.mockRejectedValue(
+      new apiClient.ApiError(404, { code: "INSTRUMENT_NOT_FOUND" }),
+    );
+    fireEvent.click(screen.getByTestId("instrument-weights-sector-add"));
+    const [row] = screen.getAllByTestId("instrument-weights-sector-row");
+    fireEvent.change(within(row!).getByTestId("instrument-weights-sector-sector-select"), {
+      target: { value: "SANTE" },
+    });
+    typePercent(row!, "40");
+    fireEvent.change(screen.getByTestId("instrument-classification-industry-input"), {
+      target: { value: "Santé mondiale" },
+    });
+    fireEvent.click(screen.getByTestId("instrument-classification-submit"));
+
+    expect(await screen.findByTestId("instrument-classification-partial-error")).toHaveTextContent(
+      "Les pondérations ont été enregistrées, mais pas la classification",
+    );
+    expect(mockedApiClient.updateInstrumentExposureWeights).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("instrument-detail-classification-saved")).toBeNull();
+  });
+});
+
+/**
+ * exposure-weights FR-733/FR-746/FR-747(f): the detail's « Répartition saisie
+ * manuellement » block and its « Secteur » row.
+ */
+describe("<InstrumentDetailView> — the hand-entered weights (AC-631, AC-632, FR-746)", () => {
+  async function renderDetail(detail: InstrumentDetailResponse): Promise<void> {
+    mockedApiClient.fetchInstrument.mockResolvedValue(detail);
+    mockedApiClient.fetchInstrumentHistoryStatus.mockResolvedValue(historyStatus());
+    mockedApiClient.fetchHoldings.mockResolvedValue(holdingsResponse([]));
+    renderView();
+    await screen.findByTestId("instrument-detail-name");
+  }
+
+  it("AC-632: AC-617's ETF lists its three countries, then « Non classé 5.00% »", async () => {
+    await renderDetail(
+      instrumentDetail({
+        kind: "ETF",
+        countryWeights: [
+          { code: "US", weight: "60.00" },
+          { code: "JP", weight: "25.00" },
+          { code: "GB", weight: "10.00" },
+        ],
+      }),
+    );
+    expect(screen.getByTestId("instrument-detail-weights")).toHaveTextContent(
+      "Répartition saisie manuellement",
+    );
+    expect(
+      screen
+        .getAllByTestId("instrument-detail-weights-country-line")
+        .map((line) => line.textContent),
+    ).toEqual(["États-Unis 60.00%", "Japon 25.00%", "Royaume-Uni 10.00%"]);
+    expect(screen.getByTestId("instrument-detail-weights-country-remainder")).toHaveTextContent(
+      "Non classé 5.00%",
+    );
+    expect(screen.queryByTestId("instrument-detail-weights-sector")).toBeNull();
+  });
+
+  it("a set summing to exactly 100 shows no remainder line", async () => {
+    await renderDetail(
+      instrumentDetail({
+        kind: "FUND",
+        sectorWeights: [
+          { code: "TECHNOLOGIE", weight: "70.00" },
+          { code: "SANTE", weight: "30.00" },
+        ],
+      }),
+    );
+    expect(
+      screen
+        .getAllByTestId("instrument-detail-weights-sector-line")
+        .map((line) => line.textContent),
+    ).toEqual(["Technologie et communication 70.00%", "Santé 30.00%"]);
+    expect(screen.queryByTestId("instrument-detail-weights-sector-remainder")).toBeNull();
+  });
+
+  it("AC-631: an ETF with no weights has no block and promises nothing", async () => {
+    await renderDetail(instrumentDetail({ kind: "ETF" }));
+    expect(screen.queryByTestId("instrument-detail-weights")).toBeNull();
+    expect(document.body).not.toHaveTextContent(/bientôt/i);
+    expect(screen.getByTestId("instrument-detail-sector")).toHaveTextContent("Non classé");
+  });
+
+  it.each([
+    {
+      name: "two buckets",
+      weights: [
+        { code: "TECHNOLOGIE", weight: "60.00" },
+        { code: "SANTE", weight: "40.00" },
+      ],
+      expected: "Pondéré · 2 secteurs",
+    },
+    {
+      name: "one bucket below 100",
+      weights: [{ code: "SANTE", weight: "60.00" }],
+      expected: "Pondéré · 1 secteur",
+    },
+    {
+      name: "one bucket at 100 (EW-L18)",
+      weights: [{ code: "TECHNOLOGIE", weight: "100.00" }],
+      expected: "Technologie et communication",
+    },
+  ])(
+    "FR-746: the « Secteur » row and the table cell are one renderer — $name",
+    async ({ weights, expected }) => {
+      const detail = instrumentDetail({ kind: "ETF", sectorWeights: weights });
+      await renderDetail(detail);
+      const row = screen.getByTestId("instrument-detail-sector");
+      expect(row).toHaveTextContent(expected);
+      expect(row.textContent).toBe(
+        sectorText({
+          instrumentId: detail.id,
+          heldState: "held",
+          detail,
+          detailError: undefined,
+          historyStatus: undefined,
+          historyStatusError: undefined,
+        }),
+      );
+    },
+  );
 });

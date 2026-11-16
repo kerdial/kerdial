@@ -162,6 +162,8 @@ export default defineConfig({
         // exposure-weights GATE-3: the country picker at 390 px (AC-639) and
         // its keyboard/ARIA/hit-test claims on the touch device.
         "**/country-picker.spec.ts",
+        // exposure-weights FR-734: the weights editor's rows at 390 px.
+        "**/instrument-weights.spec.ts",
       ],
     },
   ],

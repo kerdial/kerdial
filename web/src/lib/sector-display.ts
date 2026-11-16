@@ -1,4 +1,7 @@
+import { parseDecimalString } from "@kerdial/core-decimal";
 import { sectorLabel } from "@kerdial/core-reference-data";
+import { fill } from "./copy/fill.js";
+import { INSTRUMENT_COPY } from "./copy/instruments.js";
 
 /**
  * The one place `web` turns an `instrument.sector_code` into text
@@ -53,4 +56,46 @@ export const SECTOR_UNCLASSIFIED_LABEL = "Non classé";
 export function sectorDisplayLabel(code: string | null | undefined): string {
   if (code === null || code === undefined || code === "") return SECTOR_UNCLASSIFIED_LABEL;
   return sectorLabel(code) ?? code;
+}
+
+/** The fields of an instrument its sector text is read from — the detail response carries both. */
+interface SectorSource {
+  readonly sectorCode: string | null;
+  readonly sectorWeights?: readonly { readonly code: string; readonly weight: string }[];
+}
+
+/**
+ * An instrument's sector as one line of text — the **one** renderer the
+ * instruments table cell, the card list and the detail « Secteur » row share
+ * (FR-733, FR-746), so the three can never disagree for one instrument.
+ *
+ * - **No sector weights**: exactly {@link sectorDisplayLabel} of the stored
+ *   `sectorCode` (« Non classé » when absent, and while the instrument has
+ *   not loaded).
+ * - **One bucket at 100.00** (FR-747(f), EW-L18 — a single sector *is* a 100 %
+ *   weight): that sector's label, exactly as a single sector reads.
+ * - **Any other non-empty set**: « Pondéré · N secteurs » (EW-L15), the count
+ *   being the number of stored buckets; « Pondéré · 1 secteur » for one bucket
+ *   below 100. Never « Non classé »: the instrument is classified, by hand.
+ *
+ * The 100 is compared as a `Decimal`, never a JS number.
+ */
+export function instrumentSectorText(instrument: SectorSource | undefined): string {
+  const weights = instrument?.sectorWeights ?? [];
+  if (weights.length === 0) return sectorDisplayLabel(instrument?.sectorCode);
+  const [only] = weights;
+  if (weights.length === 1 && only !== undefined && isWholeWeight(only.weight)) {
+    return sectorDisplayLabel(only.code);
+  }
+  return weights.length === 1
+    ? INSTRUMENT_COPY.weightedSectorsOne
+    : fill(INSTRUMENT_COPY.weightedSectorsMany, { count: String(weights.length) });
+}
+
+function isWholeWeight(weight: string): boolean {
+  try {
+    return parseDecimalString(weight).equals(100);
+  } catch {
+    return false;
+  }
 }

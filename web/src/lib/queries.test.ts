@@ -18,11 +18,13 @@ import {
   portfolioPerformanceQueryOptions,
   portfolioValueSeriesQueryOptions,
   postManualPricePointMutationOptions,
+  holdingsQueryOptions,
   quickSearchInstrumentsQueryOptions,
   transactionQueryOptions,
   transactionsInstrumentScanQueryOptions,
   transactionsListQueryOptions,
   updateInstrumentClassificationMutationOptions,
+  updateInstrumentExposureWeightsMutationOptions,
   RECENT_TRANSACTIONS_COUNT,
   recentTransactionsQueryOptions,
   type TransactionScanResult,
@@ -914,6 +916,29 @@ describe("updateInstrumentClassificationMutationOptions — FR-738", () => {
     );
 
     expect(queryClient.getQueryState(catalogueKey)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("updateInstrumentExposureWeightsMutationOptions — AC-645 (client half)", () => {
+  it("onSuccess marks the cached holdings (the strip's source) and a catalogue page stale, and leaves the search alone", async () => {
+    const queryClient = new QueryClient();
+    const holdingsKey = holdingsQueryOptions().queryKey;
+    const catalogueKey = instrumentCatalogueQueryOptions({ query: "monde" }).queryKey;
+    const searchKey = ["instruments", "search", "monde"] as const;
+    queryClient.setQueryData(holdingsKey, { holdings: [] } as never);
+    queryClient.setQueryData(catalogueKey, { items: [], nextCursor: null });
+    queryClient.setQueryData(searchKey, []);
+
+    await updateInstrumentExposureWeightsMutationOptions(queryClient).onSuccess?.(
+      {} as never,
+      { instrumentId: "inst-1", countryWeights: [{ code: "US", weight: "60.00" }] },
+      undefined,
+      { client: queryClient } as never,
+    );
+
+    expect(queryClient.getQueryState(holdingsKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(catalogueKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(searchKey)?.isInvalidated).toBe(false);
   });
 });
 

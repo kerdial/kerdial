@@ -15,6 +15,7 @@ import {
   deleteInstrument,
   deleteInstrumentIcon,
   updateInstrumentClassification,
+  updateInstrumentExposureWeights,
   updateInstrumentIdentity,
   updateInstrumentScpiAttributes,
   type HistoryReloadAcceptedResponse,
@@ -25,6 +26,7 @@ import {
   type PostManualPricePointInput,
   type PriceHistoryPointResponse,
   type UpdateInstrumentClassificationInput,
+  type UpdateInstrumentExposureWeightsInput,
   type UpdateInstrumentIdentityInput,
   type UpdateInstrumentScpiAttributesInput,
 } from "../api-client.js";
@@ -454,6 +456,58 @@ export function updateInstrumentClassificationMutationOptions(
     onSuccess: async (_data, variables) => {
       await Promise.all(
         instrumentClassificationInvalidationKeys(variables.instrumentId).map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
+  };
+}
+
+/**
+ * The three query keys a weight-set write invalidates (exposure-weights,
+ * FR-731, AC-645):
+ *
+ *  1. `["instruments", instrumentId]` — the detail view (its « Répartition
+ *     saisie manuellement » block and « Secteur » row) and every
+ *     instruments-list row built from it.
+ *  2. `["instruments", "catalogue"]` — catalogue-mode pages: `GET
+ *     /instruments` carries the sets on each `InstrumentResponse`.
+ *  3. `["portfolios", "holdings"]` — `HoldingResponse` carries the sets, and
+ *     the Aperçu exposure strip is computed from it: without this key the
+ *     strip would keep the old buckets until a reload.
+ *
+ * Deliberately **not** `["instruments", "search"]` (`InstrumentSummary`
+ * carries no weights) nor the watchlist (its payload is unchanged by this
+ * feature), and **not** `invalidatePortfolioDerivedFigures`: a weight moves no
+ * value and no `calc_epoch` — the reasoning
+ * {@link instrumentClassificationInvalidationKeys} records.
+ */
+export function instrumentExposureWeightsInvalidationKeys(
+  instrumentId: string,
+): readonly (readonly string[])[] {
+  return [
+    ["instruments", instrumentId],
+    ["instruments", "catalogue"],
+    ["portfolios", "holdings"],
+  ];
+}
+
+/**
+ * The weights half of `InstrumentClassificationForm.tsx`'s submit
+ * (exposure-weights, FR-734). Same shape as
+ * {@link updateInstrumentClassificationMutationOptions}: `networkMode:
+ * "always"` and an `onSuccess` that invalidates
+ * {@link instrumentExposureWeightsInvalidationKeys}.
+ */
+export function updateInstrumentExposureWeightsMutationOptions(
+  queryClient: QueryClient,
+): UseMutationOptions<InstrumentDetailResponse, unknown, UpdateInstrumentExposureWeightsInput> {
+  return {
+    mutationFn: updateInstrumentExposureWeights,
+    networkMode: "always",
+    onSuccess: async (_data, variables) => {
+      await Promise.all(
+        instrumentExposureWeightsInvalidationKeys(variables.instrumentId).map((queryKey) =>
           queryClient.invalidateQueries({ queryKey }),
         ),
       );

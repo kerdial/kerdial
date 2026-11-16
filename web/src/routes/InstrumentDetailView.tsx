@@ -32,9 +32,15 @@ import { PanelLoading } from "../components/PanelLoading.js";
 import { ValuationErrorState } from "../components/ValuationErrorState.js";
 import { EMPTY_STATE_COPY } from "../lib/empty-states.js";
 import { assetClassLabel } from "../lib/asset-class.js";
-import { SECTOR_UNCLASSIFIED_LABEL, sectorDisplayLabel } from "../lib/sector-display.js";
+import {
+  SECTOR_UNCLASSIFIED_LABEL,
+  instrumentSectorText,
+  sectorDisplayLabel,
+} from "../lib/sector-display.js";
 import { COUNTRY_UNKNOWN_LABEL, countryDisplayLabel } from "../lib/country-display.js";
 import { formatAmount } from "../lib/figure-format.js";
+import { formatUnitsAsPercentage } from "../lib/allocation.js";
+import type { InstrumentDetailResponse } from "../lib/api-client.js";
 import {
   holdingsQueryOptions,
   instrumentByIdQueryOptions,
@@ -219,6 +225,92 @@ function DefinitionRow({ label, testId, children, mono = false, term }: Definiti
         {children}
       </dd>
     </div>
+  );
+}
+
+/**
+ * One dimension of « Répartition saisie manuellement » (FR-733, AC-632): a
+ * line per stored bucket, in the response's order (weight descending), then
+ * « Non classé x.xx% » when the weights sum below 100 — and no such line at
+ * exactly 100. Percentages go through `formatUnitsAsPercentage` (the weight ×
+ * 100 is its 0.01 % units), never a JS number.
+ */
+function ManualWeightsList({
+  label,
+  testId,
+  weights,
+  labelOf,
+}: {
+  readonly label: string;
+  readonly testId: string;
+  readonly weights: readonly { readonly code: string; readonly weight: string }[];
+  readonly labelOf: (code: string) => string;
+}) {
+  let sum = parseDecimalString("0");
+  const lines: { key: string; text: string }[] = [];
+  for (const item of weights) {
+    let value;
+    try {
+      value = parseDecimalString(item.weight);
+    } catch {
+      continue;
+    }
+    sum = sum.plus(value);
+    lines.push({
+      key: item.code,
+      text: `${labelOf(item.code)} ${formatUnitsAsPercentage(value.times(100))}`,
+    });
+  }
+  const remainder = parseDecimalString("100").minus(sum);
+  return (
+    <DefinitionRow label={label} testId={testId}>
+      <ul className="k-inst-weights-lines">
+        {lines.map((line) => (
+          <li key={line.key} data-testid={`${testId}-line`}>
+            {line.text}
+          </li>
+        ))}
+        {remainder.greaterThan(0) && (
+          <li data-testid={`${testId}-remainder`}>
+            {`${SECTOR_UNCLASSIFIED_LABEL} ${formatUnitsAsPercentage(remainder.times(100))}`}
+          </li>
+        )}
+      </ul>
+    </DefinitionRow>
+  );
+}
+
+/**
+ * The hand-entered weight sets (FR-733), after the identity rows — only when a
+ * set exists: no block, no placeholder and no « bientôt » for an instrument
+ * without one (AC-631).
+ */
+function ManualWeightsBlock({ detail }: { readonly detail: InstrumentDetailResponse }) {
+  const sectors = detail.sectorWeights ?? [];
+  const countries = detail.countryWeights ?? [];
+  if (sectors.length === 0 && countries.length === 0) return null;
+  return (
+    <section data-testid="instrument-detail-weights" className="k-inst-weights mt-3">
+      <h3 className="k-inst-weights-title">{INSTRUMENT_COPY.manualWeightsTitle}</h3>
+      <dl className="k-inst-defs">
+        {sectors.length > 0 && (
+          <ManualWeightsList
+            label={INSTRUMENT_COPY.manualWeightsSectors}
+            testId="instrument-detail-weights-sector"
+            weights={sectors}
+            labelOf={sectorDisplayLabel}
+          />
+        )}
+        {countries.length > 0 && (
+          <ManualWeightsList
+            label={INSTRUMENT_COPY.manualWeightsCountries}
+            testId="instrument-detail-weights-country"
+            weights={countries}
+            labelOf={countryDisplayLabel}
+          />
+        )}
+      </dl>
+    </section>
   );
 }
 
@@ -612,7 +704,7 @@ export function InstrumentDetailView({ instrumentId, onDeleted }: InstrumentDeta
                         label={INSTRUMENT_COPY.sector}
                         testId="instrument-detail-sector"
                       >
-                        {sectorDisplayLabel(detail.sectorCode)}
+                        {instrumentSectorText(detail)}
                       </DefinitionRow>
                       <DefinitionRow
                         label={INSTRUMENT_COPY.industry}
@@ -635,6 +727,7 @@ export function InstrumentDetailView({ instrumentId, onDeleted }: InstrumentDeta
                     {countryDisplayLabel(detail.domicileCountry)}
                   </DefinitionRow>
                 </dl>
+                <ManualWeightsBlock detail={detail} />
                 {/* IK-13: the icon's own two notices. The
                     « Icône de l'instrument » sub-header and its « Gérer
                     l'icône » button that used to carry them are gone —
