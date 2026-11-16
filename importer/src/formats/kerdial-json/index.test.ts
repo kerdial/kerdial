@@ -177,6 +177,32 @@ describe("kerdialCatalogueImporter.parse", () => {
     expect(result.draft.instruments[0]).toStrictEqual(parse(document).draft.instruments[0]);
   });
 
+  it("refuses an entry carrying a key this build does not know, alone, and reads the rest of the document (AC-644)", () => {
+    // The probe AC-644 asks for, asserting what the reader does rather than
+    // what its schema suggests: an instrument entry is a strict object, so an
+    // unknown key refuses that entry (its manual prices, icon and watchlist
+    // with it) while the envelope and every other entry still read.
+    const document = validDocument();
+    const carrying = {
+      ...document.instruments[0]!,
+      countryWeights: [{ code: "US", weight: "60.00" }],
+    };
+
+    const result = kerdialCatalogueImporter.validate(
+      parse({ ...document, instruments: [carrying, document.instruments[1]] }),
+    );
+
+    expect(result.problems).toStrictEqual([
+      {
+        at: { section: "instruments", index: 0 },
+        problem: { code: "MALFORMED_VALUE", message: 'Unrecognized key: "countryWeights"' },
+      },
+    ]);
+    expect(result.entryCount).toBe(4);
+    expect(result.draft.instruments.map((entry) => entry.at.index)).toStrictEqual([1]);
+    expect(result.draft.instruments[0]!.displayName).toBe("Bitcoin");
+  });
+
   it("separates a missing key from a malformed one", () => {
     const document = validDocument();
     const { displayName: _dropped, ...withoutName } = document.instruments[0]!;

@@ -89,6 +89,8 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
   const tenantArchive = "00000000-0000-7000-8000-0000e1200011";
   /** `scpi` AC-510: SCPI create, re-import, attribute merge and the listed-ISIN conflict. */
   const tenantScpi = "00000000-0000-7000-8000-0000e1200012";
+  /** AC-644: a document whose first instrument entry carries a key this build does not know. */
+  const tenantUnknownKey = "00000000-0000-7000-8000-0000e1200013";
 
   beforeAll(async () => {
     pg = await startMigratedPostgres();
@@ -112,6 +114,7 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
           tenantWarnings,
           tenantArchive,
           tenantScpi,
+          tenantUnknownKey,
         ].map((id) => ({ id })),
       );
   }, 120_000);
@@ -1387,6 +1390,106 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
       },
     ]);
     expect(plan.applyOrder).toEqual([]);
+  });
+
+  // The draft comes from the real parser: what an unknown key does is the
+  // reader's strict entry schema, and this probe records the end state it
+  // leaves through plan and apply (AC-644).
+  it("writes nothing for an entry carrying an unknown key, its nested rows included, and imports the next entry", async () => {
+    const document = {
+      schemaVersion: KERDIAL_CATALOGUE_SCHEMA_VERSION,
+      generator: KERDIAL_CATALOGUE_GENERATOR,
+      exportedAt: "2026-09-24T18:03:11Z",
+      baseCurrency: "EUR",
+      iconsIncluded: true,
+      instruments: [
+        {
+          identity: { kind: "ETF", isin: "EI20UNKN0001", exchangeMic: "XPAR" },
+          private: false,
+          listingCurrency: "EUR",
+          displayName: "Un fonds indiciel",
+          primaryIdentifier: "ISIN",
+          quotePolicy: "AUTO",
+          status: "ACTIVE",
+          icon: { contentType: "image/png", source: "MANUAL", base64: PNG_BASE64 },
+          manualPrices: [{ priceDate: "2026-03-31", close: "98.10", currency: "EUR" }],
+          watchlist: { targetPrice: "110", note: "à surveiller" },
+          countryWeights: [{ code: "US", weight: "60.00" }],
+        },
+        {
+          identity: { kind: "CRYPTO", symbol: "EI20UNKN" },
+          private: false,
+          listingCurrency: "EUR",
+          displayName: "Une autre crypto",
+          primaryIdentifier: "SYMBOL",
+          quotePolicy: "AUTO",
+          status: "ACTIVE",
+          manualPrices: [],
+        },
+      ],
+      portfolios: [],
+      fxRatesUser: [],
+    };
+    const parsed = kerdialCatalogueImporter.validate(
+      kerdialCatalogueImporter.parse({
+        bytes: new TextEncoder().encode(JSON.stringify(document)),
+        fileType: KERDIAL_CATALOGUE_FILE_TYPE,
+        limits: KERDIAL_JSON_LIMITS,
+      }),
+    );
+
+    const plan = await planCatalogue({
+      db,
+      tenantId: tenantUnknownKey,
+      draft: parsed.draft,
+      problems: parsed.problems,
+      icons,
+    });
+    const result = await applyCatalogue({
+      db,
+      tenantId: tenantUnknownKey,
+      plan,
+      deadlineAt: new Date("2026-09-24T18:00:30Z"),
+      clock: fixedClock("2026-09-24T18:00:00Z"),
+      chunkEntities: 200,
+    });
+
+    expect(
+      result.outcomes.map((outcome) => ({ index: outcome.at.index, outcome: outcome.outcome })),
+    ).toEqual([
+      { index: 0, outcome: "REJECT" },
+      { index: 1, outcome: "IMPORT" },
+    ]);
+    expect(result.outcomes[0]).toMatchObject({
+      reason: "MALFORMED_VALUE",
+      message: 'Unrecognized key: "countryWeights"',
+    });
+    expect(result.summary).toMatchObject({ imported: 1, rejected: 1 });
+
+    expect(
+      await ownerDb.select().from(instrument).where(eq(instrument.isin, "EI20UNKN0001")),
+    ).toHaveLength(0);
+    expect(
+      await ownerDb.select().from(instrument).where(eq(instrument.symbol, "EI20UNKN")),
+    ).toHaveLength(1);
+    expect(
+      await ownerDb
+        .select()
+        .from(manualPricePoint)
+        .where(eq(manualPricePoint.tenantId, tenantUnknownKey)),
+    ).toHaveLength(0);
+    expect(
+      await ownerDb
+        .select()
+        .from(instrumentIcon)
+        .where(eq(instrumentIcon.tenantId, tenantUnknownKey)),
+    ).toHaveLength(0);
+    expect(
+      await ownerDb
+        .select()
+        .from(watchlistItem)
+        .where(eq(watchlistItem.tenantId, tenantUnknownKey)),
+    ).toHaveLength(0);
   });
 
   // A bad ISO 6166 check digit imports, with one warning that no
