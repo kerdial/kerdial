@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import { computeAllocation } from "../lib/allocation.js";
 import { allocationInputOf, exposureHoldingsOf } from "../lib/cash-position.js";
 import {
+  CASH,
+  UNCLASSIFIED,
   computeExposureBreakdown,
-  countryClassifier,
-  sectorClassifier,
+  countryDimension,
+  sectorDimension,
 } from "../lib/exposure-breakdown.js";
 import type { HoldingResponse, HoldingsResponse } from "../lib/api-client.js";
 import { ExposureStrip } from "./ExposureStrip.js";
@@ -15,9 +17,10 @@ import { ExposureStrip } from "./ExposureStrip.js";
  * `ExposureStrip` — three stacked bars, Type · Pays · Secteur, shown at
  * once. What is pinned: no control to switch dimensions, every segment's width
  * is the apportioned share and its text is `percentageText` verbatim, « Non
- * classé » is the grey token on both classified dimensions, the country basis
- * is stated under its bar only, and the two `computeAllocation` guards
- * suppress the whole card with one note.
+ * classé » is the grey token on both classified dimensions, « Liquidités » is
+ * its own bucket in the cash token there, the country basis is stated under
+ * its bar only, hand-entered weights carry their note, and the two
+ * `computeAllocation` guards suppress the whole card with one note.
  */
 
 function valued(amount: string, currency = "EUR") {
@@ -68,12 +71,12 @@ function renderStrip(data: HoldingsResponse) {
       sectorBreakdown={computeExposureBreakdown(
         allocation,
         exposureHoldingsOf(data.holdings),
-        sectorClassifier,
+        sectorDimension,
       )}
       countryBreakdown={computeExposureBreakdown(
         allocation,
         exposureHoldingsOf(data.holdings),
-        countryClassifier,
+        countryDimension,
       )}
     />,
   );
@@ -181,10 +184,14 @@ describe("<ExposureStrip> — the « Liquidités » type-bar segment", () => {
     expect(segments[1]!.style.background).toBe("var(--class-cash)");
     expect(screen.getByTestId("exposure-strip-subtotals")).toHaveTextContent("Liquidités");
     expect(screen.getByTestId("exposure-strip-percentage-CASH")).toHaveTextContent("40.00%");
-    // C-13: on the classified dimensions the cash is « Non classé », so they still sum to 100 %.
+    // FR-745: on the classified dimensions the cash is its own « Liquidités »
+    // bucket, not « Non classé », so they still sum to 100 %.
     expect(
-      screen.getByTestId("exposure-strip-bucket-percentage-country-__NON_CLASSE__"),
+      screen.getByTestId(`exposure-strip-bucket-percentage-country-${CASH}`),
     ).toHaveTextContent("40.00%");
+    expect(
+      screen.queryByTestId(`exposure-strip-bucket-percentage-country-${UNCLASSIFIED}`),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("exposure-strip-bucket-percentage-country-FR")).toHaveTextContent(
       "60.00%",
     );
@@ -204,5 +211,181 @@ describe("<ExposureStrip> — the « Liquidités » type-bar segment", () => {
     renderStrip(TWO);
     expect(screen.queryByTestId("exposure-strip-percentage-CASH")).not.toBeInTheDocument();
     expect(screen.getByTestId("exposure-strip-subtotals")).not.toHaveTextContent("Liquidités");
+  });
+});
+
+function withCashBlock(data: HoldingsResponse, totalBase: string): HoldingsResponse {
+  return {
+    ...data,
+    cash: {
+      totalBase,
+      currency: "EUR",
+      isNegative: totalBase.startsWith("-"),
+      unconverted: [],
+      byCurrency: [],
+    },
+  };
+}
+
+function legendLabels(dimension: "sector" | "country"): readonly string[] {
+  return Array.from(
+    screen
+      .getByTestId(`exposure-strip-buckets-${dimension}`)
+      .querySelectorAll(`[data-testid='exposure-strip-${dimension}-label']`),
+    (label) => label.textContent ?? "",
+  );
+}
+
+function barSegments(dimension: "sector" | "country") {
+  return screen
+    .getAllByTestId("exposure-strip-segment")
+    .filter((s) => s.closest(`[data-testid='exposure-strip-${dimension}']`) !== null);
+}
+
+const ETF_ID = "33333333-3333-3333-3333-333333333333";
+
+function etf(overrides: Partial<HoldingResponse> = {}): HoldingResponse {
+  return holding({
+    instrumentId: ETF_ID,
+    kind: "ETF",
+    displayName: "World Equity UCITS ETF",
+    sectorCode: null,
+    domicileCountry: "IE",
+    listingCountry: "IE",
+    ...overrides,
+  });
+}
+
+describe("<ExposureStrip> — « Liquidités » on the sector and country bars (FR-745, AC-649)", () => {
+  it("draws the cash as its own « Liquidités » bucket in the cash token, after « Non classé », on both bars", () => {
+    // SHARE 500 (FR) + unweighted ETF 300 + cash 200 = 1 000: 50.00 / 30.00 / 20.00 on both bars.
+    renderStrip(
+      withCashBlock(
+        response(
+          [holding({ currentValue: valued("500.00") }), etf({ currentValue: valued("300.00") })],
+          "1000.00",
+        ),
+        "200.00",
+      ),
+    );
+    for (const dimension of ["sector", "country"] as const) {
+      expect(legendLabels(dimension).slice(-2)).toEqual(["Non classé", "Liquidités"]);
+      expect(
+        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${CASH}`),
+      ).toHaveTextContent("20.00%");
+      expect(
+        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${UNCLASSIFIED}`),
+      ).toHaveTextContent("30.00%");
+      const cash = barSegments(dimension).find((s) => s.getAttribute("data-kind") === CASH);
+      expect(cash?.style.background).toBe("var(--class-cash)");
+      expect(cash?.style.width).toBe("20%");
+    }
+  });
+
+  it("shows no « Liquidités » bucket on either bar when the portfolio has no cash", () => {
+    renderStrip(TWO);
+    for (const dimension of ["sector", "country"] as const) {
+      expect(legendLabels(dimension)).not.toContain("Liquidités");
+      expect(
+        screen.queryByTestId(`exposure-strip-bucket-percentage-${dimension}-${CASH}`),
+      ).not.toBeInTheDocument();
+    }
+  });
+
+  it("negative cash keeps its signed « Liquidités » entry on the country bar, draws no segment, and the bar stays full", () => {
+    // SHARE 200 (FR), cash −50, total 150: FR 13 333 units, cash −3 333.
+    renderStrip(
+      withCashBlock(response([holding({ currentValue: valued("200.00") })], "150.00"), "-50.00"),
+    );
+    expect(
+      screen.getByTestId(`exposure-strip-bucket-percentage-country-${CASH}`),
+    ).toHaveTextContent("−33.33%");
+    const segments = barSegments("country");
+    expect(segments.map((s) => s.getAttribute("data-kind"))).toEqual(["FR"]);
+    expect(segments[0]!.style.width).toBe("100%");
+  });
+});
+
+describe("<ExposureStrip> — hand-entered weights (FR-730, FR-731, AC-627, AC-631)", () => {
+  const WEIGHTED_SENTENCE =
+    "Répartition par pays saisie manuellement pour toutes les lignes classées";
+  const MIXED_SENTENCE = "Pays du siège social lorsqu'il est connu, sinon pays de cotation";
+  const MIXED_WEIGHTED_SENTENCE =
+    "Pays du siège social, pays de cotation ou répartition saisie manuellement, selon la ligne";
+  const NOTE =
+    "Pondérations saisies manuellement pour certains instruments — ce ne sont pas des données vérifiées.";
+
+  const countryWeights = [
+    { code: "US", weight: "60.00" },
+    { code: "JP", weight: "40.00" },
+  ];
+
+  it("states the weighted basis, never a domicile sentence, for a portfolio placed by weights only — and notes it on that bar alone", () => {
+    renderStrip(response([etf({ currentValue: valued("1000.00"), countryWeights })], "1000.00"));
+    expect(screen.getByTestId("exposure-strip-basis").textContent).toBe(WEIGHTED_SENTENCE);
+    expect(screen.getByTestId("exposure-strip-weighted-note-country").textContent).toBe(NOTE);
+    // The ETF has no sector set: whole in « Non classé » there, and no note.
+    expect(screen.queryByTestId("exposure-strip-weighted-note-sector")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId(`exposure-strip-bucket-percentage-sector-${UNCLASSIFIED}`),
+    ).toHaveTextContent("100.00%");
+  });
+
+  it("keeps today's exact MIXED sentence when no weight is involved, with no note anywhere", () => {
+    renderStrip(
+      response(
+        [
+          holding(),
+          holding({
+            instrumentId: "44444444-4444-4444-4444-444444444444",
+            domicileCountry: null,
+            listingCountry: "DE",
+            currentValue: valued("400.00"),
+          }),
+        ],
+        "1000.00",
+      ),
+    );
+    expect(screen.getByTestId("exposure-strip-basis").textContent).toBe(MIXED_SENTENCE);
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it("says a weighted MIXED in its own words — domicile beside weights", () => {
+    renderStrip(
+      response([holding(), etf({ currentValue: valued("400.00"), countryWeights })], "1000.00"),
+    );
+    expect(screen.getByTestId("exposure-strip-basis").textContent).toBe(MIXED_WEIGHTED_SENTENCE);
+    expect(screen.getByTestId("exposure-strip-weighted-note-country").textContent).toBe(NOTE);
+  });
+
+  it("notes the sector bar when a sector weight set placed a holding", () => {
+    renderStrip(
+      response(
+        [
+          etf({
+            currentValue: valued("1000.00"),
+            sectorWeights: [{ code: SECTOR_CODES[1], weight: "50.00" }],
+          }),
+        ],
+        "1000.00",
+      ),
+    );
+    expect(screen.getByTestId("exposure-strip-weighted-note-sector").textContent).toBe(NOTE);
+    expect(screen.queryByTestId("exposure-strip-weighted-note-country")).not.toBeInTheDocument();
+  });
+
+  it("AC-631: an unweighted ETF alone is « Non classé » in full on both bars, with no note, placeholder or pending wording", () => {
+    renderStrip(response([etf({ currentValue: valued("1000.00") })], "1000.00"));
+    for (const dimension of ["sector", "country"] as const) {
+      expect(legendLabels(dimension)).toEqual(["Non classé"]);
+      expect(
+        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${UNCLASSIFIED}`),
+      ).toHaveTextContent("100.00%");
+    }
+    expect(screen.queryByTestId("exposure-strip-basis")).not.toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+    const text = screen.getByTestId("exposure-strip").textContent ?? "";
+    expect(text).not.toMatch(/bientôt|à venir|en attente|chargement/i);
+    expect(screen.getByTestId("exposure-strip").querySelector("[aria-busy='true']")).toBeNull();
   });
 });

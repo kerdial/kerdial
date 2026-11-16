@@ -1,10 +1,12 @@
+import type { ExposureCountryBasis } from "@kerdial/api-contracts";
 import { Decimal } from "@kerdial/core-decimal";
 import { HOLDINGS_COPY } from "../lib/copy/holdings.js";
 import { Card } from "./ui/index.js";
 import type { AllocationResult } from "../lib/allocation.js";
-import { assetClassColor, assetClassLabel } from "../lib/asset-class.js";
+import { CASH_CLASS, assetClassColor, assetClassLabel } from "../lib/asset-class.js";
 import { drawnPercents } from "../lib/cash-position.js";
 import {
+  CASH,
   UNCLASSIFIED,
   type ExposureBreakdown,
   type ExposureBucket,
@@ -46,13 +48,23 @@ import { countryDisplayLabel } from "../lib/country-display.js";
  * « Non classé » last in the muted tone (A16: a locked per-sector map
  * is the kerdial-skin cycle's decision, not this card's).
  *
- * **« Non classé » is a bucket, and it is the whole ETF story** (FR-13, FR-28,
- * FR-29, AC-34). An ETF's value appears there in full, on both classified
- * dimensions. There is no spinner and no placeholder look-through: the honest
- * answer is a labelled grey segment carrying the share.
+ * **« Non classé » is a bucket** (FR-13, FR-28, FR-29, AC-34, AC-631). An ETF
+ * with no weight set appears there in full, on both classified dimensions;
+ * one with a set is split across it, what the set leaves uncovered staying in
+ * « Non classé ». There is no spinner and no placeholder: the honest answer is
+ * a labelled grey segment carrying the share.
  *
- * **The country dimension states its basis** (FR-11, AC-13) — issuer
- * domicile, listing-country fallback, or the mix — under its bar.
+ * **Hand-entered weights say so** (FR-731). A weight set is typed in by the
+ * user, not a verified or provider-sourced composition, so a bar whose figures
+ * use one carries a note saying exactly that — and only then.
+ *
+ * **« Liquidités » is its own bucket** (FR-745) on the sector and country bars,
+ * in the cash colour the type bar already uses, after « Non classé »; absent
+ * when there is no cash.
+ *
+ * **The country dimension states its basis** (FR-11, AC-13, FR-730) — issuer
+ * domicile, listing-country fallback, hand-entered weights, or the mix —
+ * under its bar.
  *
  * **The legends carry the percentage but no per-bucket money value.** There is
  * no per-kind monetary subtotal on the wire, and a client-side sum would be a
@@ -86,16 +98,32 @@ const DIMENSION_TITLES: Readonly<Record<Dimension, string>> = {
 };
 
 /**
- * FR-11/AC-13's three sentences (the agreed French copy, verbatim).
- * `"NONE"` has no sentence on purpose: nothing was classified on a country, so
- * there is no basis to state and the legend is « Non classé » alone.
+ * FR-11/AC-13's sentences (the agreed French copy, verbatim) and FR-730's for
+ * hand-entered weights, one per member of the shared basis set — a new member
+ * is a compile error here until it has one. `"NONE"` has no sentence on
+ * purpose: nothing was classified on a country, so there is no basis to state
+ * and the legend is « Non classé » alone. `MIXED` reads as before unless a
+ * weight set is part of the mix ({@link MIXED_WEIGHTED_SENTENCE}).
  */
-const BASIS_SENTENCE: Readonly<Record<ExposureBreakdown["basis"], string | undefined>> = {
+const BASIS_SENTENCE: Readonly<Record<ExposureCountryBasis, string | undefined>> = {
   DOMICILE: "Pays du siège social pour toutes les lignes",
   MIXED: "Pays du siège social lorsqu'il est connu, sinon pays de cotation",
   LISTING: "Pays de cotation (aucun siège social renseigné)",
+  WEIGHTED: "Répartition par pays saisie manuellement pour toutes les lignes classées",
   NONE: undefined,
 };
+
+const MIXED_WEIGHTED_SENTENCE =
+  "Pays du siège social, pays de cotation ou répartition saisie manuellement, selon la ligne";
+
+/** FR-731, AC-631: under any bar whose figures use a hand-entered weight set, and only there. */
+const WEIGHTED_NOTE =
+  "Pondérations saisies manuellement pour certains instruments — ce ne sont pas des données vérifiées.";
+
+function basisSentence(breakdown: ExposureBreakdown): string | undefined {
+  if (breakdown.basis === "MIXED" && breakdown.weighted) return MIXED_WEIGHTED_SENTENCE;
+  return BASIS_SENTENCE[breakdown.basis];
+}
 
 /**
  * A16, stated as code: an **ordered** palette from the `--chart-*` tokens,
@@ -116,6 +144,8 @@ const UNCLASSIFIED_COLOR = "var(--chart-6)";
 
 function bucketColor(bucketKey: string, index: number): string {
   if (bucketKey === UNCLASSIFIED) return UNCLASSIFIED_COLOR;
+  // FR-745: the type bar's « Liquidités » colour, so cash reads the same on every bar.
+  if (bucketKey === CASH) return assetClassColor(CASH_CLASS);
   return BUCKET_PALETTE[index % BUCKET_PALETTE.length]!;
 }
 
@@ -128,6 +158,7 @@ function bucketColor(bucketKey: string, index: number): string {
  */
 function bucketLabel(dimension: Dimension, bucketKey: string): string {
   if (bucketKey === UNCLASSIFIED) return SECTOR_UNCLASSIFIED_LABEL;
+  if (bucketKey === CASH) return assetClassLabel(CASH_CLASS);
   return dimension === "sector" ? sectorDisplayLabel(bucketKey) : countryDisplayLabel(bucketKey);
 }
 
@@ -174,13 +205,13 @@ export function kindSegments(allocation: AllocationResult): readonly ExposureSeg
   }));
 }
 
-/** A sector or country bar: one segment per bucket, in the breakdown's own order (descending, « Non classé » last). */
+/** A sector or country bar: one segment per bucket, in the breakdown's own order (descending, then « Non classé », then « Liquidités »). */
 export function bucketSegments(
   dimension: Dimension,
   buckets: readonly ExposureBucket[],
 ): readonly ExposureSegment[] {
-  // Negative cash lands in « Non classé » (C-13) and can leave that bucket
-  // below zero: the same omission and renormalisation as the type bar.
+  // Negative cash is a negative « Liquidités » bucket (FR-745): the same
+  // signed legend entry, omission and renormalisation as the type bar (C-14).
   const percents = drawnPercents(buckets.map((bucket) => bucket.units));
   return buckets.map((bucket, index) => ({
     key: bucket.bucketKey,
@@ -195,9 +226,11 @@ interface DimensionBarProps {
   readonly dimension: Dimension;
   readonly segments: readonly ExposureSegment[];
   readonly note?: string | undefined;
+  /** FR-731: this bar's figures use a hand-entered weight set. */
+  readonly weighted?: boolean;
 }
 
-function DimensionBar({ dimension, segments, note }: DimensionBarProps) {
+function DimensionBar({ dimension, segments, note, weighted = false }: DimensionBarProps) {
   const title = DIMENSION_TITLES[dimension];
   const legendId =
     dimension === "kind" ? "exposure-strip-subtotals" : `exposure-strip-buckets-${dimension}`;
@@ -254,6 +287,11 @@ function DimensionBar({ dimension, segments, note }: DimensionBarProps) {
           {note}
         </p>
       )}
+      {weighted && (
+        <p data-testid={`exposure-strip-weighted-note-${dimension}`} className="ov-note">
+          {WEIGHTED_NOTE}
+        </p>
+      )}
     </section>
   );
 }
@@ -288,11 +326,13 @@ export function ExposureStrip({
             <DimensionBar
               dimension="country"
               segments={bucketSegments("country", countryBreakdown.buckets)}
-              note={BASIS_SENTENCE[countryBreakdown.basis]}
+              note={basisSentence(countryBreakdown)}
+              weighted={countryBreakdown.weighted}
             />
             <DimensionBar
               dimension="sector"
               segments={bucketSegments("sector", sectorBreakdown.buckets)}
+              weighted={sectorBreakdown.weighted}
             />
           </div>
         )}

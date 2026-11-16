@@ -14,6 +14,7 @@
   "dependencies": {
     "@kerdial/api-contracts": "workspace:*",
     "@kerdial/core-decimal": "workspace:*",
+    "@kerdial/core-domain": "workspace:*",
     "@kerdial/core-reference-data": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-tooltip": "^1.2.16",
@@ -36,6 +37,7 @@
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "fast-check": "^3.23.2",
     "jsdom": "^30.0.1",
     "reflect-metadata": "^0.2.2",
     "tailwindcss": "^4.3.3",
