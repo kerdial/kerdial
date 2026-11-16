@@ -164,6 +164,7 @@ export default defineConfig({
         "**/country-picker.spec.ts",
         // exposure-weights FR-734: the weights editor's rows at 390 px.
         "**/instrument-weights.spec.ts",
+        "**/exposure-composition.spec.ts",
       ],
     },
   ],

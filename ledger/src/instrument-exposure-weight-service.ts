@@ -25,9 +25,13 @@ import { InstrumentNotFoundError, type InstrumentKind } from "./instrument-servi
  * transaction is not enough under READ COMMITTED: two concurrent replaces of
  * one dimension would each delete the other's not-yet-committed nothing and
  * both insert, leaving the union. So the writer validates the whole set
- * first, then takes the instrument row lock (`SELECT … FOR UPDATE`), and only
- * then deletes and inserts: every weight write of one instrument is
+ * first, then takes the instrument row lock (`SELECT … FOR NO KEY UPDATE`),
+ * and only then deletes and inserts: every weight write of one instrument is
  * serialised, and the stored set is always one set the validator accepted.
+ * `NO KEY UPDATE` rather than `UPDATE`: two writers still exclude each other,
+ * but the lock does not conflict with the `FOR KEY SHARE` every insert of a
+ * row referencing the instrument takes (a transaction, a price point), so a
+ * weight write neither waits behind an import chunk nor blocks one.
  *
  * **No `withTenant`**: the table is shared catalogue data (EW-L3) with no RLS,
  * like `instrument` itself (see `instrument-service.ts`'s header); only
@@ -35,7 +39,7 @@ import { InstrumentNotFoundError, type InstrumentKind } from "./instrument-servi
  * `getInstrumentById` predicate.
  *
  * **No date of any kind** (EW-L12): no timestamp column, and the lock is a
- * plain `FOR UPDATE`, never an `UPDATE` — `instrument.updated_at` does not
+ * plain row lock, never an `UPDATE` — `instrument.updated_at` does not
  * move, so it cannot become the weight set's de facto "as of". No log line.
  */
 
@@ -214,7 +218,7 @@ export async function replaceInstrumentExposureWeights(
       .select({ kind: instrument.kind })
       .from(instrument)
       .where(and(eq(instrument.id, instrumentId), isNull(instrument.ownerTenantId)))
-      .for("update");
+      .for("no key update");
     if (!locked) {
       throw new InstrumentNotFoundError(instrumentId);
     }
