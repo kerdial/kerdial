@@ -3,6 +3,7 @@ import supertest from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isValidIsinCheckDigit } from "@kerdial/api-contracts";
+import { SECTOR_CODES } from "@kerdial/core-reference-data";
 import { createUser } from "@kerdial/platform-auth";
 import { instrument, instrumentExposureWeight, tenant } from "@kerdial/platform-db";
 import { startTestApp, type TestApp } from "./test-support/test-app.js";
@@ -264,6 +265,12 @@ describe("api — PATCH /instruments/:id/exposure-weights and InstrumentResponse
       sectorWeights: [{ code: "ENERGIE", weight: "20.00" }],
       countryWeights: country,
     });
+
+    // Every sector of the vocabulary is writable, the longest codes included.
+    const everySector = SECTOR_CODES.map((code) => ({ code, weight: "1.00" }));
+    const whole = await putWeights(id, { sectorWeights: everySector });
+    expect(whole.status).toBe(200);
+    expect((await readBack(id)).sectorWeights).toHaveLength(SECTOR_CODES.length);
   });
 
   describe("AC-620: the kind gate, one accept or refuse row per kind and dimension, with valid sets", () => {

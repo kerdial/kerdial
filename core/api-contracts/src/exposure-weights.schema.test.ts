@@ -1,4 +1,5 @@
 import { Decimal } from "@kerdial/core-decimal";
+import { SECTOR_CODES } from "@kerdial/core-reference-data";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -166,5 +167,14 @@ describe("updateInstrumentExposureWeightsBodySchema", () => {
     expect(accepts({ countryWeights: { code: "US", weight: "60.00" } })).toBe(false);
     expect(accepts({ sectorWeights: tenSectors })).toBe(false);
     expect(accepts({ countryWeights: [] })).toBe(true);
+  });
+
+  it("accepts every code of both vocabularies, whatever its length", () => {
+    const sectors = SECTOR_CODES.map((code) => ({ code, weight: "1.00" }));
+    const parsed = updateInstrumentExposureWeightsBodySchema.safeParse({
+      sectorWeights: sectors,
+      countryWeights: [{ code: "FR", weight: "1.00" }],
+    });
+    expect(parsed.success).toBe(true);
   });
 });

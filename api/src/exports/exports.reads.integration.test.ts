@@ -7,6 +7,7 @@ import {
   fxRateDaily,
   fxRateUser,
   instrument,
+  instrumentExposureWeight,
   instrumentIcon,
   instrumentPriceDaily,
   instrumentProviderMap,
@@ -629,6 +630,63 @@ describe("api — export read path (EI-21, Testcontainers, as app_web)", () => {
         },
       ]);
     });
+  });
+
+  describe("FR-742 — the exposure-weight sets, one read per export", () => {
+    it("reads the weights once whatever the instrument count, and writes a key only on an instrument that has a set", async () => {
+      // Before any weight exists, over this file's largest tenant: one read,
+      // and not one weights key in the document.
+      const bareSpans: ExportTransactionSpan[] = [];
+      const bare = await exportedCatalogue(appWebDb, TENANT_BIG, {
+        icons: "omitted",
+        onTransactionSpan: (span) => bareSpans.push(span),
+      });
+      expect(bare.counts.instruments).toBeGreaterThan(BIG_TENANT_INSTRUMENTS);
+      expect(spansNamed(bareSpans, "catalogue:exposure-weights")).toBe(1);
+      expect(bare.body.toString("utf8")).not.toContain("Weights");
+
+      // The positive control: one shared ETF with both sets.
+      const etfId = "00000000-0000-7000-8000-0000000e2190";
+      await ownerDb.insert(instrument).values({
+        id: etfId,
+        kind: "ETF",
+        isin: "IE00EWT19001",
+        exchangeMic: "XAMS",
+        listingCurrency: "EUR",
+        displayName: "ETF pondéré",
+        primaryIdentifier: "ISIN",
+        quotePolicy: "AUTO",
+        status: "ACTIVE",
+      });
+      await ownerDb.insert(instrumentExposureWeight).values([
+        { instrumentId: etfId, countryCode: "JP", weight: d("25") },
+        { instrumentId: etfId, countryCode: "US", weight: d("60") },
+        { instrumentId: etfId, sectorCode: "TECHNOLOGIE", weight: d("30") },
+      ]);
+
+      const spans: ExportTransactionSpan[] = [];
+      const served = await exportedCatalogue(appWebDb, TENANT_BIG, {
+        icons: "omitted",
+        onTransactionSpan: (span) => spans.push(span),
+      });
+      const document = JSON.parse(served.body.toString("utf8")) as {
+        instruments: Record<string, unknown>[];
+      };
+      const weighted = document.instruments.filter(
+        (entry) => Object.hasOwn(entry, "sectorWeights") || Object.hasOwn(entry, "countryWeights"),
+      );
+
+      expect(spansNamed(spans, "catalogue:exposure-weights")).toBe(1);
+      expect(weighted).toHaveLength(1);
+      expect(weighted[0]).toMatchObject({
+        identity: { kind: "ETF", isin: "IE00EWT19001" },
+        sectorWeights: [{ code: "TECHNOLOGIE", weight: "30.00" }],
+        countryWeights: [
+          { code: "US", weight: "60.00" },
+          { code: "JP", weight: "25.00" },
+        ],
+      });
+    }, 120_000);
   });
 });
 

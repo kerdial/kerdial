@@ -16,6 +16,8 @@ import {
 import {
   INSTRUMENT_ICON_CONTENT_TYPES,
   INSTRUMENT_ICON_SOURCES,
+  ISO_3166_COUNTRIES,
+  SECTOR_CODES,
 } from "@kerdial/core-reference-data";
 import { instrumentStatusEnum, primaryIdentifierEnum, quotePolicyEnum } from "@kerdial/platform-db";
 import {
@@ -36,9 +38,11 @@ import { KERDIAL_JSON_LIMITS } from "../../limits.js";
  * reviewed**, each from the parsing-untrusted-input list:
  *
  *  1. **Fixed depth.** Every object below is a `z.strictObject`, so the deepest
- *     legal path is exactly four (`document -> instruments[] -> identity ->
- *     scalar`). A document nested deeper fails with a Zod issue on the key that
- *     carries the extra level, never with a stack overflow and never by silent
+ *     legal path is fixed: an array of objects inside an instrument entry —
+ *     `instruments[i].manualPrices[j].close`, and the two exposure-weight
+ *     arrays at exactly the same depth (`instruments[i].countryWeights[j].weight`).
+ *     A document nested deeper fails with a Zod issue on the key that carries
+ *     the extra level, never with a stack overflow and never by silent
  *     truncation.
  *  2. **Every array `.max()`-bounded and every string `.max()`-bounded.** The
  *     bounds are *imported* wherever the product already owns the number
@@ -222,6 +226,31 @@ const kerdialCatalogueProviderMappingSchema = z.strictObject({
   providerSymbol: z.string().min(1).max(PROVIDER_SYMBOL_MAX_LENGTH),
 });
 
+/**
+ * The longest bucket code either weight dimension can name, derived from the
+ * two vocabularies rather than authored, so a longer sector code added later
+ * cannot be refused by a stale bound.
+ */
+const EXPOSURE_WEIGHT_CODE_MAX_LENGTH = Math.max(
+  ...SECTOR_CODES.map((code) => code.length),
+  ...ISO_3166_COUNTRIES.map((country) => country.code.length),
+);
+
+/**
+ * One hand-entered weight (FR-742): a bucket code and a dot-decimal string with
+ * at most three integer digits and at most two decimals (`"60.00"`, `"5"`) —
+ * never a JSON number, never a decimal comma. **Shape only**: whether the code
+ * belongs to the dimension's vocabulary, whether the value is in `(0, 100]`,
+ * whether a code repeats and whether the set sums past 100 are the shared
+ * contract's `validateExposureWeightSet`, run per entry by `index.ts`'s
+ * `validate`, so each of those is one refused entry with a message naming the
+ * rule rather than a Zod issue.
+ */
+const kerdialCatalogueExposureWeightSchema = z.strictObject({
+  code: z.string().min(1).max(EXPOSURE_WEIGHT_CODE_MAX_LENGTH),
+  weight: z.string().regex(/^\d{1,3}(\.\d{1,2})?$/),
+});
+
 /** One entry of `instruments[]`. */
 export const kerdialCatalogueInstrumentSchema = z.strictObject({
   identity: kerdialCatalogueIdentitySchema,
@@ -242,6 +271,23 @@ export const kerdialCatalogueInstrumentSchema = z.strictObject({
   sectorCode: sectorCodeSchema.optional(),
   industryLabel: industryLabelSchema.optional(),
   domicileCountry: domicileCountrySchema.optional(),
+  /**
+   * The hand-entered weight sets (FR-742, EW-L10): present only on an
+   * instrument that has one. `.min(1)` is EW-L17 — "no weights" has one
+   * spelling, the key absent, so an empty array is refused rather than read as
+   * "clear". Bounded by each vocabulary's size: a longer list must repeat a
+   * code. Which kinds may carry which dimension is `index.ts`'s per-entry rule.
+   */
+  sectorWeights: z
+    .array(kerdialCatalogueExposureWeightSchema)
+    .min(1)
+    .max(SECTOR_CODES.length)
+    .optional(),
+  countryWeights: z
+    .array(kerdialCatalogueExposureWeightSchema)
+    .min(1)
+    .max(ISO_3166_COUNTRIES.length)
+    .optional(),
   /**
    * The two SCPI attributes (`scpi` FR-621, SC-L9) — optional, an
    * absent key is "no statement". Which kinds may carry them is `index.ts`'s

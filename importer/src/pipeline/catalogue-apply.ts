@@ -1,3 +1,5 @@
+import { serializeExposureWeight } from "@kerdial/api-contracts";
+import type { Decimal } from "@kerdial/core-decimal";
 import {
   CashAccountPortfolioCapExceededError,
   InstrumentIconBoundsError,
@@ -135,15 +137,20 @@ import type { Clock } from "./ports.js";
  * **The bound that follows, stated exactly (F1).** The first
  * version of this paragraph claimed "one write past the deadline", and that was
  * false while the clock was read at the chunk head and inside the two element
- * loops only: an entry's writes outside those loops — at most seven ledger
- * calls for an instrument (the create, the three update calls, the provider
- * mapping, the icon, the watchlist row) and two for a portfolio — were
+ * loops only: an entry's writes outside those loops — at most eight ledger
+ * calls for an instrument (the create, the three update calls, the one
+ * weights replacement, the provider mapping, the icon, the watchlist row; an
+ * SCPI's attribute update takes the place of the provider mapping, which an
+ * SCPI never carries) and two for a portfolio — were
  * unconditional, so a chunk of 200 such entries was 200 entries' worth of
  * writes past the deadline, not one. With the per-entry read now at the head of
  * the chunk loop, the true bound is **one entry's non-loop ledger calls plus
  * one element write**: the check before an entry admits it whole, and the check
  * before an element admits at most one more. Each of those calls is a single
- * `withTenant` upsert of the order of `upsertManualPricePoint`'s cost
+ * short transaction — a `withTenant` upsert, or for the weights replacement
+ * one `db.transaction` that locks the instrument row and replaces the named
+ * dimensions' rows (one delete and one multi-row insert each, at most two
+ * dimensions) — of the order of `upsertManualPricePoint`'s cost
  * (MEASURED, 2026-09-25: 3,37–3,58 ms against a real Postgres 17 container,
  * four batches of 2 000 over rows 0→8 000), so the overrun is tens of
  * milliseconds rather than the minutes H1 found.
@@ -334,7 +341,7 @@ export async function applyCatalogue(ctx: CatalogueApplyContext): Promise<Catalo
 
     for (const [position, index] of chunk.entries()) {
       // And once per **entry**, not only at the chunk head (F1):
-      // an instrument entry issues up to seven ledger calls outside its price
+      // an instrument entry issues up to eight ledger calls outside its price
       // loop and a portfolio two, so a head-only check let a whole chunk of
       // entries' unconditional writes run past the deadline. Same semantics as
       // the head check — an entry not attempted, and every entry behind it in
@@ -668,7 +675,8 @@ async function applyInstrument(
     figi,
     status,
     sectorCode,
-    sectorAsWeight,
+    sectorWeights,
+    countryWeights,
     industryLabel,
     domicileCountry,
     managementCompany,
@@ -694,13 +702,6 @@ async function applyInstrument(
       ...(domicileCountry !== undefined && { domicileCountry }),
     });
   }
-  // EW-L18, FR-747: a legacy single sector on an ETF/FUND is that sector at
-  // 100 %, through the one weights writer (its lock, its kind gate).
-  if (sectorAsWeight !== undefined) {
-    await replaceInstrumentExposureWeights(ctx.db, instrumentId, {
-      sectorWeights: [{ code: sectorAsWeight, weight: "100.00" }],
-    });
-  }
   // SCPI only: set, never cleared — the plan carries a
   // key only when the file states a value that differs.
   if (managementCompany !== undefined || subscriptionFeePct !== undefined) {
@@ -708,6 +709,21 @@ async function applyInstrument(
       ...(managementCompany !== undefined && { managementCompany }),
       ...(subscriptionFeePct !== undefined && { subscriptionFeePct }),
     });
+  }
+  // FR-743: one call, naming only the dimensions the plan found different,
+  // through the one weights writer — its validation, its instrument row lock,
+  // its kind gate. A refusal there is a kind or a state the plan could not see
+  // (a concurrent change), so it is a refusal of this entry's weights, never a
+  // failed entry: the instrument and everything above stay written.
+  if (sectorWeights !== undefined || countryWeights !== undefined) {
+    try {
+      await replaceInstrumentExposureWeights(ctx.db, instrumentId, {
+        ...(sectorWeights !== undefined && { sectorWeights: sectorWeights.map(wireWeight) }),
+        ...(countryWeights !== undefined && { countryWeights: countryWeights.map(wireWeight) }),
+      });
+    } catch (error) {
+      refusals.push(refusalFor(error, "APPLY_FAILED", "this entry's weights"));
+    }
   }
 
   if (write.providerMapping !== null) {
@@ -862,6 +878,14 @@ function refusalFor(
     reason: "APPLY_FAILED",
     message: `the ledger refused ${what}: ${error instanceof Error ? error.name : "unknown error"}`,
   };
+}
+
+/** A planned weight in the writer's input form: the code, and the value as two-decimal text. */
+function wireWeight(item: { readonly code: string; readonly weight: Decimal }): {
+  code: string;
+  weight: string;
+} {
+  return { code: item.code, weight: serializeExposureWeight(item.weight) };
 }
 
 /** The create paths are typed by kind, and the plan cannot express the wrong pairing — this is the run-time half of that claim. */

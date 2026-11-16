@@ -1,4 +1,8 @@
-import { serializeDecimal, serializeSubscriptionFeePct } from "@kerdial/api-contracts";
+import {
+  serializeDecimal,
+  serializeExposureWeight,
+  serializeSubscriptionFeePct,
+} from "@kerdial/api-contracts";
 import { parseDecimalString, type Decimal } from "@kerdial/core-decimal";
 import {
   KERDIAL_CATALOGUE_GENERATOR,
@@ -10,6 +14,7 @@ import {
   type ExportedTransactionRow,
   type KerdialCatalogueDocument,
 } from "@kerdial/importer";
+import { listInstrumentExposureWeights, type StoredExposureWeight } from "@kerdial/ledger";
 import { routedProviderKeys } from "@kerdial/market-composition";
 import {
   cashAccount,
@@ -320,6 +325,11 @@ function tenantReader(db: Db, tenantId: TenantId, options: ExportReadOptions): T
   };
 }
 
+/** A stored weight in the document's form: its code, and its value as a two-decimal, dot-decimal string (`"60.00"`, FR-742). */
+function wireExposureWeight(item: StoredExposureWeight): { code: string; weight: string } {
+  return { code: item.code, weight: serializeExposureWeight(item.weight) };
+}
+
 /**
  * An RFC 3339 **UTC** instant at second precision — `2026-09-24T18:03:11Z`,
  * the manifest's own form. `toISOString()`'s milliseconds are dropped
@@ -385,7 +395,7 @@ interface ManualPricePageRow {
  * (FR-500(a)).
  *
  * One short transaction per section — manifest, instruments, provider
- * mappings, icons, manual prices, watchlist, portfolios, cash accounts, user
+ * mappings, exposure weights, icons, manual prices, watchlist, portfolios, cash accounts, user
  * FX rates — with the icon and manual-price sections paged (they are the two
  * that are row-count- or byte-unbounded in a way the others are not).
  *
@@ -530,6 +540,15 @@ export async function readCatalogueForExport(
     return byInstrument;
   });
 
+  // FR-742: the instruments' hand-entered weight sets, **one** read for the
+  // whole document through the one reader (`MANUAL` rows only, each set sorted
+  // by weight descending then code ascending). The table is shared catalogue
+  // data with no RLS, like the provider mapping above; it is keyed by the
+  // instrument ids this tenant can list, so it reads nothing else.
+  const exposureWeights = await reader.read("catalogue:exposure-weights", (tx) =>
+    listInstrumentExposureWeights(tx, instrumentIds),
+  );
+
   const manualPrices = await readManualPrices(reader);
 
   const watchlist = await reader.read("catalogue:watchlist", async (tx) => {
@@ -623,6 +642,7 @@ export async function readCatalogueForExport(
       const mapping = mappings.get(row.id);
       const icon = instrumentIcons.get(row.id);
       const watched = watchlist.get(row.id);
+      const weights = exposureWeights.get(row.id);
       return {
         identity: {
           kind: row.kind,
@@ -642,6 +662,14 @@ export async function readCatalogueForExport(
         ...optional("sectorCode", row.kind === "SCPI" ? null : row.sectorCode),
         ...optional("industryLabel", row.kind === "SCPI" ? null : row.industryLabel),
         ...optional("domicileCountry", row.domicileCountry),
+        // Absent when the instrument has no set: the reader never returns an
+        // empty list, so neither key can be `[]` (EW-L17).
+        ...(weights?.sectorWeights !== undefined && {
+          sectorWeights: weights.sectorWeights.map(wireExposureWeight),
+        }),
+        ...(weights?.countryWeights !== undefined && {
+          countryWeights: weights.countryWeights.map(wireExposureWeight),
+        }),
         // SCPI only: NULL on every other kind (a CHECK of
         // migration 0074), so neither key appears for a tenant without an SCPI.
         ...optional("managementCompany", row.managementCompany),

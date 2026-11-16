@@ -67,9 +67,18 @@ export const EXPOSURE_WEIGHT_REFUSALS = [
 ] as const;
 export type ExposureWeightRefusal = (typeof EXPOSURE_WEIGHT_REFUSALS)[number];
 
+/**
+ * The longest code either vocabulary holds — derived, so a longer sector code
+ * can never be refused by the body shape before the validator sees it.
+ */
+const LONGEST_BUCKET_CODE = Math.max(
+  ...SECTOR_CODES.map((code) => code.length),
+  ...ISO_3166_COUNTRIES.map((country) => country.code.length),
+);
+
 /** One wire item: shape and length only; {@link validateExposureWeightSet} decides validity. */
 const exposureWeightItemSchema = z.strictObject({
-  code: z.string().min(1).max(12),
+  code: z.string().min(1).max(LONGEST_BUCKET_CODE),
   weight: decimalStringSchema.max(16),
 });
 

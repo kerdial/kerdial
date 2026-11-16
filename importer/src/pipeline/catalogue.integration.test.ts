@@ -7,6 +7,7 @@ import {
   deletePortfolio,
   listInstrumentExposureWeights,
   listUserFxRates,
+  replaceInstrumentExposureWeights,
 } from "@kerdial/ledger";
 import {
   cashAccount,
@@ -72,6 +73,11 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
   let ownerDb: Db;
   let appWebSql: postgres.Sql;
   let db: Db;
+  /** Two more `app_web` connections for the API-write-versus-import race, pre-warmed before any `Promise.all`. */
+  let raceSqlA: postgres.Sql;
+  let raceSqlB: postgres.Sql;
+  let raceDbA: Db;
+  let raceDbB: Db;
 
   const tenantMain = "00000000-0000-7000-8000-0000e1200001";
   const tenantCaps = "00000000-0000-7000-8000-0000e1200002";
@@ -92,12 +98,18 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
   const tenantScpi = "00000000-0000-7000-8000-0000e1200012";
   /** AC-644: a document whose first instrument entry carries a key this build does not know. */
   const tenantUnknownKey = "00000000-0000-7000-8000-0000e1200013";
+  /** exposure-weights FR-743: plan and apply of the weight sets. */
+  const tenantWeights = "00000000-0000-7000-8000-0000e1200014";
 
   beforeAll(async () => {
     pg = await startMigratedPostgres();
     ownerDb = pg.ownerDb;
     appWebSql = postgres(pg.appWebUri, { max: 1 });
     db = createDb(appWebSql);
+    raceSqlA = postgres(pg.appWebUri, { max: 1 });
+    raceSqlB = postgres(pg.appWebUri, { max: 1 });
+    raceDbA = createDb(raceSqlA);
+    raceDbB = createDb(raceSqlB);
 
     await ownerDb
       .insert(tenant)
@@ -116,12 +128,13 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
           tenantArchive,
           tenantScpi,
           tenantUnknownKey,
+          tenantWeights,
         ].map((id) => ({ id })),
       );
   }, 120_000);
 
   afterAll(async () => {
-    await appWebSql?.end({ timeout: 5 });
+    await Promise.all([appWebSql, raceSqlA, raceSqlB].map((client) => client?.end({ timeout: 5 })));
     await pg?.stop();
   }, 30_000);
 
@@ -1463,7 +1476,7 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
           icon: { contentType: "image/png", source: "MANUAL", base64: PNG_BASE64 },
           manualPrices: [{ priceDate: "2026-03-31", close: "98.10", currency: "EUR" }],
           watchlist: { targetPrice: "110", note: "à surveiller" },
-          countryWeights: [{ code: "US", weight: "60.00" }],
+          zzUnknownKey: [{ code: "US", weight: "60.00" }],
         },
         {
           identity: { kind: "CRYPTO", symbol: "EI20UNKN" },
@@ -1511,7 +1524,7 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
     ]);
     expect(result.outcomes[0]).toMatchObject({
       reason: "MALFORMED_VALUE",
-      message: 'Unrecognized key: "countryWeights"',
+      message: 'Unrecognized key: "zzUnknownKey"',
     });
     expect(result.summary).toMatchObject({ imported: 1, rejected: 1 });
 
@@ -1583,6 +1596,354 @@ describe("importer — catalogue plan and apply (EI-20, Testcontainers)", () => 
       rejected: 0,
       partsRefused: 0,
       byReason: {},
+    });
+  });
+
+  // ------------------------------------------- exposure-weights FR-743, GATE-4
+
+  describe("exposure weights (FR-743, AC-643, AC-650, EW-L17, EW-L18)", () => {
+    type Pairs = [string, string][];
+    const w = (...pairs: Pairs) =>
+      pairs.map(([code, weight]) => ({ code, weight: new Decimal(weight) }));
+    const wire = (...pairs: Pairs) => pairs.map(([code, weight]) => ({ code, weight }));
+
+    /** The stored sets of one instrument, as `[code, "x.xx"]` pairs in the reader's order. */
+    async function weightsOf(id: string): Promise<{ sector?: Pairs; country?: Pairs }> {
+      const sets = (await listInstrumentExposureWeights(ownerDb, [id])).get(id) ?? {};
+      const pairs = (items: readonly { code: string; weight: Decimal }[]): Pairs =>
+        items.map((item): [string, string] => [item.code, item.weight.toFixed(2)]);
+      return {
+        ...(sets.sectorWeights !== undefined && { sector: pairs(sets.sectorWeights) }),
+        ...(sets.countryWeights !== undefined && { country: pairs(sets.countryWeights) }),
+      };
+    }
+
+    async function newEtf(isin: string): Promise<string> {
+      const created = await createInstrumentByIsin(db, {
+        kind: "ETF",
+        isin,
+        exchangeMic: "XPAR",
+        listingCurrency: "EUR",
+        displayName: `ETF ${isin}`,
+      });
+      return created.id;
+    }
+
+    const etfEntry = (
+      isin: string,
+      overrides: Partial<Omit<CatalogueInstrumentEntry, "at">> = {},
+    ): Omit<CatalogueInstrumentEntry, "at"> => ({
+      identity: { kind: "ETF", isin, exchangeMic: "XPAR" },
+      private: false,
+      listingCurrency: "EUR",
+      displayName: `ETF ${isin}`,
+      primaryIdentifier: "ISIN",
+      quotePolicy: "AUTO",
+      status: "ACTIVE",
+      manualPrices: [],
+      ...overrides,
+    });
+
+    /** A document through the real parser, then plan and apply. */
+    async function runDocument(instruments: readonly unknown[]): Promise<CatalogueImportResult> {
+      const parsed = kerdialCatalogueImporter.validate(
+        kerdialCatalogueImporter.parse({
+          bytes: new TextEncoder().encode(
+            JSON.stringify({
+              schemaVersion: KERDIAL_CATALOGUE_SCHEMA_VERSION,
+              generator: KERDIAL_CATALOGUE_GENERATOR,
+              exportedAt: "2026-09-24T18:03:11Z",
+              baseCurrency: "EUR",
+              iconsIncluded: true,
+              instruments,
+              portfolios: [],
+              fxRatesUser: [],
+            }),
+          ),
+          fileType: KERDIAL_CATALOGUE_FILE_TYPE,
+          limits: KERDIAL_JSON_LIMITS,
+        }),
+      );
+      const plan = await planCatalogue({
+        db,
+        tenantId: tenantWeights,
+        draft: parsed.draft,
+        problems: parsed.problems,
+        icons,
+      });
+      return applyCatalogue({
+        db,
+        tenantId: tenantWeights,
+        plan,
+        deadlineAt: new Date("2026-09-24T18:00:30Z"),
+        clock: fixedClock("2026-09-24T18:00:00Z"),
+        chunkEntities: 200,
+      });
+    }
+
+    const documentEntry = (identity: object, extra: object = {}) => ({
+      identity,
+      private: false,
+      listingCurrency: "EUR",
+      displayName: "Une entrée",
+      primaryIdentifier: "ISIN",
+      quotePolicy: "AUTO",
+      status: "ACTIVE",
+      manualPrices: [],
+      ...extra,
+    });
+
+    it("an absent key leaves the stored set alone, the same set writes nothing, a different set replaces that dimension only", async () => {
+      const id = await newEtf("EI20WGTKEEP1");
+      await replaceInstrumentExposureWeights(db, id, {
+        sectorWeights: wire(["TECHNOLOGIE", "30.00"]),
+        countryWeights: wire(["US", "60.00"], ["JP", "25.00"]),
+      });
+      const before = await weightsOf(id);
+
+      const omitted = await run(
+        tenantWeights,
+        draftOf({ instruments: [etfEntry("EI20WGTKEEP1")] }),
+      );
+      expect(omitted.outcomes[0]).toMatchObject({
+        outcome: "SKIP",
+        reason: "CATALOGUE_ENTRY_UNCHANGED",
+      });
+      expect(await weightsOf(id)).toStrictEqual(before);
+
+      // Same set as a set: another order, another spelling of one decimal.
+      const same = await run(
+        tenantWeights,
+        draftOf({
+          instruments: [
+            etfEntry("EI20WGTKEEP1", {
+              sectorWeights: w(["TECHNOLOGIE", "30"]),
+              countryWeights: w(["JP", "25.00"], ["US", "60.0"]),
+            }),
+          ],
+        }),
+      );
+      expect(same.outcomes[0]).toMatchObject({
+        outcome: "SKIP",
+        reason: "CATALOGUE_ENTRY_UNCHANGED",
+      });
+
+      const replaced = await run(
+        tenantWeights,
+        draftOf({
+          instruments: [etfEntry("EI20WGTKEEP1", { countryWeights: w(["GB", "40.00"]) })],
+        }),
+      );
+      expect(replaced.outcomes[0]).toMatchObject({ outcome: "IMPORT", refusals: [] });
+      expect(await weightsOf(id)).toStrictEqual({
+        sector: [["TECHNOLOGIE", "30.00"]],
+        country: [["GB", "40.00"]],
+      });
+
+      // The same bucket with another weight is a different set, not "unchanged".
+      const reweighted = await run(
+        tenantWeights,
+        draftOf({
+          instruments: [etfEntry("EI20WGTKEEP1", { countryWeights: w(["GB", "35.00"]) })],
+        }),
+      );
+      expect(reweighted.outcomes[0]).toMatchObject({ outcome: "IMPORT", refusals: [] });
+      expect((await weightsOf(id)).country).toStrictEqual([["GB", "35.00"]]);
+    });
+
+    it("AC-650: an empty list is that entry refused with the stored set unchanged; the entry leaving the key out imports", async () => {
+      const emptied = await newEtf("EI20WGTEMPT1");
+      const untouched = await newEtf("EI20WGTEMPT2");
+      for (const id of [emptied, untouched]) {
+        await replaceInstrumentExposureWeights(db, id, { countryWeights: wire(["US", "60.00"]) });
+      }
+
+      const result = await runDocument([
+        documentEntry(
+          { kind: "ETF", isin: "EI20WGTEMPT1", exchangeMic: "XPAR" },
+          { displayName: "ETF EI20WGTEMPT1", countryWeights: [] },
+        ),
+        documentEntry(
+          { kind: "ETF", isin: "EI20WGTEMPT2", exchangeMic: "XPAR" },
+          { displayName: "Renommé" },
+        ),
+      ]);
+
+      expect(result.outcomes.map((o) => [o.at.index, o.outcome])).toStrictEqual([
+        [0, "REJECT"],
+        [1, "IMPORT"],
+      ]);
+      expect(result.outcomes[0]).toMatchObject({ reason: "MALFORMED_VALUE" });
+      for (const id of [emptied, untouched]) {
+        expect(await weightsOf(id)).toStrictEqual({ country: [["US", "60.00"]] });
+      }
+    });
+
+    it("refuses an over-100 set and weights on a SHARE as one entry each; every other entry imports with its sets", async () => {
+      const result = await runDocument([
+        documentEntry(
+          { kind: "ETF", isin: "EI20WGTFILE1", exchangeMic: "XPAR" },
+          { countryWeights: wire(["US", "60.00"], ["JP", "25.00"], ["GB", "10.00"]) },
+        ),
+        documentEntry(
+          { kind: "ETF", isin: "EI20WGTFILE2", exchangeMic: "XPAR" },
+          { countryWeights: wire(["US", "60.00"], ["JP", "45.00"]) },
+        ),
+        documentEntry(
+          { kind: "SHARE", isin: "EI20WGTFILE3", exchangeMic: "XPAR" },
+          { countryWeights: wire(["FR", "100.00"]) },
+        ),
+        documentEntry(
+          { kind: "FUND", isin: "EI20WGTFILE4", exchangeMic: "XPAR" },
+          { sectorWeights: wire(["FINANCE", "40.00"]) },
+        ),
+      ]);
+
+      expect(
+        result.outcomes.map((o) => ({
+          index: o.at.index,
+          outcome: o.outcome,
+          ...(o.outcome === "REJECT" && { reason: o.reason, message: o.message }),
+        })),
+      ).toStrictEqual([
+        {
+          index: 1,
+          outcome: "REJECT",
+          reason: "MALFORMED_VALUE",
+          message: "the country weights sum to more than one hundred",
+        },
+        {
+          index: 2,
+          outcome: "REJECT",
+          reason: "MALFORMED_VALUE",
+          message: "a SHARE instrument carries no country weights; this entry carries some",
+        },
+        { index: 0, outcome: "IMPORT" },
+        { index: 3, outcome: "IMPORT" },
+      ]);
+      for (const isin of ["EI20WGTFILE2", "EI20WGTFILE3"]) {
+        expect(
+          await ownerDb.select().from(instrument).where(eq(instrument.isin, isin)),
+        ).toHaveLength(0);
+      }
+      const [etf] = await ownerDb
+        .select()
+        .from(instrument)
+        .where(eq(instrument.isin, "EI20WGTFILE1"));
+      const [fund] = await ownerDb
+        .select()
+        .from(instrument)
+        .where(eq(instrument.isin, "EI20WGTFILE4"));
+      expect(await weightsOf(etf!.id)).toStrictEqual({
+        country: [
+          ["US", "60.00"],
+          ["JP", "25.00"],
+          ["GB", "10.00"],
+        ],
+      });
+      expect(await weightsOf(fund!.id)).toStrictEqual({ sector: [["FINANCE", "40.00"]] });
+    });
+
+    it("EW-L18: re-importing a legacy single sector plans no change, and a stated sector set wins over the single sector", async () => {
+      const existing = await newEtf("EI20WGTLEG02");
+      const legacy = draftOf({
+        instruments: [
+          etfEntry("EI20WGTLEG01", { sectorCode: "ENERGIE" }),
+          etfEntry("EI20WGTLEG02", { sectorCode: "SANTE" }),
+        ],
+      });
+
+      const first = await run(tenantWeights, legacy);
+      expect(first.summary).toMatchObject({ imported: 2, rejected: 0, partsRefused: 0 });
+      const again = await planCatalogue({
+        db,
+        tenantId: tenantWeights,
+        draft: legacy,
+        problems: [],
+        icons,
+      });
+      expect(again.outcomes.map((o) => o.outcome)).toStrictEqual(["SKIP", "SKIP"]);
+      expect(again.sharedImpact.instrumentsModified).toBe(0);
+      expect(await weightsOf(existing)).toStrictEqual({ sector: [["SANTE", "100.00"]] });
+
+      const both = await run(
+        tenantWeights,
+        draftOf({
+          instruments: [
+            etfEntry("EI20WGTLEG02", {
+              sectorCode: "SANTE",
+              sectorWeights: w(["FINANCE", "40.00"]),
+            }),
+            etfEntry("EI20WGTLEG03", {
+              sectorCode: "ENERGIE",
+              sectorWeights: w(["INDUSTRIE", "70.00"]),
+            }),
+          ],
+        }),
+      );
+      expect(both.summary).toMatchObject({ imported: 2, rejected: 0, partsRefused: 0 });
+      const [created] = await ownerDb
+        .select()
+        .from(instrument)
+        .where(eq(instrument.isin, "EI20WGTLEG03"));
+      expect(created?.sectorCode).toBeNull();
+      expect(await weightsOf(existing)).toStrictEqual({ sector: [["FINANCE", "40.00"]] });
+      expect(await weightsOf(created!.id)).toStrictEqual({ sector: [["INDUSTRIE", "70.00"]] });
+    });
+
+    it("an API write racing an import apply on one instrument leaves one whole set, never the union", async () => {
+      await raceSqlA`SELECT 1`;
+      await raceSqlB`SELECT 1`;
+      const apiSet = wire(["US", "30.00"], ["JP", "30.00"]);
+      for (let round = 0; round < 10; round += 1) {
+        const isin = `EI20WGTRACE${String(round)}`;
+        const id = await newEtf(isin);
+        // A stored row to delete makes the two transactions overlap.
+        await replaceInstrumentExposureWeights(db, id, { countryWeights: wire(["DE", "50.00"]) });
+        const plan = await planCatalogue({
+          db,
+          tenantId: tenantWeights,
+          draft: draftOf({
+            instruments: [etfEntry(isin, { countryWeights: w(["GB", "30.00"], ["FR", "30.00"]) })],
+          }),
+          problems: [],
+          icons,
+        });
+
+        const [, imported] = await Promise.all([
+          replaceInstrumentExposureWeights(raceDbA, id, { countryWeights: apiSet }),
+          applyCatalogue({
+            db: raceDbB,
+            tenantId: tenantWeights,
+            plan,
+            deadlineAt: new Date("2026-09-24T18:00:30Z"),
+            clock: fixedClock("2026-09-24T18:00:00Z"),
+            chunkEntities: 200,
+          }),
+        ]);
+
+        expect(imported.summary, `round ${String(round)}`).toMatchObject({
+          imported: 1,
+          partsRefused: 0,
+        });
+        expect(
+          [
+            {
+              country: [
+                ["JP", "30.00"],
+                ["US", "30.00"],
+              ],
+            },
+            {
+              country: [
+                ["FR", "30.00"],
+                ["GB", "30.00"],
+              ],
+            },
+          ],
+          `round ${String(round)}`,
+        ).toContainEqual(await weightsOf(id));
+      }
     });
   });
 });
