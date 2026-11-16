@@ -443,6 +443,24 @@
   background: var(--surface-brand-soft);
   box-shadow: inset 3px 0 0 var(--surface-brand);
 }
+
+/* ────────────  the country picker (FR-737, AC-639)  ───────── */
+
+/* In flow under the field, never absolute: the picker lives inside a
+   scrolling Radix dialog, where an overlay can be clipped or widen a
+   phone-width page. As wide as the field, a capped height that scrolls
+   inside itself; the rows are `.k-ov-opt` (44px tap target). */
+.k-country-picker-list {
+  max-height: 264px;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
 /* The row inside a result and inside the picked state (`InstrumentResultRow`,
    transaction-dialog-refresh): 34px logo/monogram tile, name over
    « symbole · ISIN · place », class chip. The identity column takes the slack

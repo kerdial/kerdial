@@ -34,6 +34,9 @@ vi.mock("../lib/api-client.js", async () => {
     postManualPricePoint: vi.fn(),
     updateInstrumentIdentity: vi.fn(),
     updateInstrumentScpiAttributes: vi.fn(),
+    // exposure-weights AC-640: the classification form's save, now that its
+    // domicile field is the country picker.
+    updateInstrumentClassification: vi.fn(),
     fetchCurrencies: vi.fn(),
     // `watchlist` FR-371/W-6: this screen mounts one
     // `GET /watchlist/ids` read, from which each row's `<WatchToggle>` derives
@@ -882,5 +885,58 @@ describe("<InstrumentDetailView> — an SCPI (AC-508)", () => {
       instrumentId: INSTRUMENT_ID,
       managementCompany: null,
     });
+  });
+});
+
+/**
+ * exposure-weights AC-640 (FR-738, EW-L7): the domicile field is the country
+ * picker, in the real classification form. A stored code outside the embedded
+ * list (`XK`; the route keeps charset-only validation for the domicile) is
+ * shown raw and saved back untouched.
+ */
+describe("<InstrumentDetailView> — the domicile picker (AC-640)", () => {
+  async function openClassification(detail: InstrumentDetailResponse): Promise<HTMLElement> {
+    mockedApiClient.fetchInstrument.mockResolvedValue(detail);
+    mockedApiClient.fetchInstrumentHistoryStatus.mockResolvedValue(historyStatus());
+    mockedApiClient.fetchHoldings.mockResolvedValue(holdingsResponse([]));
+    mockedApiClient.updateInstrumentClassification.mockResolvedValue(detail);
+    renderView();
+    await screen.findByTestId("instrument-detail-name");
+    fireEvent.click(screen.getByTestId("instrument-detail-edit"));
+    await screen.findByTestId("instrument-detail-edit-dialog");
+    return screen.getByTestId("instrument-classification-domicile-input");
+  }
+
+  async function savedDomicile(): Promise<unknown> {
+    fireEvent.click(screen.getByTestId("instrument-classification-submit"));
+    await waitFor(() =>
+      expect(mockedApiClient.updateInstrumentClassification).toHaveBeenCalledTimes(1),
+    );
+    return mockedApiClient.updateInstrumentClassification.mock.calls[0]?.[0].domicileCountry;
+  }
+
+  it("choosing « France » saves FR", async () => {
+    const input = await openClassification(instrumentDetail());
+    fireEvent.change(input, { target: { value: "fran" } });
+    const france = screen.getAllByRole("option").find((option) => option.textContent === "France");
+    if (france === undefined) throw new Error("« France » is not offered");
+    fireEvent.click(france);
+
+    expect(input).toHaveValue("France");
+    expect(await savedDomicile()).toBe("FR");
+  });
+
+  it("« Effacer » saves null", async () => {
+    await openClassification(instrumentDetail({ domicileCountry: "FR" }));
+    fireEvent.click(screen.getByTestId("instrument-classification-domicile-clear"));
+
+    expect(await savedDomicile()).toBeNull();
+  });
+
+  it("a stored out-of-list XK shows raw and is saved back untouched", async () => {
+    const input = await openClassification(instrumentDetail({ domicileCountry: "XK" }));
+    expect(input).toHaveValue("XK");
+
+    expect(await savedDomicile()).toBe("XK");
   });
 });

@@ -122,8 +122,12 @@ export type InstrumentCopyKey =
   // --- the classification form
   | "classificationSector"
   | "classificationDomicile"
-  | "classificationDomicilePlaceholder"
   | "classificationDomicileHint"
+  // --- the country picker (FR-737)
+  | "countryPickerPlaceholder"
+  | "countryPickerOneResult"
+  | "countryPickerResults"
+  | "countryPickerNoMatch"
   | "classificationIndustry"
   | "classificationClear"
   | "classificationSubmit"
@@ -357,12 +361,17 @@ export const INSTRUMENT_COPY = {
 
   classificationSector: "Secteur",
   classificationDomicile: "Pays du siège social",
-  /** An example code, not a French word — an ISO 3166-1 alpha-2 placeholder. */
-  classificationDomicilePlaceholder: "NL",
   /** `{unknown}` is `country-display.ts`'s own « Non renseigné » label, never a second wording of it. */
-  classificationDomicileHint: "Code pays à deux lettres. Laisser vide pour « {unknown} ».",
+  classificationDomicileHint: "Rechercher par nom ou par code. Effacer pour « {unknown} ».",
   classificationIndustry: "Secteur détaillé",
   classificationClear: "Effacer",
+
+  countryPickerPlaceholder: "Rechercher un pays",
+  /** The picker's polite live region (NFR-101): the count of rows it offers. */
+  countryPickerOneResult: "1 résultat",
+  countryPickerResults: "{count} résultats",
+  /** Both the live region's empty state and the visible one (FR-737) — no free-text commit is offered. */
+  countryPickerNoMatch: "Aucun pays ne correspond",
   classificationSubmit: "Enregistrer la correction",
 
   lastKnownPrice: "Dernier cours connu",

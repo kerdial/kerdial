@@ -159,6 +159,9 @@ export default defineConfig({
         // in the file skips itself on this project by `testInfo.project.name`,
         // so the mobile run is those two, not a re-run of the desktop nine.
         "**/watchlist.spec.ts",
+        // exposure-weights GATE-3: the country picker at 390 px (AC-639) and
+        // its keyboard/ARIA/hit-test claims on the touch device.
+        "**/country-picker.spec.ts",
       ],
     },
   ],

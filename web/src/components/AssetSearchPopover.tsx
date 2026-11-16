@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -7,6 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useEscapeClosesPopover } from "../hooks/use-escape-closes-popover.js";
 import type { InstrumentSummary } from "../lib/api-client.js";
 import { ASSET_CLASS_ORDER, assetClassLabel, type AssetClass } from "../lib/asset-class.js";
 import { INSTRUMENT_COPY } from "../lib/copy/instruments.js";
@@ -95,7 +97,8 @@ export function AssetSearchPopover({ label, testId, onSelect, onCreate }: AssetS
 
   const activeOptionIndex = activeIndex >= shown.length ? -1 : activeIndex;
 
-  useEscapeClosesPopover(open, rootRef, setOpen);
+  const closePopover = useCallback(() => setOpen(false), []);
+  useEscapeClosesPopover(open, rootRef, closePopover);
 
   function commitQuery(next: string): void {
     setQuery(next);
@@ -299,47 +302,4 @@ export function AssetSearchPopover({ label, testId, onSelect, onCreate }: AssetS
 function matchCountLabel(shown: number, found: number): string {
   if (found === 0) return "Aucune correspondance";
   return `${shown} sur ${found} correspondance${found > 1 ? "s" : ""}`;
-}
-
-/**
- * `Escape` closes the popover and stops there — the drawer behind it stays
- * open (one of the popover's own acceptance criteria).
- *
- * This cannot be done from the component's `onKeyDown`. Radix's
- * `DismissableLayer` — which every `Dialog`/drawer in this app is built on —
- * listens for `Escape` on `document` in the **capture** phase, so it sees the
- * key before React has dispatched a single synthetic event (React attaches its
- * own listeners to the root/portal container, both of which are *below*
- * `document`). `event.stopPropagation()` in an `onKeyDown` handler therefore
- * runs too late to stop it, and the drawer closes underneath the popover.
- *
- * A capture listener on `window` is one node earlier in the propagation path
- * than Radix's, so it runs first regardless of mount order. It stops
- * propagation (Radix's listener is never reached) and marks the event handled
- * (`preventDefault`, which Radix also honours) — belt and braces, deliberately,
- * because the ordering above is a property of a third-party module's internals.
- *
- * Scoped twice over, so the drawer's own `Escape` is untouched the rest of the
- * time: the listener exists only while the popover is `open`, and it ignores
- * any event whose target is outside the popover's own subtree.
- */
-function useEscapeClosesPopover(
-  open: boolean,
-  rootRef: { current: HTMLElement | null },
-  setOpen: (open: boolean) => void,
-): void {
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDownCapture(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      const root = rootRef.current;
-      const target = event.target;
-      if (root === null || !(target instanceof Node) || !root.contains(target)) return;
-      event.stopPropagation();
-      event.preventDefault();
-      setOpen(false);
-    }
-    window.addEventListener("keydown", onKeyDownCapture, true);
-    return () => window.removeEventListener("keydown", onKeyDownCapture, true);
-  }, [open, rootRef, setOpen]);
 }

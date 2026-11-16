@@ -1,4 +1,4 @@
-import { useForm, type FieldErrors, type Resolver } from "react-hook-form";
+import { Controller, useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateInstrumentClassificationBodySchema } from "@kerdial/api-contracts";
 import { SECTOR_CODES } from "@kerdial/core-reference-data";
@@ -14,6 +14,7 @@ import { SECTOR_UNCLASSIFIED_LABEL, sectorDisplayLabel } from "../lib/sector-dis
 import { COUNTRY_UNKNOWN_LABEL } from "../lib/country-display.js";
 import { messageForError } from "../lib/problem-messages.js";
 import { useOnlineStatus } from "../hooks/use-online-status.js";
+import { CountryPicker } from "./CountryPicker.js";
 import { Button, Input, Select, type SelectOption } from "./ui/index.js";
 
 /**
@@ -36,15 +37,19 @@ import { Button, Input, Select, type SelectOption } from "./ui/index.js";
  *  - **Secteur** — a native `<select>` over `SECTOR_CODES` plus a « Non classé »
  *    option whose value is the empty string. Every option's text comes from
  *    `sectorDisplayLabel`, the **one** place `web` turns a sector code into
- *    text (enforced by `classification-display-single-site.test.ts`) —
- *    this form does not reach for the vocabulary's `sectorLabel` itself.
- *  - **Pays du siège social** — a two-letter code. Uppercased before
- *    validation, following `InstrumentCreateForm`'s shipped precedent for
- *    `isin`/`exchangeMic`/`listingCurrency` (LOW, security review): it widens
- *    the accepted *input*, never the *validated* value, so no client/server
- *    drift is possible. Anything that still fails
- *    `domicileCountrySchema` after that is reported with **the shared schema's
- *    own message** (see {@link classificationFormResolver}).
+ *    text (a convention, not enforced by any test) — this form does not
+ *    reach for the vocabulary's `sectorLabel` itself.
+ *  - **Pays du siège social** — a `CountryPicker` (FR-738, EW-L7): a search
+ *    over the embedded ISO 3166-1 list that can only commit a code from it,
+ *    and whose « Effacer » action empties the field. A stored code **outside**
+ *    the list (the column, and the route, accept any two upper-case letters)
+ *    is shown raw as the current value and sent back unchanged on save unless
+ *    the user picks another country or clears — opening and saving this form
+ *    never blanks or rewrites it. The upper-casing in
+ *    {@link buildClassificationPatch} is a no-op for a picked code and still
+ *    normalises a stored one; anything that fails `domicileCountrySchema` is
+ *    reported with **the shared schema's own message** (see
+ *    {@link classificationFormResolver}).
  *  - **Secteur détaillé** — the provider's opaque label, prefilled **as
  *    received** (A7: it is data, exactly like a `display_name` of "Air
  *    Liquide S.A.", never translated) with an explicit clear action beside it.
@@ -156,6 +161,7 @@ export function InstrumentClassificationForm({
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     watch,
@@ -206,15 +212,23 @@ export function InstrumentClassificationForm({
         />
       )}
 
-      <Input
-        type="text"
-        label={INSTRUMENT_COPY.classificationDomicile}
-        maxLength={2}
-        placeholder={INSTRUMENT_COPY.classificationDomicilePlaceholder}
-        hint={fill(INSTRUMENT_COPY.classificationDomicileHint, { unknown: COUNTRY_UNKNOWN_LABEL })}
-        data-testid="instrument-classification-domicile-input"
-        error={errors.domicileCountry?.message}
-        {...register("domicileCountry")}
+      <Controller
+        control={control}
+        name="domicileCountry"
+        render={({ field }) => (
+          <CountryPicker
+            label={INSTRUMENT_COPY.classificationDomicile}
+            // `""` is the form's « Non renseigné »; the picker speaks `null`.
+            value={field.value === "" ? null : field.value}
+            onChange={(next) => field.onChange(next ?? "")}
+            hint={fill(INSTRUMENT_COPY.classificationDomicileHint, {
+              unknown: COUNTRY_UNKNOWN_LABEL,
+            })}
+            // `${testId}-input` keeps the handle the text field had.
+            testId="instrument-classification-domicile"
+            error={errors.domicileCountry?.message}
+          />
+        )}
       />
 
       {showSector && (

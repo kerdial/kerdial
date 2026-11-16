@@ -390,24 +390,29 @@ export function instrumentPriceWindowQueryOptions(
  * (`PricePointTable.tsx`) without a manual reload.
  */
 /**
- * The three query keys a classification correction invalidates — named here as
- * data so the form's own test can assert exactly this set, rather than
- * re-deriving three string arrays a component could quietly drift from.
+ * The four query keys a classification correction invalidates — named here as
+ * data so the mutation and its test share one set, rather than re-deriving
+ * string arrays a component could quietly drift from.
  *
- * Why these three, and what each one is actually
+ * Why these four, and what each one is actually
  * for on this app's surfaces:
  *
  *  1. `["instruments", instrumentId]` — the instrument detail view's own read,
  *     **and** every instruments-list row's content: `InstrumentsView` builds
  *     its rows from `instrumentByIdQueryOptions` per id (`InstrumentTable.tsx`
  *     reads `row.detail.sectorCode`), so this one key refreshes both surfaces.
- *  2. `["instruments", "search"]` — the catalogue-search result sets
- *     (`GET /instruments?query=`) behind the pickers and the quick-nav palette.
- *     Included because it is the *instruments-list* key on the wire; note that
+ *  2. `["instruments", "catalogue"]` — the Instruments screen's catalogue
+ *     mode: its rows come from `GET /instruments`, whose `InstrumentResponse`
+ *     carries `sectorCode`/`domicileCountry`, so a cached catalogue page would
+ *     otherwise keep showing the old sector or domicile after a correction.
+ *     This key was missing until the domicile picker made this form a primary
+ *     edit path.
+ *  3. `["instruments", "search"]` — the result sets of
+ *     `GET /instruments?query=` behind the pickers and the quick-nav palette.
  *     `InstrumentSummary` carries no classification field today, so this
  *     invalidation is correctness-by-construction rather than load-bearing —
  *     stated rather than left as a silent no-op.
- *  3. `["portfolios", "holdings"]` — the holdings surface and, through it, the
+ *  4. `["portfolios", "holdings"]` — the holdings surface and, through it, the
  *     exposure breakdown: `HoldingResponse` carries `sectorCode`/
  *     `domicileCountry`/`listingCountry`, so a corrected sector moves a bucket.
  *
@@ -423,6 +428,7 @@ export function instrumentClassificationInvalidationKeys(
 ): readonly (readonly string[])[] {
   return [
     ["instruments", instrumentId],
+    ["instruments", "catalogue"],
     ["instruments", "search"],
     ["portfolios", "holdings"],
   ];
