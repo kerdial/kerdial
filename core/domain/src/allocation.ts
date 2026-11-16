@@ -23,17 +23,34 @@
  * A total of zero or below has no meaningful share: `sharesAvailable` is
  * false and every bucket's `sharePercent` is `null`.
  *
- * Pure and DB-free: imports only `core/decimal`. Exact `Decimal` throughout.
+ * ## Weighted rows: a second step, per row (FR-728)
+ *
+ * A row may carry a weight set (`weights`). Its units are apportioned across
+ * the rows exactly like any other row's (above, unchanged); only then are its
+ * units and its value split across the set's buckets by
+ * `splitWeightedUnits` / `splitWeightedValue`, the part the weights leave
+ * uncovered going to the row's own `bucket`. A row's contributions sum to
+ * exactly its units and its value, so the buckets still sum to 10,000 units
+ * and to `total`; nothing is renormalised.
+ *
+ * Pure and DB-free: imports only `core/decimal`. Exact `Decimal` throughout
+ * (one precision-edge case in a weighted value split: `weighted-split.ts`).
  */
 import { Decimal } from "@kerdial/core-decimal";
+import { splitWeightedUnits, splitWeightedValue, type WeightPart } from "./weighted-split.js";
 
 /** One valued line: an instrument's value, or a cash row. */
 export interface AllocationRow {
   /** Unique across the rows; the tie-break of the apportionment. */
   readonly id: string;
-  /** The bucket this row's value and units are summed into. */
+  /**
+   * The bucket this row's value and units are summed into — for a row with
+   * {@link weights}, the bucket of the part its weights leave uncovered.
+   */
   readonly bucket: string;
   readonly value: Decimal;
+  /** A weight set: the row is split across these buckets, the rest going to {@link bucket}. */
+  readonly weights?: readonly WeightPart[];
 }
 
 export interface AllocationBucket {
@@ -42,7 +59,11 @@ export interface AllocationBucket {
   readonly value: Decimal;
   /** Its rows' apportioned units as a percentage — a whole number of hundredths; `null` when shares are unavailable. */
   readonly sharePercent: Decimal | null;
-  /** The ids of the rows summed into this bucket, in input order. */
+  /**
+   * The ids of the rows contributing to this bucket, in input order. A weighted
+   * row is listed in every bucket of its set, and in its own `bucket` when its
+   * weights sum below 100 — so one id may appear in several buckets.
+   */
   readonly rowIds: readonly string[];
 }
 
@@ -116,12 +137,27 @@ export function allocate(
   const units = sharesAvailable ? apportionUnits(rows, total) : undefined;
 
   const grouped = new Map<string, { value: Decimal; units: Decimal; rowIds: string[] }>();
+  const contribute = (key: string, rowId: string, value: Decimal, rowUnits: Decimal): void => {
+    const bucket = grouped.get(key) ?? { value: ZERO, units: ZERO, rowIds: [] };
+    bucket.value = bucket.value.plus(value);
+    bucket.units = bucket.units.plus(rowUnits);
+    if (bucket.rowIds[bucket.rowIds.length - 1] !== rowId) bucket.rowIds.push(rowId);
+    grouped.set(key, bucket);
+  };
   for (const row of rows) {
-    const bucket = grouped.get(row.bucket) ?? { value: ZERO, units: ZERO, rowIds: [] };
-    bucket.value = bucket.value.plus(row.value);
-    bucket.units = bucket.units.plus(units?.get(row.id) ?? ZERO);
-    bucket.rowIds.push(row.id);
-    grouped.set(row.bucket, bucket);
+    const rowUnits = units?.get(row.id) ?? ZERO;
+    if (row.weights === undefined) {
+      contribute(row.bucket, row.id, row.value, rowUnits);
+      continue;
+    }
+    const valueSplit = splitWeightedValue(row.value, row.weights);
+    const unitsSplit = splitWeightedUnits(rowUnits, row.weights);
+    valueSplit.parts.forEach((part, index) => {
+      contribute(part.key, row.id, part.value, unitsSplit.parts[index]!.units);
+    });
+    if (valueSplit.remainderValue !== undefined) {
+      contribute(row.bucket, row.id, valueSplit.remainderValue, unitsSplit.remainderUnits!);
+    }
   }
 
   // -1 for an ordinary key sorts it ahead of every trailing one.

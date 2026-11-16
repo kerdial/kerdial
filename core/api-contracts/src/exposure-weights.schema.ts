@@ -48,6 +48,16 @@ export const EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND: Readonly<
   SCPI: ["country"],
 };
 
+/**
+ * Which country the classified holdings of a `by = country` breakdown were
+ * placed by (FR-730, EW-L13): all by issuer domicile, all by listing country,
+ * all by hand-entered country weights, more than one of these, or nothing
+ * classified. One closed set for the allocation read and the web strip, so a
+ * new member is a compile error wherever it is not yet handled.
+ */
+export const EXPOSURE_COUNTRY_BASES = ["DOMICILE", "LISTING", "WEIGHTED", "MIXED", "NONE"] as const;
+export type ExposureCountryBasis = (typeof EXPOSURE_COUNTRY_BASES)[number];
+
 /** Why a weight set is refused (FR-720), checked in this order per item. */
 export const EXPOSURE_WEIGHT_REFUSALS = [
   "OUT_OF_RANGE",

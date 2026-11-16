@@ -19,6 +19,7 @@ import {
   type PricePoint,
   type ProvenanceSummaryLeaf,
   type RealizedGain,
+  type WeightPart,
 } from "@kerdial/core-domain";
 // IR-12 (DD29): the
 // listing country is **derived**, here, in the same assembly step that builds
@@ -221,6 +222,17 @@ export interface ValuedHolding {
    * why presence is a joined boolean and not a `length(bytes)`.
    */
   readonly hasIcon: boolean;
+  /**
+   * The instrument's hand-entered exposure weights (FR-721), per dimension;
+   * a dimension is absent when the instrument has no set for it. An
+   * `instrument`-level fact like {@link sectorCode}: the allocation read
+   * places a holding by these instead of its single sector/country for that
+   * dimension, and the holdings wire relays them.
+   */
+  readonly exposureWeights: {
+    readonly sector?: readonly WeightPart[];
+    readonly country?: readonly WeightPart[];
+  };
   /**
    * **Derived, never stored** (FR-10): `micToCountryCode(exchange_mic)`,
    * applied in the assembly step so `exchangeMic` itself never reaches the
@@ -1091,6 +1103,10 @@ function assembleHoldings(
       // is the honest state — never to a rendered `<img>` for bytes that may
       // not exist.
       hasIcon: referenceByInstrumentId.get(state.instrumentId)?.hasIcon ?? false,
+      // Placeholder: nothing can store a weight yet (FR-724), so every holding
+      // has none. Replaced by the weights loaded with the instrument read
+      // above, once the weights table exists.
+      exposureWeights: {},
       quantity: state.quantity,
       currency: val.currency,
       pmp: { amount: state.pmpUnitBase, currency: baseCurrency, provenance: pmpProvenance },
@@ -1304,6 +1320,8 @@ interface HoldingAccumulator {
   listingCountry: string | null;
   /** IK-10: a `(tenant_id, instrument_id)` property, so it cannot vary by contributing portfolio either — same carry-through as the four fields above. */
   hasIcon: boolean;
+  /** FR-721: an `instrument`-level fact like `sectorCode`, carried from the first contributing portfolio. */
+  exposureWeights: ValuedHolding["exposureWeights"];
   currentPrice: ValuedFigure;
   pmpFlagSets: (readonly DerivedFromFlag[])[];
   valueFlagSets: (readonly DerivedFromFlag[])[];
@@ -1462,6 +1480,7 @@ export async function valueHoldingsForTenant(
         // contributing the same instrument reports the same value — carried
         // like `kind`/`displayName` above, not merged like a figure.
         hasIcon: h.hasIcon,
+        exposureWeights: h.exposureWeights,
         currentPrice: h.currentPrice,
         pmpFlagSets: [],
         valueFlagSets: [],
@@ -1531,6 +1550,7 @@ export async function valueHoldingsForTenant(
       domicileCountry: acc.domicileCountry,
       listingCountry: acc.listingCountry,
       hasIcon: acc.hasIcon,
+      exposureWeights: acc.exposureWeights,
       quantity: acc.quantity,
       currency: acc.currency,
       pmp: { amount: pmpUnitBase, currency: baseCurrency, provenance: pmpProvenance },

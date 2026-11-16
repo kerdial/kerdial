@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { PortfolioIconMeta, PortfolioRecord } from "@kerdial/ledger";
-import { createPortfolioBodySchema, patchPortfolioBodySchema } from "@kerdial/api-contracts";
+import {
+  createPortfolioBodySchema,
+  patchPortfolioBodySchema,
+  serializeExposureWeight,
+} from "@kerdial/api-contracts";
 import {
   type InstrumentIconContentType,
   type PortfolioAccentColor,
@@ -570,7 +574,21 @@ function toValuedRealizedGainResponse(gain: ValuedRealizedGain) {
   };
 }
 
+/**
+ * A weight set on the wire, in the order the reader gave it, each weight with
+ * two decimals; `undefined` for an empty set so the key is left out entirely
+ * — an instrument without weights keeps exactly the response it had (FR-727).
+ */
+function toExposureWeightsResponse(
+  parts: ValuedHolding["exposureWeights"]["sector"],
+): { code: string; weight: string }[] | undefined {
+  if (parts === undefined || parts.length === 0) return undefined;
+  return parts.map((part) => ({ code: part.key, weight: serializeExposureWeight(part.weight) }));
+}
+
 function toValuedHoldingResponse(holding: ValuedHolding) {
+  const sectorWeights = toExposureWeightsResponse(holding.exposureWeights.sector);
+  const countryWeights = toExposureWeightsResponse(holding.exposureWeights.country);
   return {
     instrumentId: holding.instrumentId,
     // Root-cause fix (tester's second
@@ -599,6 +617,10 @@ function toValuedHoldingResponse(holding: ValuedHolding) {
     sectorCode: holding.sectorCode,
     domicileCountry: holding.domicileCountry,
     listingCountry: holding.listingCountry,
+    // FR-721: the instrument's hand-entered weights, absent — never `[]` —
+    // when it has none in that dimension.
+    ...(sectorWeights !== undefined ? { sectorWeights } : {}),
+    ...(countryWeights !== undefined ? { countryWeights } : {}),
     // `instrument-icons` IK-10 (FR-313, FR-314): one more
     // additive field on the response this screen already issues, sourced by a
     // `LEFT JOIN` on `valuation`'s own already-running `instrument` read —

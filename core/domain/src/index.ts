@@ -24,6 +24,9 @@
  * `cashBalancesBefore` (cash converted to base at the valuation date's market
  * rate, never throwing on a missing rate). `mcp-readonly` adds `allocate`
  * (bucket values and largest-remainder shares for the allocation read).
+ * `exposure-weights` adds `splitWeightedUnits` / `splitWeightedValue` (one
+ * row split across the buckets of its hand-entered weight set, shared by the
+ * allocation read and the web exposure strip).
  *
  * This package may import nothing but
  * `core/decimal` — see `locf.ts`/`types.ts`/`flow-class.ts`, none of which
@@ -115,3 +118,5 @@ export type { ProvenanceSummary, ProvenanceSummaryLeaf } from "./provenance.js";
 export type { DerivedFromFlag } from "./provenance.js";
 export { allocate } from "./allocation.js";
 export type { AllocationRow } from "./allocation.js";
+export { splitWeightedUnits, splitWeightedValue } from "./weighted-split.js";
+export type { WeightPart } from "./weighted-split.js";
