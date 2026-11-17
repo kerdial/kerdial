@@ -11,6 +11,7 @@ import {
   type ExposureBreakdown,
   type ExposureBucket,
 } from "../lib/exposure-breakdown.js";
+import { CRYPTO, OTHER, displayBuckets } from "../lib/exposure-display.js";
 import { SECTOR_UNCLASSIFIED_LABEL, sectorDisplayLabel } from "../lib/sector-display.js";
 import { countryDisplayLabel } from "../lib/country-display.js";
 
@@ -126,24 +127,36 @@ function basisSentence(breakdown: ExposureBreakdown): string | undefined {
 }
 
 /**
- * A16, stated as code: an **ordered** palette from the `--chart-*` tokens,
- * keyed by the bucket's rank rather than by what the bucket *is*. « Non
- * classé » always takes `--chart-6` (the muted tone an unknown kind already
- * gets through `assetClassColor`) so "unclassified" never reads as just
- * another sector. Sky before lemon before lilac: the lilac/sky pair fails the
- * dataviz validator when adjacent, so it is never adjacent by rank.
+ * A16, stated as code: an **ordered** palette keyed by the bucket's rank
+ * rather than by what the bucket *is* — one colour per named bucket, six at
+ * most (`displayBuckets`). « Non classé » always takes `--chart-6` (the muted
+ * tone an unknown kind already gets through `assetClassColor`) so
+ * "unclassified" never reads as just another sector.
+ *
+ * Teal, lilac and sky only, in two tones: apricot and lemon are the type
+ * bar's « Crypto » and « Liquidités », which these bars now draw too, so a
+ * ranked bucket never borrows them. A teal sits between every lilac and sky:
+ * that pair fails the dataviz validator when adjacent.
  */
 const BUCKET_PALETTE: readonly string[] = [
   "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-4)",
-  "var(--chart-5)",
   "var(--chart-3)",
+  "var(--teal-800)",
+  "var(--chart-4)",
+  "var(--teal-300)",
+  "var(--lilac-700)",
 ];
 const UNCLASSIFIED_COLOR = "var(--chart-6)";
+/** « Autres »: a neutral darker than « Non classé », so the two greys next to each other stay apart. */
+const OTHER_COLOR = "var(--ink-600)";
+const OTHER_LABEL = "Autres";
+const CRYPTO_KIND = "CRYPTO";
 
 function bucketColor(bucketKey: string, index: number): string {
   if (bucketKey === UNCLASSIFIED) return UNCLASSIFIED_COLOR;
+  if (bucketKey === OTHER) return OTHER_COLOR;
+  // The type bar's « Crypto » colour, for the same reason as cash below.
+  if (bucketKey === CRYPTO) return assetClassColor(CRYPTO_KIND);
   // FR-745: the type bar's « Liquidités » colour, so cash reads the same on every bar.
   if (bucketKey === CASH) return assetClassColor(CASH_CLASS);
   return BUCKET_PALETTE[index % BUCKET_PALETTE.length]!;
@@ -159,6 +172,8 @@ function bucketColor(bucketKey: string, index: number): string {
 function bucketLabel(dimension: Dimension, bucketKey: string): string {
   if (bucketKey === UNCLASSIFIED) return SECTOR_UNCLASSIFIED_LABEL;
   if (bucketKey === CASH) return assetClassLabel(CASH_CLASS);
+  if (bucketKey === OTHER) return OTHER_LABEL;
+  if (bucketKey === CRYPTO) return assetClassLabel(CRYPTO_KIND);
   return dimension === "sector" ? sectorDisplayLabel(bucketKey) : countryDisplayLabel(bucketKey);
 }
 
@@ -205,7 +220,7 @@ export function kindSegments(allocation: AllocationResult): readonly ExposureSeg
   }));
 }
 
-/** A sector or country bar: one segment per bucket, in the breakdown's own order (descending, then « Non classé », then « Liquidités »). */
+/** A sector or country bar: one segment per bucket, in the order given (`displayBuckets`: named, « Autres », « Non classé », « Crypto », « Liquidités »). */
 export function bucketSegments(
   dimension: Dimension,
   buckets: readonly ExposureBucket[],
@@ -325,13 +340,13 @@ export function ExposureStrip({
             <DimensionBar dimension="kind" segments={kindSegments(allocation)} />
             <DimensionBar
               dimension="country"
-              segments={bucketSegments("country", countryBreakdown.buckets)}
+              segments={bucketSegments("country", displayBuckets(countryBreakdown))}
               note={basisSentence(countryBreakdown)}
               weighted={countryBreakdown.weighted}
             />
             <DimensionBar
               dimension="sector"
-              segments={bucketSegments("sector", sectorBreakdown.buckets)}
+              segments={bucketSegments("sector", displayBuckets(sectorBreakdown))}
               weighted={sectorBreakdown.weighted}
             />
           </div>

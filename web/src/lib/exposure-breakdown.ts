@@ -169,6 +169,15 @@ export interface ExposureBreakdown {
   readonly basis: ExposureCountryBasis;
   /** Whether any included holding was placed by a hand-entered weight set (FR-731); false when {@link suppressed}. */
   readonly weighted: boolean;
+  /**
+   * The part of {@link UNCLASSIFIED} that is crypto-assets: the units of every
+   * `CRYPTO` row no classification placed. A sector or a country says nothing
+   * of a crypto-asset, so the strip shows this part as its own segment instead
+   * of leaving it to read as "still to classify". Already counted in the
+   * {@link UNCLASSIFIED} bucket — a subset of it, never an extra bucket here,
+   * so the buckets stay the allocation read's own. Zero when {@link suppressed}.
+   */
+  readonly unclassifiedCryptoUnits: Decimal;
   /** Mirrors `computeAllocation`'s own guards — `totalUnavailable`, or a total the rows do not reconcile against. */
   readonly suppressed: boolean;
 }
@@ -180,6 +189,9 @@ export interface ExposureBreakdown {
  * unless a weight set places them, and land, whole, in « Non classé ».
  */
 const CLASSIFIABLE_KIND = "SHARE";
+
+/** The kind whose unclassified units {@link ExposureBreakdown.unclassifiedCryptoUnits} counts. */
+const CRYPTO_KIND = "CRYPTO";
 
 /** A non-empty set, else `undefined` — the allocation read's own reading of "has a set". */
 function nonEmptySet(
@@ -267,7 +279,13 @@ export function computeExposureBreakdown(
   dimension: ExposureDimension,
 ): ExposureBreakdown {
   if (allocation.totalUnavailable || !allocation.reconciles) {
-    return { buckets: [], basis: "NONE", weighted: false, suppressed: true };
+    return {
+      buckets: [],
+      basis: "NONE",
+      weighted: false,
+      unclassifiedCryptoUnits: ZERO,
+      suppressed: true,
+    };
   }
 
   const unitsByInstrument = new Map<string, Decimal>();
@@ -286,6 +304,7 @@ export function computeExposureBreakdown(
 
   const bases = new Set<ExposureCountryBasis>();
   let weighted = false;
+  let unclassifiedCryptoUnits = ZERO;
 
   for (const holding of holdings) {
     const units = unitsByInstrument.get(holding.instrumentId);
@@ -300,6 +319,9 @@ export function computeExposureBreakdown(
     const contributions = dimension.classify({ ...holding, units });
     if (contributions.length === 0) {
       addUnits(UNCLASSIFIED, units);
+      if (holding.kind === CRYPTO_KIND) {
+        unclassifiedCryptoUnits = unclassifiedCryptoUnits.plus(units);
+      }
       continue;
     }
     for (const contribution of contributions) {
@@ -321,7 +343,13 @@ export function computeExposureBreakdown(
     }))
     .sort(compareBuckets);
 
-  return { buckets, basis: basisOf(bases), weighted, suppressed: false };
+  return {
+    buckets,
+    basis: basisOf(bases),
+    weighted,
+    unclassifiedCryptoUnits,
+    suppressed: false,
+  };
 }
 
 /** The one basis every classified holding shares, `MIXED` when they differ, `NONE` when none is classified. */
