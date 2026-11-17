@@ -231,7 +231,10 @@ describe("<OverviewRoute> — AC127: one computeAllocation call per render pass,
     const holdingCounts = mockedAllocation.computeAllocation.mock.calls.map(
       ([input]) => input.holdings.length,
     );
-    expect(holdingCounts).toEqual([0, 2]);
+    // Each pass makes two calls, not one: the whole portfolio (ring, type
+    // bar, concentration) and the securities alone (sector and country bars,
+    // shares of their own total). Still never one per consumer.
+    expect(holdingCounts).toEqual([0, 0, 2, 2]);
     // The pie is the second card of the row, fed from that same result;
     // the two panels it replaced are gone, not hidden.
     expect(screen.getByTestId("positions-pie-card")).toBeInTheDocument();
@@ -249,11 +252,10 @@ describe("<OverviewRoute> — AC127: one computeAllocation call per render pass,
     expect(screen.queryByRole("radio", { name: "Secteur" })).not.toBeInTheDocument();
     expect(screen.getByTestId("exposure-strip-buckets-sector")).toBeInTheDocument();
     expect(screen.getByTestId("exposure-strip-buckets-country")).toBeInTheDocument();
-    expect(screen.getByTestId("exposure-strip-basis")).toBeInTheDocument();
     // Still exactly the two-payload shape: rendering three bars adds nothing.
     expect(
       mockedAllocation.computeAllocation.mock.calls.map(([input]) => input.holdings.length),
-    ).toEqual([0, 2]);
+    ).toEqual([0, 0, 2, 2]);
   });
 
   it("renders the ETF's full value in « Non classé » on both new dimensions", async () => {
@@ -267,11 +269,8 @@ describe("<OverviewRoute> — AC127: one computeAllocation call per render pass,
     expect(
       screen.getByTestId("exposure-strip-bucket-percentage-country-__NON_CLASSE__"),
     ).toHaveTextContent("40.00%");
-    // FR-11's basis, from the route's own breakdown: the one classified
-    // holding has a domicile.
-    expect(screen.getByTestId("exposure-strip-basis")).toHaveTextContent(
-      "Pays du siège social pour toutes les lignes",
-    );
+    // No sentence under the bars any more.
+    expect(screen.queryByTestId("exposure-strip-basis")).not.toBeInTheDocument();
   });
 });
 
@@ -369,6 +368,16 @@ describe("<OverviewRoute> — portfolio-cash AC-576 (UI): the value chart ends o
     );
     expect(screen.getByTestId("overview-cash-value")).toHaveTextContent("975.00 EUR");
     // The pie carries the « Liquidités » slice from the same one allocation.
-    expect(mockedAllocation.computeAllocation.mock.calls.at(-1)![0].holdings).toHaveLength(3);
+    // (The last call is the securities' own allocation; the one before it is the portfolio's.)
+    expect(mockedAllocation.computeAllocation.mock.calls.at(-2)![0].holdings).toHaveLength(3);
+    // The sector and country bars are fed the securities' allocation, not
+    // the portfolio's: no cash on them, while the type bar keeps it.
+    expect(mockedAllocation.computeAllocation.mock.calls.at(-1)![0].holdings).toHaveLength(2);
+    expect(screen.getByTestId("exposure-strip-percentage-CASH")).toBeInTheDocument();
+    for (const dimension of ["sector", "country"]) {
+      expect(
+        screen.queryByTestId(`exposure-strip-bucket-percentage-${dimension}-__LIQUIDITES__`),
+      ).not.toBeInTheDocument();
+    }
   });
 });

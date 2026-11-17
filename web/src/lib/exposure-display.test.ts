@@ -1,5 +1,4 @@
 import { Decimal } from "@kerdial/core-decimal";
-import { SECTOR_CODES } from "@kerdial/core-reference-data";
 import { describe, expect, it } from "vitest";
 import { computeAllocation } from "./allocation.js";
 import {
@@ -7,17 +6,15 @@ import {
   UNCLASSIFIED,
   computeExposureBreakdown,
   countryDimension,
-  sectorDimension,
   type ExposureBreakdown,
   type ExposureHolding,
 } from "./exposure-breakdown.js";
-import { CRYPTO, OTHER, displayBuckets } from "./exposure-display.js";
+import { OTHER, displayBuckets } from "./exposure-display.js";
 
 /**
  * `displayBuckets` — what a sector or country bar draws: the largest
- * classified buckets by name, the tail as « Autres », crypto-assets out of
- * « Non classé » into their own segment, « Liquidités » last. Every case also
- * holds the one invariant that matters: regrouping moves units, it never
+ * classified buckets by name, the tail as « Autres », then the breakdown's
+ * own trailing buckets. Every case also holds the one invariant that matters: regrouping moves units, it never
  * creates or loses any.
  */
 
@@ -47,10 +44,6 @@ function breakdownOf(rows: readonly Row[], dimension = countryDimension): Exposu
     listingCountry: null,
   }));
   return computeExposureBreakdown(allocation, holdings, dimension);
-}
-
-function view(breakdown: ExposureBreakdown): readonly (readonly [string, string])[] {
-  return displayBuckets(breakdown).map((b) => [b.bucketKey, b.percentageText] as const);
 }
 
 function sum(buckets: readonly { units: Decimal }[]): string {
@@ -103,73 +96,5 @@ describe("displayBuckets — the classified tail becomes « Autres »", () => {
         .slice(-3),
     ).toEqual([OTHER, UNCLASSIFIED, CASH]);
     expect(sum(displayBuckets(breakdown))).toBe("10000");
-  });
-});
-
-describe("displayBuckets — crypto-assets leave « Non classé »", () => {
-  it("shows the crypto share as its own segment and only the rest as « Non classé »", () => {
-    // SHARE 500 (FR), unweighted ETF 300, crypto 200.
-    const breakdown = breakdownOf([
-      { id: "share", kind: "SHARE", value: "500", country: "FR" },
-      { id: "etf", kind: "ETF", value: "300" },
-      { id: "btc", kind: "CRYPTO", value: "200" },
-    ]);
-    // The breakdown itself still holds both in « Non classé ».
-    expect(breakdown.buckets.find((b) => b.bucketKey === UNCLASSIFIED)!.units.toString()).toBe(
-      "5000",
-    );
-    expect(view(breakdown)).toEqual([
-      ["FR", "50.00%"],
-      [UNCLASSIFIED, "30.00%"],
-      [CRYPTO, "20.00%"],
-    ]);
-  });
-
-  it("drops « Non classé » altogether when crypto was all of it, on both dimensions", () => {
-    const rows: readonly Row[] = [
-      { id: "share", kind: "SHARE", value: "600", country: "FR", sectorCode: SECTOR_CODES[0] },
-      { id: "btc", kind: "CRYPTO", value: "400" },
-    ];
-    expect(view(breakdownOf(rows, countryDimension))).toEqual([
-      ["FR", "60.00%"],
-      [CRYPTO, "40.00%"],
-    ]);
-    expect(view(breakdownOf(rows, sectorDimension))).toEqual([
-      [SECTOR_CODES[0], "60.00%"],
-      [CRYPTO, "40.00%"],
-    ]);
-  });
-
-  it("orders the trailing segments « Non classé », « Crypto », « Liquidités »", () => {
-    const breakdown = breakdownOf([
-      { id: "share", kind: "SHARE", value: "100", country: "FR" },
-      { id: "etf", kind: "ETF", value: "100" },
-      { id: "btc", kind: "CRYPTO", value: "100" },
-      { id: "cash", kind: "CASH", value: "100" },
-    ]);
-    expect(displayBuckets(breakdown).map((b) => b.bucketKey)).toEqual([
-      "FR",
-      UNCLASSIFIED,
-      CRYPTO,
-      CASH,
-    ]);
-    expect(sum(displayBuckets(breakdown))).toBe(sum(breakdown.buckets));
-  });
-
-  it("shows no « Crypto » segment without crypto-assets, and nothing at all when suppressed", () => {
-    const breakdown = breakdownOf([
-      { id: "share", kind: "SHARE", value: "100", country: "FR" },
-      { id: "etf", kind: "ETF", value: "100" },
-    ]);
-    expect(displayBuckets(breakdown).map((b) => b.bucketKey)).toEqual(["FR", UNCLASSIFIED]);
-    expect(
-      displayBuckets({
-        buckets: [],
-        basis: "NONE",
-        weighted: false,
-        unclassifiedCryptoUnits: new Decimal(0),
-        suppressed: true,
-      }),
-    ).toEqual([]);
   });
 });

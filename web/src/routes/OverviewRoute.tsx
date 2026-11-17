@@ -5,6 +5,7 @@ import { PeriodSelector } from "../components/PeriodSelector.js";
 import { PortfolioCardsPanel } from "../components/PortfolioCardsPanel.js";
 import { DashboardKpiStrip } from "../components/DashboardKpiStrip.js";
 import { ExposureStrip } from "../components/ExposureStrip.js";
+import { securitiesAllocationInputOf } from "../lib/exposure-scope.js";
 import { PositionsPieCard } from "../components/PositionsPieCard.js";
 import { RecentTransactionsPanel } from "../components/RecentTransactionsPanel.js";
 import { PanelLoading } from "../components/PanelLoading.js";
@@ -155,25 +156,34 @@ export function OverviewRoute() {
     [holdings],
   );
 
-  // IR-16: the sector and country
-  // breakdowns are computed **beside** that single `computeAllocation` call and
-  // passed down, never inside `ExposureStrip`. They are second *derivations* of
-  // the units the call above already apportioned — `computeExposureBreakdown`
-  // regroups them and divides nothing — so AC127's "one `computeAllocation`
-  // call per render pass" is unchanged: two apportionments would still be two
-  // roundings, and a bucket could then disagree with the rows beneath it.
-  //
-  // The breakdowns walk `exposureHoldingsOf`: the holdings (weight sets
-  // parsed) plus the cash row, which becomes its own « Liquidités » bucket
-  // (FR-745), so the buckets still sum to the whole cash-inclusive total.
+  // The sector and country bars are a breakdown of the securities alone
+  // (shares, ETFs, funds), each adding up to 100 % of those — so they need
+  // their own apportionment, over the securities' own sum
+  // (`securitiesAllocationInputOf`). That is a second `computeAllocation`
+  // call per pass, deliberately: the first one's units are shares of the
+  // whole portfolio. The two never meet on screen — `allocation` feeds the
+  // ring, the concentration figure and the type bar; this one feeds only the
+  // two breakdowns below, which regroup its units and divide nothing.
+  const securitiesAllocation = useMemo(
+    () =>
+      computeAllocation(
+        securitiesAllocationInputOf(
+          holdings ?? {
+            holdings: [],
+            totalValue: { amount: "0", currency: "EUR", provenance: { derivedFrom: [] } },
+          },
+        ),
+      ),
+    [holdings],
+  );
   const exposureHoldings = useMemo(() => exposureHoldingsOf(holdings?.holdings ?? []), [holdings]);
   const sectorBreakdown = useMemo(
-    () => computeExposureBreakdown(allocation, exposureHoldings, sectorDimension),
-    [allocation, exposureHoldings],
+    () => computeExposureBreakdown(securitiesAllocation, exposureHoldings, sectorDimension),
+    [securitiesAllocation, exposureHoldings],
   );
   const countryBreakdown = useMemo(
-    () => computeExposureBreakdown(allocation, exposureHoldings, countryDimension),
-    [allocation, exposureHoldings],
+    () => computeExposureBreakdown(securitiesAllocation, exposureHoldings, countryDimension),
+    [securitiesAllocation, exposureHoldings],
   );
 
   return (
