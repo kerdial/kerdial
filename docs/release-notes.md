@@ -6,6 +6,21 @@ from this file above the generated list of changes.
 
 ---
 
+## v0.4.1
+
+### Shorter exposure bars
+
+On the dashboard's « Exposition » card, the « Pays » and « Secteur » bars no longer list every country or
+sector. With more than six, the five largest are named and the rest is summed into « Autres »; with six
+or fewer, all are named. Crypto-assets now show as their own « Crypto » segment there instead of counting
+as « Non classé »: a sector or a country says nothing of them, so « Non classé » is now only what is
+really left to classify. The percentages are unchanged, and each bar still adds up to the whole portfolio.
+
+This is a display change only. The AI-assistant tools and the export are unchanged: `get_allocation`
+still returns every sector and country, and still counts crypto-assets in `UNCLASSIFIED`.
+
+No manual step.
+
 ## v0.4.0
 
 ### Sector and country weights for ETFs, funds and SCPI

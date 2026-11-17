@@ -467,6 +467,7 @@ describe("computeExposureBreakdown — AC-630: suppression holds with weighted h
           buckets: [],
           basis: "NONE",
           weighted: false,
+          unclassifiedCryptoUnits: new Decimal(0),
           suppressed: true,
         });
       }

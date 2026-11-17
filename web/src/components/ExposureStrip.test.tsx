@@ -10,6 +10,7 @@ import {
   countryDimension,
   sectorDimension,
 } from "../lib/exposure-breakdown.js";
+import { CRYPTO, OTHER } from "../lib/exposure-display.js";
 import type { HoldingResponse, HoldingsResponse } from "../lib/api-client.js";
 import { ExposureStrip } from "./ExposureStrip.js";
 
@@ -387,5 +388,55 @@ describe("<ExposureStrip> — hand-entered weights (FR-730, FR-731, AC-627, AC-6
     const text = screen.getByTestId("exposure-strip").textContent ?? "";
     expect(text).not.toMatch(/bientôt|à venir|en attente|chargement/i);
     expect(screen.getByTestId("exposure-strip").querySelector("[aria-busy='true']")).toBeNull();
+  });
+});
+
+describe("<ExposureStrip> — short legends: « Autres » and « Crypto » on the sector and country bars", () => {
+  it("names five countries of seven, then « Autres », and draws crypto apart from « Non classé » in the crypto token", () => {
+    const codes = ["FR", "US", "DE", "JP", "GB", "CH", "IT"];
+    const sharesByCountry = codes.map((code, index) =>
+      holding({
+        instrumentId: `00000000-0000-0000-0000-00000000000${String(index)}`,
+        domicileCountry: code,
+        listingCountry: code,
+        // 70, 60, …, 10: 280 in all.
+        currentValue: valued(`${String((codes.length - index) * 10)}.00`),
+      }),
+    );
+    // + unweighted ETF 60 + crypto 60 = 400.
+    renderStrip(
+      response(
+        [
+          ...sharesByCountry,
+          etf({ currentValue: valued("60.00") }),
+          holding({
+            instrumentId: "99999999-9999-9999-9999-999999999999",
+            kind: "CRYPTO",
+            sectorCode: null,
+            domicileCountry: null,
+            listingCountry: null,
+            currentValue: valued("60.00"),
+          }),
+        ],
+        "400.00",
+      ),
+    );
+    expect(legendLabels("country").slice(-3)).toEqual(["Autres", "Non classé", "Crypto"]);
+    expect(legendLabels("country")).toHaveLength(8);
+    // CH 20 + IT 10 of 400.
+    expect(
+      screen.getByTestId(`exposure-strip-bucket-percentage-country-${OTHER}`),
+    ).toHaveTextContent("7.50%");
+    for (const dimension of ["sector", "country"] as const) {
+      expect(
+        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${UNCLASSIFIED}`),
+      ).toHaveTextContent("15.00%");
+      expect(
+        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${CRYPTO}`),
+      ).toHaveTextContent("15.00%");
+      const crypto = barSegments(dimension).find((s) => s.getAttribute("data-kind") === CRYPTO);
+      expect(crypto?.style.background).toBe("var(--class-crypto)");
+      expect(crypto?.style.width).toBe("15%");
+    }
   });
 });
