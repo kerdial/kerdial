@@ -14,7 +14,7 @@ L'écran **« Importer »** propose deux exports :
 
 | Fichier | Bouton | Contenu |
 | --- | --- | --- |
-| `kerdial-instruments.json` | « Exporter le catalogue (JSON) » | Les titres et leur classification, leurs icônes, les cours que vous avez saisis à la main, votre liste de suivi, vos portefeuilles et leurs comptes espèces, et les taux de change que vous avez fixés vous-même. |
+| `kerdial-instruments.json` | « Exporter le catalogue (JSON) » | Les titres et leur classification (y compris les pondérations par secteur et par pays que vous avez saisies), leurs icônes, les cours que vous avez saisis à la main, votre liste de suivi, vos portefeuilles et leurs comptes espèces, et les taux de change que vous avez fixés vous-même. |
 | `kerdial-transactions.csv` | « Exporter les opérations (CSV) » | Toutes vos opérations : achats, ventes, dépôts, retraits, dividendes, réinvestissements, conversions de devises, attributions d'actions. |
 
 Les deux fichiers sont **indépendants**. Vous pouvez en importer un sans l'autre, et dans l'ordre que
@@ -276,6 +276,24 @@ Les dates sont au format `AAAA-MM-JJ`, les instants au format `2026-09-24T18:03:
         "targetPrice": "200.000000000000000000",
         "note": "Objectif de renforcement"
       }
+    },
+    {
+      "identity": { "kind": "ETF", "isin": "IE00…", "exchangeMic": "XAMS" },
+      "private": false,
+      "listingCurrency": "EUR",
+      "displayName": "ETF Monde",
+      "primaryIdentifier": "ISIN",
+      "quotePolicy": "AUTO",
+      "status": "ACTIVE",
+      "sectorWeights": [                 // facultatif : ETF et FUND uniquement ; pas de sectorCode pour ces types
+        { "code": "TECHNOLOGIE", "weight": "60.00" },
+        { "code": "FINANCE", "weight": "25.50" }
+      ],
+      "countryWeights": [                // facultatif : ETF, FUND et SCPI ; codes pays ISO 3166-1 alpha-2
+        { "code": "US", "weight": "70.00" },
+        { "code": "JP", "weight": "6.00" }
+      ],
+      "manualPrices": []
     }
   ],
 
@@ -305,6 +323,27 @@ Les dates sont au format `AAAA-MM-JJ`, les instants au format `2026-09-24T18:03:
 Les trois listes `instruments`, `portfolios` et `fxRatesUser` sont obligatoires ; elles peuvent être
 vides. `schemaVersion` est obligatoire : un document dont la version est absente ou inconnue est
 refusé en entier, sans rien écrire.
+
+**Les pondérations par secteur et par pays.** Les clés `sectorWeights` et `countryWeights` ne figurent
+que sur un titre pour lequel vous avez saisi des pondérations, chacune pour sa dimension ; elles
+n'existent pas ailleurs. Un ETF ou un fonds (`FUND`) peut porter les deux, une SCPI seulement
+`countryWeights` ; une action (`SHARE`), un crypto-actif ou un indice aucune. Chaque élément est un
+code (un code de secteur de l'application, ou un code pays ISO 3166-1 alpha-2 de la liste de
+l'application) et un poids en pourcentage, écrit comme du texte avec un point décimal (`"60.00"`) :
+strictement positif, au plus 100, au plus deux décimales, un même code une seule fois, et un total d'au
+plus 100. Ce qui manque pour atteindre 100 reste « Non classé » : les poids ne sont jamais ramenés à
+100. L'export les écrit du plus fort au plus faible, puis par code. À l'import :
+
+- une liste vide (`[]`) est refusée pour ce titre : « pas de pondérations » s'écrit d'une seule façon,
+  en omettant la clé ;
+- une clé absente n'efface jamais les pondérations déjà enregistrées ;
+- une liste présente et différente remplace les pondérations de cette dimension ; une liste identique
+  n'écrit rien.
+
+Un secteur unique sur un ETF ou un fonds **est** une pondération de ce secteur à 100 % : l'export
+n'écrit donc pas de `sectorCode` pour ces deux types. Un fichier plus ancien, ou écrit à la main, qui
+porte un `sectorCode` sur un ETF ou un fonds sans `sectorWeights` est lu comme ce secteur à 100 % ; si
+les deux clés sont présentes, `sectorWeights` l'emporte.
 
 **Le code ISIN est vérifié, jamais refusé.** Un ISIN doit compter exactement douze caractères — c'est
 ce que l'application enregistre. À l'import, la clé de contrôle ISO 6166 (le douzième caractère) est
@@ -428,6 +467,7 @@ il n'y a rien à craindre : Kerdial n'interprète jamais une cellule, il enregis
 | `kerdial-transactions v1` (inchangé) | 2026-10 | Type d'opération `INTEREST` (intérêts sur liquidités) ; pas de changement de version — une version antérieure de Kerdial importe le reste du fichier et rejette chaque ligne `INTEREST` (`UNSUPPORTED_ROW_TYPE`) ; vérifiez le nombre de lignes rejetées. |
 | `kerdial-transactions v1` (inchangé) | 2026-10 | Type d'opération `FEE` (frais de portefeuille) ; pas de changement de version — une version antérieure refuse chaque ligne FEE (UNSUPPORTED_ROW_TYPE) et importe les autres. |
 | `kerdial-transactions v2` | 2026-11 | La retenue à la source d'un `DIVIDEND` ou d'un `INTEREST` est un seul montant, dans la devise du compte espèces : colonnes `withholding_currency`, `withholding_cash_account` et `wht_fx_rate` supprimées, `withholding_amount` conservée. Un fichier `v1` est refusé en entier ; un fichier sans ligne de version qui contient l'une des trois colonnes supprimées est refusé comme colonne inconnue. |
+| `schemaVersion` 1 (inchangé) | 2026-11 | Clés facultatives `sectorWeights` et `countryWeights` sur un titre (pondérations par secteur et par pays) ; un ETF ou un fonds n'est plus exporté avec `sectorCode`, un `sectorCode` ancien sur ces types étant lu comme ce secteur à 100 % ; ajout facultatif, pas de changement de version — une version antérieure de Kerdial rejette chaque titre qui porte l'une de ces clés, et ce titre seulement (`MALFORMED_VALUE`, message « Unrecognized key »), sans écrire ses cours saisis à la main, son icône ni sa ligne de liste de suivi, et importe normalement les autres titres ; vérifiez le nombre de titres rejetés. |
 
 La version du CSV est portée par la ligne `# kerdial-transactions v2`, facultative à la lecture
 (section 3). Celle du catalogue est portée par le champ `schemaVersion`, obligatoire (section 6).

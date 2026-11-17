@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { COUNTRY_LABELS_FR, countryLabel } from "./country.js";
-import { CURATED_EXCHANGE_MICS, micToCountryCode } from "./exchange-mic.js";
+import { countryLabel } from "./country.js";
+import { micToCountryCode } from "./exchange-mic.js";
 import {
   PROVIDER_SECTOR_TO_CODE,
   SECTOR_CODES,
@@ -120,27 +120,9 @@ describe("sectorCodeForProviderLabel() — total, normalising, and prototype-saf
   });
 });
 
-describe("COUNTRY_LABELS_FR / countryLabel() / micToCountryCode()", () => {
-  it("every distinct curated-exchange country code has a French label — no curated exchange renders as a bare code", () => {
-    const codes = [...new Set(CURATED_EXCHANGE_MICS.map((exchange) => exchange.countryCode))];
-    expect(codes.length).toBeGreaterThan(20);
-    for (const code of codes) {
-      expect(countryLabel(code), `${code} must carry a French label`).toBeTruthy();
-    }
-  });
-
-  it("covers the sample catalogue's fund domicile that is not itself a curated listing country", () => {
-    expect(countryLabel("LU")).toBe("Luxembourg");
-  });
-
-  it("every key is a two-letter uppercase code with a non-empty, trimmed label", () => {
-    for (const [code, label] of Object.entries(COUNTRY_LABELS_FR)) {
-      expect(code).toMatch(/^[A-Z]{2}$/);
-      expect(label.trim()).toBe(label);
-      expect(label.length).toBeGreaterThan(0);
-    }
-  });
-
+// The country list's own drift tests (shape, count, the 30 labels, curated
+// exchange coverage, order) live in `country.test.ts`.
+describe("micToCountryCode()", () => {
   it("micToCountryCode() resolves a curated MIC to its country code", () => {
     expect(micToCountryCode("XPAR")).toBe("FR");
     expect(micToCountryCode("XNAS")).toBe("US");

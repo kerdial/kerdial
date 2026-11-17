@@ -124,6 +124,12 @@ export interface RealizedGainResponse {
   readonly proceedsBase: ValuedAmount;
 }
 
+/** One bucket of a holding's weight set on the wire: its sector or country code and its weight in percent. */
+interface HoldingExposureWeight {
+  readonly code: string;
+  readonly weight: string;
+}
+
 export interface HoldingResponse {
   readonly instrumentId: string;
   /**
@@ -161,6 +167,14 @@ export interface HoldingResponse {
   readonly sectorCode: string | null;
   readonly domicileCountry: string | null;
   readonly listingCountry: string | null;
+  /**
+   * FR-721/FR-725: the instrument's hand-entered weight sets, per dimension,
+   * weights as two-decimal strings (`"60.00"`); a key is absent when the
+   * instrument has no set in that dimension. The exposure strip places the
+   * holding by them (`exposureHoldingsOf`).
+   */
+  readonly sectorWeights?: readonly HoldingExposureWeight[];
+  readonly countryWeights?: readonly HoldingExposureWeight[];
   /**
    * IK-10 (FR-313, FR-314) — whether
    * this tenant has uploaded an icon for this instrument, carried on the

@@ -330,6 +330,142 @@ describe("api + @kerdial/mcp — the MCP server against the real API (MCP-AC-17,
     );
   });
 
+  it("AC-647 — on AC-623's data, get_allocation by country and by sector is the API's body, and get_holdings relays the weight sets", async () => {
+    // Its own tenant, so the counts and orders the tests above pin do not move.
+    const tenantId = randomUUID();
+    await testApp.ownerDb.insert(tenant).values({ id: tenantId });
+    const email = `cyd-mcp-weights-${randomUUID()}@example.com`;
+    await createUser(testApp.db, { id: randomUUID(), tenantId, email, password: PASSWORD });
+    const cyd = await loginAs(server(), email, PASSWORD);
+    const send = (method: "post" | "patch", path: string, body: object) =>
+      server()
+        [method](path)
+        .set("Cookie", [`${SID_COOKIE_NAME}=${cyd.sid}`, `${CSRF_COOKIE_NAME}=${cyd.csrf}`])
+        .set(CSRF_HEADER_NAME, cyd.csrf)
+        .send(body);
+
+    const etfA = randomUUID();
+    const shareB = randomUUID();
+    const base = {
+      primaryIdentifier: "SYMBOL" as const,
+      quotePolicy: "AUTO" as const,
+      listingCurrency: "EUR",
+      exchangeMic: "XPAR",
+    };
+    await testApp.ownerDb.insert(instrument).values([
+      { ...base, kind: "ETF", id: etfA, displayName: "MCP weights ETF-A", symbol: "MCPEWA" },
+      {
+        ...base,
+        kind: "SHARE",
+        id: shareB,
+        displayName: "MCP weights SHARE-B",
+        symbol: "MCPEWB",
+        sectorCode: "FINANCE",
+        domicileCountry: "FR",
+      },
+    ]);
+    const close = { priceDate: PRICE_DATE, sourceKey: "yahoo", quality: "EOD" as const };
+    await testApp.ownerDb.insert(instrumentPriceDaily).values([
+      { ...close, instrumentId: etfA, closeRaw: new Decimal("6000"), currency: "EUR" },
+      { ...close, instrumentId: shareB, closeRaw: new Decimal("4000"), currency: "EUR" },
+    ]);
+    const weights = await send("patch", `/api/v1/instruments/${etfA}/exposure-weights`, {
+      countryWeights: [
+        { code: "US", weight: "60.00" },
+        { code: "JP", weight: "25.00" },
+        { code: "GB", weight: "10.00" },
+      ],
+      sectorWeights: [
+        { code: "TECHNOLOGIE", weight: "30.00" },
+        { code: "FINANCE", weight: "20.00" },
+      ],
+    });
+    expect(weights.status, JSON.stringify(weights.body)).toBe(200);
+
+    const created = await send("post", "/api/v1/portfolios", { name: "MCP weights" });
+    expect(created.status).toBe(201);
+    const portfolioId = created.body.id as string;
+    await seedCashAccountsForPortfolio(testApp.ownerDb, portfolioId);
+    const eur = cash(portfolioId, "EUR");
+    for (const body of [
+      { kind: "DEPOSIT", tradeDate: "2026-01-02", amount: "10000" },
+      { kind: "BUY", instrumentId: etfA, tradeDate: PRICE_DATE, quantity: "1", unitPrice: "6000" },
+      {
+        kind: "BUY",
+        instrumentId: shareB,
+        tradeDate: PRICE_DATE,
+        quantity: "1",
+        unitPrice: "4000",
+      },
+    ]) {
+      const response = await send("post", "/api/v1/transactions", {
+        ...body,
+        portfolioId,
+        currency: "EUR",
+        cashAccountId: eur,
+      });
+      expect(response.status, JSON.stringify(response.body)).toBe(201);
+    }
+
+    const minted = await send("post", "/api/v1/auth/tokens", {
+      label: "MCP weights",
+      expiresInDays: 90,
+      currentPassword: PASSWORD,
+    });
+    expect(minted.status, JSON.stringify(minted.body)).toBe(201);
+    const secret = minted.body.secret as string;
+    const read = async (path: string): Promise<Body> => {
+      const response = await server().get(path).set("Authorization", `Bearer ${secret}`);
+      expect(response.status, path).toBe(200);
+      return response.body as Body;
+    };
+    const client = await connectClient(secret);
+    try {
+      const relayed = async (name: ToolName, args: Body = {}) => {
+        const outcome = await call(client, name, args);
+        expect(outcome.isError, `${name}: ${outcome.text}`).toBe(false);
+        return outcome.structured;
+      };
+      const bucketsOf = (body: Body) =>
+        (body["buckets"] as Body[]).map((b) => [b["key"], b["value"], b["sharePercent"]]);
+
+      const country = await relayed("get_allocation", { by: "country" });
+      expect(country).toEqual(await read("/api/v1/portfolios/allocation?by=country"));
+      expect(country["basis"]).toBe("MIXED");
+      expect(bucketsOf(country)).toEqual([
+        ["FR", "4000", "40.00"],
+        ["US", "3600", "36.00"],
+        ["JP", "1500", "15.00"],
+        ["GB", "600", "6.00"],
+        ["UNCLASSIFIED", "300", "3.00"],
+      ]);
+      const sector = await relayed("get_allocation", { by: "sector" });
+      expect(sector).toEqual(await read("/api/v1/portfolios/allocation?by=sector"));
+      expect(bucketsOf(sector)).toEqual([
+        ["FINANCE", "5200", "52.00"],
+        ["TECHNOLOGIE", "1800", "18.00"],
+        ["UNCLASSIFIED", "3000", "30.00"],
+      ]);
+
+      const holdings = (await relayed("get_holdings"))["holdings"] as Body[];
+      const holdingsApi = (await read("/api/v1/portfolios/holdings"))["holdings"] as Body[];
+      const line = holdings.find((h) => h["instrumentId"] === etfA);
+      const lineApi = holdingsApi.find((h) => h["instrumentId"] === etfA);
+      expect(line?.["countryWeights"]).toEqual(lineApi?.["countryWeights"]);
+      expect(line?.["sectorWeights"]).toEqual(lineApi?.["sectorWeights"]);
+      expect((line?.["countryWeights"] as Body[] | undefined)?.[0]).toEqual({
+        code: "US",
+        weight: "60.00",
+      });
+      expect((line?.["sectorWeights"] as Body[] | undefined)?.[0]).toEqual({
+        code: "TECHNOLOGIE",
+        weight: "30.00",
+      });
+    } finally {
+      await client.close();
+    }
+  });
+
   it("MCP-N1 — the token cannot write, by any route: a direct POST with it is refused", async () => {
     const response = await server()
       .post("/api/v1/portfolios")

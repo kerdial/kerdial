@@ -122,11 +122,40 @@ export type InstrumentCopyKey =
   // --- the classification form
   | "classificationSector"
   | "classificationDomicile"
-  | "classificationDomicilePlaceholder"
   | "classificationDomicileHint"
+  // --- the country picker (FR-737)
+  | "countryPickerPlaceholder"
+  | "countryPickerOneResult"
+  | "countryPickerResults"
+  | "countryPickerNoMatch"
   | "classificationIndustry"
   | "classificationClear"
   | "classificationSubmit"
+  // --- the exposure-weights editor (FR-734, FR-735)
+  | "weightsSectorTitle"
+  | "weightsCountryTitle"
+  | "weightsSectorField"
+  | "weightsSectorChoose"
+  | "weightsCountryField"
+  | "weightsPercentField"
+  | "weightsAddRow"
+  | "weightsRemoveRow"
+  | "weightsTotal"
+  | "weightsRemainder"
+  | "weightsMissingSector"
+  | "weightsMissingCountry"
+  | "weightsMissingPercent"
+  | "weightsOutOfRange"
+  | "weightsUnknownBucket"
+  | "weightsDuplicateBucket"
+  | "weightsTotalAbove100"
+  | "weightsSavedClassificationNot"
+  // --- the weighted sector summary (EW-L15) and the detail's weights block (FR-733)
+  | "weightedSectorsOne"
+  | "weightedSectorsMany"
+  | "manualWeightsTitle"
+  | "manualWeightsSectors"
+  | "manualWeightsCountries"
   // --- the manual-price dialog (from the holdings surfaces)
   | "lastKnownPrice"
   // --- the reload button, on the Instruments list and on Contrôles
@@ -357,13 +386,54 @@ export const INSTRUMENT_COPY = {
 
   classificationSector: "Secteur",
   classificationDomicile: "Pays du siège social",
-  /** An example code, not a French word — an ISO 3166-1 alpha-2 placeholder. */
-  classificationDomicilePlaceholder: "NL",
   /** `{unknown}` is `country-display.ts`'s own « Non renseigné » label, never a second wording of it. */
-  classificationDomicileHint: "Code pays à deux lettres. Laisser vide pour « {unknown} ».",
+  classificationDomicileHint: "Rechercher par nom ou par code. Effacer pour « {unknown} ».",
   classificationIndustry: "Secteur détaillé",
   classificationClear: "Effacer",
+
+  countryPickerPlaceholder: "Rechercher un pays",
+  /** The picker's polite live region (NFR-101): the count of rows it offers. */
+  countryPickerOneResult: "1 résultat",
+  countryPickerResults: "{count} résultats",
+  /** Both the live region's empty state and the visible one (FR-737) — no free-text commit is offered. */
+  countryPickerNoMatch: "Aucun pays ne correspond",
   classificationSubmit: "Enregistrer la correction",
+
+  /*
+   * The exposure-weights editor (FR-734, FR-735). The four refusal sentences
+   * are the French face of `EXPOSURE_WEIGHT_REFUSALS`, mapped one-to-one by
+   * `exposure-weights-form.ts`'s exhaustive `Record`; the three « missing »
+   * ones cover a half-filled row, which the shared validator never sees.
+   */
+  weightsSectorTitle: "Pondérations par secteur",
+  weightsCountryTitle: "Pondérations par pays",
+  weightsSectorField: "Secteur",
+  weightsSectorChoose: "— Choisir un secteur —",
+  weightsCountryField: "Pays",
+  weightsPercentField: "Pourcentage",
+  weightsAddRow: "Ajouter une ligne",
+  weightsRemoveRow: "Retirer la ligne",
+  /** `{total}` / `{remainder}` arrive formatted by `formatUnitsAsPercentage`. */
+  weightsTotal: "Total {total}",
+  weightsRemainder: "Reste non classé {remainder}",
+  weightsMissingSector: "Choisissez un secteur.",
+  weightsMissingCountry: "Choisissez un pays.",
+  weightsMissingPercent: "Saisissez un pourcentage.",
+  weightsOutOfRange:
+    "Un pourcentage supérieur à 0 et au plus égal à 100, avec deux décimales au plus.",
+  weightsUnknownBucket: "Ce choix ne figure pas dans la liste.",
+  weightsDuplicateBucket: "Déjà choisi dans une autre ligne.",
+  weightsTotalAbove100: "Le total dépasse 100 %.",
+  /** The two writes are not atomic with each other: `{reason}` is the classification write's own message. */
+  weightsSavedClassificationNot:
+    "Les pondérations ont été enregistrées, mais pas la classification : {reason}",
+
+  /** EW-L15's locked summary, singular and plural (a plural is a grammar rule, not a suffix). */
+  weightedSectorsOne: "Pondéré · 1 secteur",
+  weightedSectorsMany: "Pondéré · {count} secteurs",
+  manualWeightsTitle: "Répartition saisie manuellement",
+  manualWeightsSectors: "Par secteur",
+  manualWeightsCountries: "Par pays",
 
   lastKnownPrice: "Dernier cours connu",
 

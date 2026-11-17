@@ -15,8 +15,8 @@ import { allocationInputOf, exposureHoldingsOf } from "../lib/cash-position.js";
 import { toValuePointSeries } from "../lib/chart-series.js";
 import {
   computeExposureBreakdown,
-  countryClassifier,
-  sectorClassifier,
+  countryDimension,
+  sectorDimension,
 } from "../lib/exposure-breakdown.js";
 import { formatFrenchShortDate } from "../lib/format-date.js";
 import { rangePhrase } from "../lib/period-presets.js";
@@ -163,16 +163,16 @@ export function OverviewRoute() {
   // call per render pass" is unchanged: two apportionments would still be two
   // roundings, and a bucket could then disagree with the rows beneath it.
   //
-  // The breakdowns walk `exposureHoldingsOf`: the holdings plus the cash row as
-  // an unclassified line, so cash lands in « Non classé » (portfolio-cash
-  // C-13) and the buckets still sum to the whole cash-inclusive total.
+  // The breakdowns walk `exposureHoldingsOf`: the holdings (weight sets
+  // parsed) plus the cash row, which becomes its own « Liquidités » bucket
+  // (FR-745), so the buckets still sum to the whole cash-inclusive total.
   const exposureHoldings = useMemo(() => exposureHoldingsOf(holdings?.holdings ?? []), [holdings]);
   const sectorBreakdown = useMemo(
-    () => computeExposureBreakdown(allocation, exposureHoldings, sectorClassifier),
+    () => computeExposureBreakdown(allocation, exposureHoldings, sectorDimension),
     [allocation, exposureHoldings],
   );
   const countryBreakdown = useMemo(
-    () => computeExposureBreakdown(allocation, exposureHoldings, countryClassifier),
+    () => computeExposureBreakdown(allocation, exposureHoldings, countryDimension),
     [allocation, exposureHoldings],
   );
 

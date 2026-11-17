@@ -215,6 +215,132 @@ describe("serializeKerdialCatalogue", () => {
     expect(text.endsWith("}\n")).toBe(true);
   });
 
+  describe("the exposure-weight keys (FR-742, EW-L18)", () => {
+    type Instrument = KerdialCatalogueDocument["instruments"][number];
+
+    function etf(overrides: Partial<Instrument>): Instrument {
+      return {
+        identity: { kind: "ETF", isin: "IE00B4L5Y983", exchangeMic: "XAMS" },
+        private: false,
+        listingCurrency: "EUR",
+        displayName: "Un ETF monde",
+        primaryIdentifier: "ISIN",
+        quotePolicy: "AUTO",
+        status: "ACTIVE",
+        domicileCountry: "IE",
+        manualPrices: [],
+        ...overrides,
+      };
+    }
+
+    function withInstruments(...instruments: Instrument[]): KerdialCatalogueDocument {
+      return { ...fullDocument(), instruments };
+    }
+
+    function instrumentsOf(text: string): Record<string, unknown>[] {
+      return (JSON.parse(text) as { instruments: Record<string, unknown>[] }).instruments;
+    }
+
+    it("writes both sets after domicileCountry, as quoted dot-decimal strings, weight descending then code ascending", () => {
+      const text = serializeKerdialCatalogue(
+        withInstruments(
+          etf({
+            sectorWeights: [
+              { code: "FINANCE", weight: "20.00" },
+              { code: "TECHNOLOGIE", weight: "30.00" },
+            ],
+            countryWeights: [
+              { code: "GB", weight: "10.00" },
+              { code: "US", weight: "60.00" },
+              { code: "JP", weight: "25.00" },
+              { code: "DE", weight: "5.00" },
+              { code: "CA", weight: "5.00" },
+            ],
+          }),
+        ),
+      );
+      const [entry] = instrumentsOf(text);
+
+      const keys = Object.keys(entry!);
+      expect(
+        keys.slice(keys.indexOf("domicileCountry"), keys.indexOf("domicileCountry") + 3),
+      ).toStrictEqual(["domicileCountry", "sectorWeights", "countryWeights"]);
+      expect(entry!["sectorWeights"]).toStrictEqual([
+        { code: "TECHNOLOGIE", weight: "30.00" },
+        { code: "FINANCE", weight: "20.00" },
+      ]);
+      expect(entry!["countryWeights"]).toStrictEqual([
+        { code: "US", weight: "60.00" },
+        { code: "JP", weight: "25.00" },
+        { code: "GB", weight: "10.00" },
+        { code: "CA", weight: "5.00" },
+        { code: "DE", weight: "5.00" },
+      ]);
+    });
+
+    it("writes the same bytes whatever order the sets were built in", () => {
+      const ordered = [
+        { code: "US", weight: "60.00" },
+        { code: "JP", weight: "9.00" },
+        { code: "GB", weight: "10.00" },
+      ];
+      const one = serializeKerdialCatalogue(withInstruments(etf({ countryWeights: ordered })));
+      const other = serializeKerdialCatalogue(
+        withInstruments(etf({ countryWeights: [...ordered].reverse() })),
+      );
+
+      expect(other).toBe(one);
+    });
+
+    it("writes no key at all for an instrument without a set, an empty list included", () => {
+      const text = serializeKerdialCatalogue(
+        withInstruments(etf({}), etf({ sectorWeights: [], countryWeights: [] })),
+      );
+
+      for (const entry of instrumentsOf(text)) {
+        expect(Object.hasOwn(entry, "sectorWeights")).toBe(false);
+        expect(Object.hasOwn(entry, "countryWeights")).toBe(false);
+      }
+      expect(text).not.toContain("Weights");
+    });
+
+    it("never writes a sectorCode on a kind whose sector is a weight set, and keeps it on a SHARE", () => {
+      const share = fullDocument().instruments[0]!;
+      const text = serializeKerdialCatalogue(
+        withInstruments(
+          etf({ sectorCode: "ENERGIE" }),
+          etf({ identity: { kind: "FUND", isin: "FR0010315770" }, sectorCode: "FINANCE" }),
+          share,
+        ),
+      );
+      const [etfEntry, fundEntry, shareEntry] = instrumentsOf(text);
+
+      expect(Object.hasOwn(etfEntry!, "sectorCode")).toBe(false);
+      expect(Object.hasOwn(fundEntry!, "sectorCode")).toBe(false);
+      expect(shareEntry!["sectorCode"]).toBe("MATERIAUX");
+    });
+
+    it("round-trips a set through the importer's own parse, each weight a Decimal", () => {
+      const text = serializeKerdialCatalogue(
+        withInstruments(etf({ countryWeights: [{ code: "US", weight: "60.00" }] })),
+      );
+
+      const result = kerdialCatalogueImporter.validate(
+        kerdialCatalogueImporter.parse({
+          bytes: new TextEncoder().encode(text),
+          fileType: KERDIAL_CATALOGUE_FILE_TYPE,
+          limits: KERDIAL_JSON_LIMITS,
+        }),
+      );
+
+      expect(result.problems).toStrictEqual([]);
+      const weights = result.draft.instruments[0]!.countryWeights;
+      expect(weights?.map((item) => [item.code, item.weight.toFixed(2)])).toStrictEqual([
+        ["US", "60.00"],
+      ]);
+    });
+  });
+
   it("round-trips an empty tenant's document — FR-512's valid empty file", () => {
     const empty: KerdialCatalogueDocument = {
       schemaVersion: KERDIAL_CATALOGUE_SCHEMA_VERSION,

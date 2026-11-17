@@ -442,7 +442,11 @@ export async function valueClosedPositionsAsOf(
 ): Promise<ValuedClosedPositions> {
   const { tenantId, portfolioId, asOfDate } = params;
   const loaded = await withTenant(db, tenantId, (tx) =>
-    loadHoldingsInputs(tx, { tenantId, portfolioId, asOfDate }, { withCash: false }),
+    loadHoldingsInputs(
+      tx,
+      { tenantId, portfolioId, asOfDate },
+      { withCash: false, withExposureWeights: false },
+    ),
   );
   return assembleClosedPositions(loaded, params).view;
 }
@@ -524,7 +528,11 @@ export async function valueClosedPositionsForTenant(
 
   const perPortfolio = await mapWithConcurrency(portfolios, FAN_OUT_CONCURRENCY, async (p) => {
     const loaded = await withTenant(db, tenantId, (tx) =>
-      loadHoldingsInputs(tx, { tenantId, portfolioId: p.id, asOfDate }, { withCash: false }),
+      loadHoldingsInputs(
+        tx,
+        { tenantId, portfolioId: p.id, asOfDate },
+        { withCash: false, withExposureWeights: false },
+      ),
     );
     return assembleClosedPositions(loaded, { tenantId, portfolioId: p.id, asOfDate });
   });

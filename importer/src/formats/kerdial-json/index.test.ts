@@ -177,6 +177,34 @@ describe("kerdialCatalogueImporter.parse", () => {
     expect(result.draft.instruments[0]).toStrictEqual(parse(document).draft.instruments[0]);
   });
 
+  it("refuses an entry carrying a key this build does not know, alone, and reads the rest of the document (AC-644)", () => {
+    // The probe AC-644 asks for, asserting what the reader does rather than
+    // what its schema suggests: an instrument entry is a strict object, so an
+    // unknown key refuses that entry (its manual prices, icon and watchlist
+    // with it) while the envelope and every other entry still read. The key is
+    // a sentinel no build will ever define, so the mechanism stays guarded now
+    // that the weight keys are part of the format.
+    const document = validDocument();
+    const carrying = {
+      ...document.instruments[0]!,
+      zzUnknownKey: [{ code: "US", weight: "60.00" }],
+    };
+
+    const result = kerdialCatalogueImporter.validate(
+      parse({ ...document, instruments: [carrying, document.instruments[1]] }),
+    );
+
+    expect(result.problems).toStrictEqual([
+      {
+        at: { section: "instruments", index: 0 },
+        problem: { code: "MALFORMED_VALUE", message: 'Unrecognized key: "zzUnknownKey"' },
+      },
+    ]);
+    expect(result.entryCount).toBe(4);
+    expect(result.draft.instruments.map((entry) => entry.at.index)).toStrictEqual([1]);
+    expect(result.draft.instruments[0]!.displayName).toBe("Bitcoin");
+  });
+
   it("separates a missing key from a malformed one", () => {
     const document = validDocument();
     const { displayName: _dropped, ...withoutName } = document.instruments[0]!;
@@ -383,6 +411,160 @@ describe("kerdialCatalogueImporter.validate", () => {
       expect(problemsOf({ ...share, subscriptionFeePct: "1.00" })).toStrictEqual([
         "MALFORMED_VALUE",
       ]);
+    });
+  });
+
+  describe("an entry's exposure weights (FR-743, AC-642, AC-643, AC-650)", () => {
+    type Instrument = KerdialCatalogueDocument["instruments"][number];
+    type Weights = { code: string; weight: string }[];
+
+    const etf = (overrides: Partial<Instrument> = {}): Instrument => ({
+      identity: { kind: "ETF", isin: "IE00B4L5Y983", exchangeMic: "XAMS" },
+      private: false,
+      listingCurrency: "EUR",
+      displayName: "Un ETF monde",
+      primaryIdentifier: "ISIN",
+      quotePolicy: "AUTO",
+      status: "ACTIVE",
+      manualPrices: [],
+      ...overrides,
+    });
+    const share = validDocument().instruments[0]!;
+    const crypto = validDocument().instruments[1]!;
+    const index: Instrument = {
+      identity: { kind: "INDEX", symbol: "^FCHI" },
+      private: false,
+      listingCurrency: "EUR",
+      displayName: "CAC 40",
+      primaryIdentifier: "SYMBOL",
+      quotePolicy: "AUTO",
+      status: "ACTIVE",
+      manualPrices: [],
+    };
+    const scpi: Instrument = {
+      identity: { kind: "SCPI", isin: "FR0014005RN7" },
+      private: false,
+      listingCurrency: "EUR",
+      displayName: "SCPI Pierre Rendement",
+      primaryIdentifier: "ISIN",
+      quotePolicy: "MANUAL_ONLY",
+      status: "ACTIVE",
+      manualPrices: [],
+    };
+    const country = (...pairs: [string, string][]): Weights =>
+      pairs.map(([code, weight]) => ({ code, weight }));
+
+    /**
+     * The refused entry sits **between** two valid ones, so "validate only the
+     * first entry" and "stop at the first refusal" both leave a mark.
+     */
+    function verdictOn(refused: unknown) {
+      const ok = etf({ countryWeights: country(["US", "60.00"]) });
+      const result = kerdialCatalogueImporter.validate(
+        parse({ ...validDocument(), instruments: [ok, refused, crypto] }),
+      );
+      return {
+        problems: result.problems.map((p) => ({ index: p.at.index, ...p.problem })),
+        kept: result.draft.instruments.map((entry) => entry.at.index),
+      };
+    }
+
+    it("keeps an ETF carrying both sets, an SCPI carrying a country set, each weight a Decimal", () => {
+      const result = validated({
+        ...validDocument(),
+        instruments: [
+          etf({
+            sectorWeights: country(["TECHNOLOGIE", "30.00"], ["FINANCE", "20"]),
+            countryWeights: country(["US", "60.00"], ["JP", "25.00"], ["GB", "10.00"]),
+          }),
+          { ...scpi, countryWeights: country(["FR", "100.00"]) },
+        ],
+      });
+
+      expect(result.problems).toStrictEqual([]);
+      expect(
+        result.draft.instruments[0]!.sectorWeights?.map((w) => [w.code, w.weight.toFixed(2)]),
+      ).toStrictEqual([
+        ["TECHNOLOGIE", "30.00"],
+        ["FINANCE", "20.00"],
+      ]);
+      expect(result.draft.instruments[1]!.countryWeights?.[0]?.weight.toFixed(2)).toBe("100.00");
+    });
+
+    it("refuses weights on a kind that cannot carry them, as that one entry: SHARE, CRYPTO, INDEX, and SCPI sector weights", () => {
+      const cases: [unknown, string][] = [
+        [
+          { ...share, countryWeights: country(["FR", "100.00"]) },
+          "a SHARE instrument carries no country weights; this entry carries some",
+        ],
+        [
+          { ...crypto, private: false, countryWeights: country(["US", "10.00"]) },
+          "a CRYPTO instrument carries no country weights; this entry carries some",
+        ],
+        [
+          { ...index, sectorWeights: country(["FINANCE", "10.00"]) },
+          "a INDEX instrument carries no sector weights; this entry carries some",
+        ],
+        [
+          { ...scpi, sectorWeights: country(["FINANCE", "10.00"]) },
+          "a SCPI instrument carries no sector weights; this entry carries some",
+        ],
+      ];
+      for (const [entry, message] of cases) {
+        expect(verdictOn(entry)).toStrictEqual({
+          problems: [{ index: 1, code: "MALFORMED_VALUE", message }],
+          kept: [0, 2],
+        });
+      }
+    });
+
+    it("refuses each FR-720 rule as that one entry, with a message naming the rule and no figure", () => {
+      const cases: [Weights, string][] = [
+        [
+          country(["US", "60.00"], ["JP", "45.00"]),
+          "the country weights sum to more than one hundred",
+        ],
+        [
+          country(["ZZ", "10.00"]),
+          "the country weights name a code outside the country list (upper-case two-letter codes)",
+        ],
+        [
+          country(["fr", "10.00"]),
+          "the country weights name a code outside the country list (upper-case two-letter codes)",
+        ],
+        [
+          country(["US", "10.00"], ["US", "5.00"]),
+          "the country weights name the same country twice",
+        ],
+        [
+          country(["US", "0.00"]),
+          "a country weight is out of range: each weight is above zero, at most one hundred, with at most two decimals",
+        ],
+        [
+          country(["US", "100.01"]),
+          "a country weight is out of range: each weight is above zero, at most one hundred, with at most two decimals",
+        ],
+      ];
+      for (const [countryWeights, message] of cases) {
+        const verdict = verdictOn(etf({ countryWeights }));
+        expect(verdict, message).toStrictEqual({
+          problems: [{ index: 1, code: "MALFORMED_VALUE", message }],
+          kept: [0, 2],
+        });
+      }
+      expect(
+        verdictOn(etf({ sectorWeights: country(["IMMOBILIER", "10.00"]) })).problems[0]?.message,
+      ).toBe("the sector weights name a code outside the sector list");
+    });
+
+    it("refuses an empty list as that one entry (AC-650), and keeps the entry that leaves the key out", () => {
+      const verdict = verdictOn(etf({ countryWeights: [] }));
+
+      expect(verdict.kept).toStrictEqual([0, 2]);
+      expect(verdict.problems).toStrictEqual([
+        { index: 1, code: "MALFORMED_VALUE", message: expect.stringContaining("countryWeights") },
+      ]);
+      expect(verdictOn(etf()).problems).toStrictEqual([]);
     });
   });
 

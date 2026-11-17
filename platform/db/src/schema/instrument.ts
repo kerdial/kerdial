@@ -223,5 +223,15 @@ export const instrument = pgTable(
       "instrument_scpi_shape",
       sql`${table.kind}::text <> 'SCPI' OR (${table.exchangeMic} IS NULL AND ${table.quotePolicy} = 'MANUAL_ONLY' AND (${table.isin} IS NOT NULL OR ${table.symbol} IS NOT NULL))`,
     ),
+    // `exposure-weights` (EW-L18, FR-747(b), migration `0082`): on a kind that
+    // can carry sector weights, a single sector *is* a 100 % sector weight
+    // (`instrument_exposure_weight`), so the column is never a second source.
+    // The kind list is a literal, necessarily; `instrument-exposure-weight-
+    // schema.integration.test.ts` pins it against
+    // `EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND`. `kind::text`, like the SCPI checks.
+    check(
+      "instrument_no_sector_code_on_sector_weighted_kind",
+      sql`${table.kind}::text NOT IN ('ETF', 'FUND') OR ${table.sectorCode} IS NULL`,
+    ),
   ],
 );

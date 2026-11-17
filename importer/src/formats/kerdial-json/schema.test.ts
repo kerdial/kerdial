@@ -293,6 +293,75 @@ describe("kerdialCatalogueDocumentSchema", () => {
   });
 });
 
+describe("the exposure-weight keys (FR-742, EW-L17)", () => {
+  type Instrument = KerdialCatalogueDocument["instruments"][number];
+
+  function withEtf(overrides: Partial<Instrument>): unknown {
+    return {
+      ...validDocument(),
+      instruments: [
+        {
+          identity: { kind: "ETF", isin: "IE00B4L5Y983", exchangeMic: "XAMS" },
+          private: false,
+          listingCurrency: "EUR",
+          displayName: "Un ETF monde",
+          primaryIdentifier: "ISIN",
+          quotePolicy: "AUTO",
+          status: "ACTIVE",
+          manualPrices: [],
+          ...overrides,
+        },
+      ],
+    };
+  }
+
+  it("parses an entry carrying both sets, dot-decimal strings, field for field", () => {
+    const document = withEtf({
+      sectorWeights: [{ code: "TECHNOLOGIE", weight: "30.00" }],
+      countryWeights: [
+        { code: "US", weight: "60.00" },
+        { code: "JP", weight: "25" },
+      ],
+    });
+
+    expect(kerdialCatalogueDocumentSchema.parse(document)).toStrictEqual(document);
+  });
+
+  it("refuses an empty array (EW-L17: no weights is the key left out)", () => {
+    expect(kerdialCatalogueDocumentSchema.safeParse(withEtf({ countryWeights: [] })).success).toBe(
+      false,
+    );
+    expect(kerdialCatalogueDocumentSchema.safeParse(withEtf({ sectorWeights: [] })).success).toBe(
+      false,
+    );
+  });
+
+  it("refuses a weight that is not a dot-decimal string: a decimal comma, a JSON number", () => {
+    const refused = [
+      [{ code: "US", weight: "60,00" }],
+      [{ code: "US", weight: 60 }],
+      [{ code: "US", weight: "60.001" }],
+    ];
+    for (const countryWeights of refused) {
+      const document = withEtf({});
+      Object.assign((document as { instruments: object[] }).instruments[0]!, { countryWeights });
+      expect(
+        kerdialCatalogueDocumentSchema.safeParse(document).success,
+        String(countryWeights[0]!.weight),
+      ).toBe(false);
+    }
+  });
+
+  it("refuses an unknown key inside a weight item", () => {
+    const document = withEtf({});
+    Object.assign((document as { instruments: object[] }).instruments[0]!, {
+      countryWeights: [{ code: "US", weight: "60.00", zzUnknownKey: true }],
+    });
+
+    expect(kerdialCatalogueDocumentSchema.safeParse(document).success).toBe(false);
+  });
+});
+
 describe("kerdialCatalogueEnvelopeSchema", () => {
   it("checks the manifest and the array bounds while leaving entries unvalidated", () => {
     const oneBadEntry = { ...validDocument(), instruments: [{ nonsense: true }] };

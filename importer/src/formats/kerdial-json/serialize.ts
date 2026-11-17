@@ -1,3 +1,6 @@
+import { EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND } from "@kerdial/api-contracts";
+import { parseDecimalString } from "@kerdial/core-decimal";
+
 import type {
   KerdialCatalogueCashAccount,
   KerdialCatalogueDocument,
@@ -86,6 +89,12 @@ export function catalogueIconBase64(bytes: Uint8Array): string {
 }
 
 function instrumentOf(instrument: KerdialCatalogueInstrument): object {
+  // EW-L18, FR-747(d): on a kind whose sector is a weight set (ETF, FUND) a
+  // single sector is that sector at 100 % and travels in `sectorWeights`, so a
+  // `sectorCode` is never written for such a kind — a rule of the format, not
+  // an accident of the column being NULL.
+  const sectorIsWeighted =
+    EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND[instrument.identity.kind].includes("sector");
   return {
     identity: identityOf(instrument.identity),
     private: instrument.private,
@@ -95,11 +104,23 @@ function instrumentOf(instrument: KerdialCatalogueInstrument): object {
     quotePolicy: instrument.quotePolicy,
     status: instrument.status,
     ...(instrument.figi !== undefined && { figi: instrument.figi }),
-    ...(instrument.sectorCode !== undefined && { sectorCode: instrument.sectorCode }),
+    ...(instrument.sectorCode !== undefined &&
+      !sectorIsWeighted && { sectorCode: instrument.sectorCode }),
     ...(instrument.industryLabel !== undefined && { industryLabel: instrument.industryLabel }),
     ...(instrument.domicileCountry !== undefined && {
       domicileCountry: instrument.domicileCountry,
     }),
+    // FR-742: only for an instrument that has a set — never `[]`, which the
+    // reader refuses (EW-L17), so writing one would emit a file this product
+    // cannot take back.
+    ...(instrument.sectorWeights !== undefined &&
+      instrument.sectorWeights.length > 0 && {
+        sectorWeights: exposureWeightsOf(instrument.sectorWeights),
+      }),
+    ...(instrument.countryWeights !== undefined &&
+      instrument.countryWeights.length > 0 && {
+        countryWeights: exposureWeightsOf(instrument.countryWeights),
+      }),
     // SCPI only; absent on every other instrument, so a
     // document without an SCPI is byte-identical to a pre-feature one.
     ...(instrument.managementCompany !== undefined && {
@@ -127,6 +148,24 @@ function identityOf(identity: KerdialCatalogueIdentity): object {
     ...(identity.exchangeMic !== undefined && { exchangeMic: identity.exchangeMic }),
     ...(identity.symbol !== undefined && { symbol: identity.symbol }),
   };
+}
+
+type ExposureWeightItem = NonNullable<KerdialCatalogueInstrument["countryWeights"]>[number];
+
+/**
+ * A weight set, items sorted by weight descending then code ascending — the
+ * stored reader's order, re-imposed here so the bytes do not depend on the
+ * order the caller built the list in. Compared as decimals, never as numbers
+ * or as text (`"9.00"` is below `"10.00"`).
+ */
+function exposureWeightsOf(items: readonly ExposureWeightItem[]): object[] {
+  return [...items]
+    .sort((a, b) => {
+      const byWeight = parseDecimalString(b.weight).comparedTo(parseDecimalString(a.weight));
+      if (byWeight !== 0) return byWeight;
+      return a.code < b.code ? -1 : a.code > b.code ? 1 : 0;
+    })
+    .map((item) => ({ code: item.code, weight: item.weight }));
 }
 
 function providerMappingOf(mapping: KerdialCatalogueProviderMapping): object {

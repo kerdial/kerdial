@@ -122,13 +122,14 @@ export const exchangeMicSchema = z
 export const sectorCodeSchema = z.enum(SECTOR_CODES);
 
 /**
- * Charset-validated, **not** enum-validated, and that is a decision: the only closed country list this repository owns is
- * `CURATED_EXCHANGE_MICS[].countryCode`, and ArcelorMittal's `LU` is a
- * verified issuer domicile that is *not* in it (there is no Luxembourg MIC).
- * An enum built from that list would make a correct value unwritable. Charset
- * only mirrors {@link exchangeMicSchema}'s shipped precedent, satisfies NFR-5's
- * "not an arbitrary string", and the `instrument_domicile_country_charset`
- * CHECK repeats it one layer down.
+ * Charset-validated, **not** list-validated, and that is a decision (EW-L7):
+ * the repository now embeds the full ISO 3166-1 list (`ISO_3166_COUNTRIES` in
+ * `@kerdial/core-reference-data`, FR-740) and country exposure weights are
+ * validated against it, but a domicile keeps the charset rule so a stored code
+ * outside that list stays valid and writable. Charset only mirrors
+ * {@link exchangeMicSchema}'s shipped precedent, satisfies NFR-5's "not an
+ * arbitrary string", and the `instrument_domicile_country_charset` CHECK
+ * repeats it one layer down.
  *
  * Consumed by IR-17's PATCH body; `POST /instruments` deliberately does not
  * accept a domicile at all (AC-10: a newly created instrument's

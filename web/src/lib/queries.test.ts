@@ -18,10 +18,13 @@ import {
   portfolioPerformanceQueryOptions,
   portfolioValueSeriesQueryOptions,
   postManualPricePointMutationOptions,
+  holdingsQueryOptions,
   quickSearchInstrumentsQueryOptions,
   transactionQueryOptions,
   transactionsInstrumentScanQueryOptions,
   transactionsListQueryOptions,
+  updateInstrumentClassificationMutationOptions,
+  updateInstrumentExposureWeightsMutationOptions,
   RECENT_TRANSACTIONS_COUNT,
   recentTransactionsQueryOptions,
   type TransactionScanResult,
@@ -895,6 +898,47 @@ describe("instrumentHistoryReloadMutationOptions — IB13 (FR-193, AC-15/AC-21)"
     expect(mockedApiClient.requestInstrumentHistoryReload).toHaveBeenCalledExactlyOnceWith(
       "inst-1",
     );
+  });
+});
+
+describe("updateInstrumentClassificationMutationOptions — FR-738", () => {
+  it("onSuccess marks a cached catalogue-mode page stale, so a corrected domicile shows without a reload", async () => {
+    const queryClient = new QueryClient();
+    const catalogueKey = instrumentCatalogueQueryOptions({ query: "apple" }).queryKey;
+    queryClient.setQueryData(catalogueKey, { items: [], nextCursor: null });
+    expect(queryClient.getQueryState(catalogueKey)?.isInvalidated).toBe(false);
+
+    await updateInstrumentClassificationMutationOptions(queryClient).onSuccess?.(
+      {} as never,
+      { instrumentId: "inst-1", sectorCode: null, domicileCountry: "FR", industryLabel: null },
+      undefined,
+      { client: queryClient } as never,
+    );
+
+    expect(queryClient.getQueryState(catalogueKey)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("updateInstrumentExposureWeightsMutationOptions — AC-645 (client half)", () => {
+  it("onSuccess marks the cached holdings (the strip's source) and a catalogue page stale, and leaves the search alone", async () => {
+    const queryClient = new QueryClient();
+    const holdingsKey = holdingsQueryOptions().queryKey;
+    const catalogueKey = instrumentCatalogueQueryOptions({ query: "monde" }).queryKey;
+    const searchKey = ["instruments", "search", "monde"] as const;
+    queryClient.setQueryData(holdingsKey, { holdings: [] } as never);
+    queryClient.setQueryData(catalogueKey, { items: [], nextCursor: null });
+    queryClient.setQueryData(searchKey, []);
+
+    await updateInstrumentExposureWeightsMutationOptions(queryClient).onSuccess?.(
+      {} as never,
+      { instrumentId: "inst-1", countryWeights: [{ code: "US", weight: "60.00" }] },
+      undefined,
+      { client: queryClient } as never,
+    );
+
+    expect(queryClient.getQueryState(holdingsKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(catalogueKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(searchKey)?.isInvalidated).toBe(false);
   });
 });
 

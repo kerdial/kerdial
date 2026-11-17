@@ -24,7 +24,7 @@ import { Figure, type ValuedAmount } from "./Figure.js";
 import { InstrumentIconTile } from "./InstrumentIconTile.js";
 import { WatchToggle } from "./WatchToggle.js";
 import { historyStatusLabel, historyStatusTone } from "../lib/history-status-badge.js";
-import { sectorDisplayLabel } from "../lib/sector-display.js";
+import { instrumentSectorText } from "../lib/sector-display.js";
 
 /**
  * `InstrumentTable.tsx` / `InstrumentCardList.tsx` — UR-27, restyled to the Kerdial skin.
@@ -201,19 +201,35 @@ export function historyStatusDotTone(row: InstrumentRowData): BadgeTone {
 }
 
 /**
- * The row's sector text (IR-13) — through `sectorDisplayLabel`, the single
- * code-to-text site in `web`, so this cell, the detail row and the
- * breakdown legend cannot disagree. « Non classé » both for an unclassified
- * instrument (AC-5) and while the row's own detail read is still in flight:
- * both are honestly "no sector to show yet", and a blank cell in a table
- * column reads as a defect ("never a blank cell").
+ * The row's sector text (IR-13) — through `instrumentSectorText`, the
+ * renderer the detail « Secteur » row also uses (FR-746), built on
+ * `sectorDisplayLabel`, the single code-to-text site in `web`. « Non classé »
+ * both for an unclassified instrument (AC-5) and while the row's own detail
+ * read is still in flight: both are honestly "no sector to show yet", and a
+ * blank cell in a table column reads as a defect ("never a blank cell"). An
+ * instrument with sector weights never reads « Non classé » here (FR-733).
  *
  * Shared by `InstrumentTable`/`InstrumentCardList` for the same reason
  * `coverageText`/`updatedText` are: two copies is one edit away from two
  * different answers for the same row.
  */
 export function sectorText(row: InstrumentRowData): string {
-  return sectorDisplayLabel(row.detail?.sectorCode);
+  return instrumentSectorText(row.detail);
+}
+
+/**
+ * The sector column's sort value: the rendered text itself (FR-733, EW-L18),
+ * so a one-sector-at-100 ETF and a share of that sector sort together and a
+ * weighted row orders by its « Pondéré · N secteurs » text — total and
+ * deterministic. An instrument with no sector at all, or not loaded yet,
+ * stays absent (sorted last in both directions), as before.
+ */
+function sectorSortValue(row: InstrumentRowData): string | undefined {
+  const detail = row.detail;
+  if (detail === undefined) return undefined;
+  const weighted = (detail.sectorWeights ?? []).length > 0;
+  if (!weighted && detail.sectorCode === null) return undefined;
+  return sectorText(row);
 }
 
 /** `AUTO`/`MANUAL_ONLY` is the only price-source signal on this wire. */
@@ -399,7 +415,7 @@ function instrumentSortValue(row: InstrumentRowData, key: InstrumentSortKey): st
     case "kind":
       return row.detail?.kind;
     case "sector":
-      return row.detail?.sectorCode ?? undefined;
+      return sectorSortValue(row);
     case "symbol":
       return row.detail?.symbol ?? undefined;
     case "place":

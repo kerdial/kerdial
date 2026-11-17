@@ -1,5 +1,9 @@
-import { isValidIsinCheckDigit } from "@kerdial/api-contracts";
-import type { Decimal } from "@kerdial/core-decimal";
+import {
+  EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND,
+  isValidIsinCheckDigit,
+  type ExposureWeightDimension,
+} from "@kerdial/api-contracts";
+import { parseDecimalString, type Decimal } from "@kerdial/core-decimal";
 import type { InstrumentIconContentType } from "@kerdial/core-reference-data";
 import {
   MAX_CASH_ACCOUNTS_PER_PORTFOLIO,
@@ -9,8 +13,10 @@ import {
   getProviderMapping,
   listCashAccountsWithBalances,
   listCurrencies,
+  listInstrumentExposureWeights,
   listPortfolios,
   listUserFxRates,
+  type InstrumentExposureWeights,
   type InstrumentRecord,
 } from "@kerdial/ledger";
 import type { Db } from "@kerdial/platform-db";
@@ -72,7 +78,11 @@ import type { CatalogueIconValidator } from "./catalogue-ports.js";
  *     instrument, on the primary key, outside any transaction);
  *  5. one `listCurrencies`, so an unknown currency is a named per-entry reject
  *     rather than a foreign-key violation on the write path;
- *  6. one `listUserFxRates` over the currencies the draft names.
+ *  6. one `listUserFxRates` over the currencies the draft names;
+ *  7. one `listInstrumentExposureWeights` over the matched instruments whose
+ *     entry states a weight set or a single sector (FR-743) — one statement for
+ *     the whole document, never one per entry, and none when no entry states
+ *     either.
  *
  * **No provider call, ever.** Unlike the transaction files, a catalogue entry's
  * identity is **explicit** — the document carries the exchange code — so none of
@@ -250,13 +260,29 @@ interface InstrumentCreateSpec {
   readonly subscriptionFeePct?: Decimal;
 }
 
+/** One weight of a planned set: a bucket code and its exact value. */
+interface PlannedExposureWeight {
+  readonly code: string;
+  readonly weight: Decimal;
+}
+
 /** The subset of an instrument's tenant-editable fields this entry would change. Absent key ⇒ nothing to write. */
 interface InstrumentFieldChanges {
   readonly displayName?: string;
   readonly status?: NonNullable<InstrumentRecord["status"]>;
   /** Fill-once: only ever present when the destination's own value is absent (`setInstrumentFigi` refuses an overwrite, by design). */
   readonly figi?: string;
+  /** Only on a kind whose sector is a single column (never ETF or FUND, EW-L18). */
   readonly sectorCode?: NonNullable<InstrumentRecord["sectorCode"]>;
+  /**
+   * A weight set to store in place of the instrument's current one (FR-743),
+   * present only when the entry states a set that differs from the stored set
+   * as a set (same codes, equal decimals). Written whole, through the one
+   * weights writer. On an ETF or FUND the entry's single sector, when it states
+   * no sector weights, is stated here as that sector at 100 % (FR-747(d)).
+   */
+  readonly sectorWeights?: readonly PlannedExposureWeight[];
+  readonly countryWeights?: readonly PlannedExposureWeight[];
   readonly industryLabel?: string;
   readonly domicileCountry?: string;
   /** SCPI only; written by `updateInstrumentScpiAttributes`. Never cleared: an absent key is no statement. */
@@ -817,11 +843,29 @@ async function planInstruments(
   });
   const index = indexCatalogue(matches);
 
+  // The one weights read (FR-743): every matched instrument whose entry states
+  // a weight set, or a single sector — which on an ETF or FUND is a weight set
+  // too, and which kind decides that is the stored row's, not known yet here.
+  const weightedIds = ctx.draft.instruments.flatMap((entry) => {
+    if (!statesExposure(entry)) return [];
+    const resolved = resolveIdentity(entry, index);
+    return resolved === null || resolved === "AMBIGUOUS" ? [] : [resolved];
+  });
+  const storedWeights = await listInstrumentExposureWeights(ctx.db, weightedIds);
+
   const outcomes: PlannedCatalogueOutcome[] = [];
   for (const entry of ctx.draft.instruments) {
-    outcomes.push(await planOneInstrument(ctx, entry, index, currencies));
+    outcomes.push(await planOneInstrument(ctx, entry, index, currencies, storedWeights));
   }
   return outcomes;
+}
+
+function statesExposure(entry: CatalogueInstrumentEntry): boolean {
+  return (
+    entry.sectorWeights !== undefined ||
+    entry.countryWeights !== undefined ||
+    entry.sectorCode !== undefined
+  );
 }
 
 async function planOneInstrument(
@@ -829,6 +873,7 @@ async function planOneInstrument(
   entry: CatalogueInstrumentEntry,
   index: ReturnType<typeof indexCatalogue>,
   currencies: ReadonlySet<string>,
+  storedWeights: ReadonlyMap<string, InstrumentExposureWeights>,
 ): Promise<PlannedCatalogueOutcome> {
   if (entry.private) {
     return reject(
@@ -875,7 +920,13 @@ async function planOneInstrument(
   // very same code that merges into an existing row is what fills it in
   // afterwards.
   const baseline = existing ?? projectedRowAfterCreate(entry, create!);
-  const changes = instrumentChanges(entry, baseline);
+  // A created instrument's sets are planned against "no set".
+  const changes = instrumentChanges(
+    entry,
+    baseline,
+    existing?.kind ?? entry.identity.kind,
+    existing === null ? {} : (storedWeights.get(existing.id) ?? {}),
+  );
 
   const write: PlannedCatalogueInstrumentWrite = {
     target: "INSTRUMENT",
@@ -1031,8 +1082,13 @@ function createSpecOf(entry: CatalogueInstrumentEntry): InstrumentCreateSpec {
     // `createInstrumentByIsin` does (MEASURED, its own parameter type),
     // `createInstrumentBySymbol` does not. The residual is filled by
     // {@link instrumentChanges} against {@link projectedRowAfterCreate}.
+    // Never on a kind whose sector is a weight set: there the single sector is
+    // a planned weight set (FR-747(d)), so it has one route through this
+    // module, and a stated `sectorWeights` wins over it on a create as on a
+    // match.
     ...(identity.isin !== undefined &&
-      entry.sectorCode !== undefined && { sectorCode: entry.sectorCode }),
+      entry.sectorCode !== undefined &&
+      !carriesWeights(identity.kind, "sector") && { sectorCode: entry.sectorCode }),
     ...(identity.isin !== undefined &&
       entry.industryLabel !== undefined && { industryLabel: entry.industryLabel }),
     // `createInstrumentScpi` takes both SCPI attributes; `validate` refuses
@@ -1097,13 +1153,28 @@ function projectedRowAfterCreate(
 function instrumentChanges(
   entry: CatalogueInstrumentEntry,
   baseline: Pick<InstrumentRecord, InstrumentBaselineField>,
+  kind: InstrumentRecord["kind"],
+  storedWeights: InstrumentExposureWeights,
 ): InstrumentFieldChanges {
+  const sectorIsWeighted = carriesWeights(kind, "sector");
+  // FR-747(d), EW-L18: on an ETF or FUND a single sector is that sector at
+  // 100 %, and a stated sector set wins over it.
+  const statedSectorWeights =
+    entry.sectorWeights ??
+    (sectorIsWeighted && entry.sectorCode !== undefined
+      ? [{ code: entry.sectorCode, weight: parseDecimalString("100") }]
+      : undefined);
+  const sectorWeights = weightSetChange(statedSectorWeights, storedWeights.sectorWeights);
+  const countryWeights = weightSetChange(entry.countryWeights, storedWeights.countryWeights);
   return {
     ...(entry.displayName !== baseline.displayName && { displayName: entry.displayName }),
     ...(entry.status !== baseline.status && { status: entry.status }),
     ...(entry.figi !== undefined && baseline.figi === null && { figi: entry.figi }),
     ...(entry.sectorCode !== undefined &&
+      !sectorIsWeighted &&
       entry.sectorCode !== baseline.sectorCode && { sectorCode: entry.sectorCode }),
+    ...(sectorWeights !== undefined && { sectorWeights }),
+    ...(countryWeights !== undefined && { countryWeights }),
     ...(entry.industryLabel !== undefined &&
       entry.industryLabel !== baseline.industryLabel && { industryLabel: entry.industryLabel }),
     ...(entry.domicileCountry !== undefined &&
@@ -1122,6 +1193,35 @@ function instrumentChanges(
         subscriptionFeePct: entry.subscriptionFeePct,
       }),
   };
+}
+
+/** Whether `kind` can carry a weight set in `dimension` — the contract's one eligibility list. */
+function carriesWeights(
+  kind: InstrumentRecord["kind"],
+  dimension: ExposureWeightDimension,
+): boolean {
+  return EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND[kind].includes(dimension);
+}
+
+/**
+ * The set to write for one dimension, or `undefined` for no write: the entry
+ * states nothing (an absent key never clears, FR-743), or it states the set
+ * already stored — the same codes with equal decimals, whatever the order
+ * (`validate` has refused a repeated code, so equal length plus one-way
+ * containment is set equality).
+ */
+function weightSetChange(
+  stated: readonly PlannedExposureWeight[] | undefined,
+  stored: readonly PlannedExposureWeight[] | undefined,
+): readonly PlannedExposureWeight[] | undefined {
+  if (stated === undefined) return undefined;
+  const current = stored ?? [];
+  const same =
+    stated.length === current.length &&
+    stated.every((item) =>
+      current.some((held) => held.code === item.code && held.weight.equals(item.weight)),
+    );
+  return same ? undefined : stated;
 }
 
 async function planFxRates(

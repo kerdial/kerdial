@@ -1,4 +1,5 @@
 import { Decimal, parseDecimalString } from "@kerdial/core-decimal";
+import type { WeightPart } from "@kerdial/core-domain";
 import type { ValuedAmount } from "../components/Figure.js";
 import type { AllocationHolding, AllocationInput } from "./allocation.js";
 import type { CashBlockResponse, HoldingResponse } from "./api-client.js";
@@ -129,13 +130,21 @@ export function allocationInputOf(response: {
   return { holdings: rows, totalValue: response.totalValue };
 }
 
+/** A wire weight set as exact parts (`"60.00"` → `Decimal`), `undefined` when the holding carries none. */
+function weightPartsOf(
+  items: readonly { readonly code: string; readonly weight: string }[] | undefined,
+): readonly WeightPart[] | undefined {
+  return items?.map((item) => ({ key: item.code, weight: parseDecimalString(item.weight) }));
+}
+
 /**
- * The rows the sector and country breakdowns regroup: the holdings, plus the
- * cash row as a holding with no classification — so its units land in
- * « Non classé » by the breakdown's existing rule instead of
- * being dropped, which would leave the buckets summing to the holdings' share
- * of the cash-inclusive total (below 100 % with cash, above it when the cash
- * is negative). `computeExposureBreakdown` itself is unchanged: it walks this
+ * The rows the sector and country breakdowns regroup: the holdings, with their
+ * weight sets parsed once to exact decimals (NFR-99), plus the cash row as a
+ * line of kind {@link CASH_CLASS} — which the breakdown puts, whole, in its own
+ * « Liquidités » bucket on both dimensions (FR-745), never in « Non classé »
+ * and never weighted. Dropping the row instead would leave the buckets summing
+ * to the holdings' share of the cash-inclusive total (below 100 % with cash,
+ * above it when the cash is negative). `computeExposureBreakdown` walks this
  * list and looks each id up in the one allocation, where the cash row is
  * present exactly when {@link allocationInputOf} added it.
  */
@@ -143,7 +152,19 @@ export function exposureHoldingsOf(
   holdings: readonly HoldingResponse[],
 ): readonly ExposureHolding[] {
   return [
-    ...holdings,
+    ...holdings.map((h): ExposureHolding => {
+      const sectorWeights = weightPartsOf(h.sectorWeights);
+      const countryWeights = weightPartsOf(h.countryWeights);
+      return {
+        instrumentId: h.instrumentId,
+        kind: h.kind,
+        sectorCode: h.sectorCode,
+        domicileCountry: h.domicileCountry,
+        listingCountry: h.listingCountry,
+        ...(sectorWeights !== undefined ? { sectorWeights } : {}),
+        ...(countryWeights !== undefined ? { countryWeights } : {}),
+      };
+    }),
     {
       instrumentId: CASH_ROW_ID,
       kind: CASH_CLASS,

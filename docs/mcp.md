@@ -204,9 +204,9 @@ means all portfolios together.
 | Tool               | Inputs (all optional unless marked)                                                                                                                                                  | Returns                                                                                                                                                                                                                                                                 |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `list_portfolios`  | none                                                                                                                                                                                 | Every portfolio: id, name, broker, description, archived flag, transaction count, creation time. Archived portfolios are included.                                                                                                                                      |
-| `get_holdings`     | `portfolioId`                                                                                                                                                                        | Current positions (quantity, cost basis, price, value, unrealised gain), the cash block and the total value, as of today.                                                                                                                                               |
+| `get_holdings`     | `portfolioId`                                                                                                                                                                        | Current positions (quantity, cost basis, price, value, unrealised gain), the cash block and the total value, as of today. A position whose instrument has hand-entered weights also carries `sectorWeights` / `countryWeights` (bucket codes with two-decimal percentage strings). |
 | `get_performance`  | `portfolioId`, `from`, `to`                                                                                                                                                          | Time-weighted and money-weighted returns over the window, and the daily value series (value and net contributions). Without dates, the last year. For all portfolios, also the current total value and cash.                                                            |
-| `get_allocation`   | `by` (**required**: `instrument`, `currency`, `kind`, `sector` or `country`), `portfolioId`                                                                                         | The current value split into buckets: each bucket's value and its share of the total (two decimals, summing to 100.00 when the total is positive), plus cash.                                                                                                                                     |
+| `get_allocation`   | `by` (**required**: `instrument`, `currency`, `kind`, `sector` or `country`), `portfolioId`                                                                                         | The current value split into buckets: each bucket's value, its share of the total (two decimals, summing to 100.00 when the total is positive) and its `holdingCount`, plus cash. For `sector` and `country`, an instrument with hand-entered weights is split across its buckets; for `country`, a `basis` (see below). |
 | `get_transactions` | `portfolioId`, `instrumentId`, `from`, `to`, `kind` (a list such as `["BUY", "SELL"]`), `currency` (e.g. `EUR`), `order` (`asc` or `desc`, default `asc`), `limit` (1–200, default 50), `cursor` | Ledger rows, at most `limit`, and a `nextCursor` to pass back as `cursor` for the next page (`null` at the end). `notesIncluded` says whether notes and references were kept.                                                                                            |
 | `get_dividends`    | `portfolioId`, `from`, `to`                                                                                                                                                          | Dividends received (gross and withholding): the total, and per instrument, per year and per month.                                                                                                                                                                      |
 | `get_watchlist`    | `window` (`3M`, `6M`, `YTD`, `1Y`, `3Y` or `5Y`; default `1Y`)                                                                                                                       | Watched instruments with price, day change, period returns, 52-week range, drawdown and a price series. Notes withheld unless enabled.                                                                                                                                  |
@@ -255,6 +255,26 @@ session decides as usual.
 `/portfolios/allocation?by=` and `/portfolios/{id}/allocation?by=` are new with this feature, and also
 readable with a normal signed-in session. `by` is required (`instrument`, `currency`, `kind`, `sector`
 or `country`).
+
+**Weights (sector and country).** With `by=sector` or `by=country`, an instrument for which you entered
+weights by hand (an ETF or a fund by sector and by country, an SCPI by country) is split across the
+buckets of its weights, each getting that percentage of the holding's value; whatever its weights leave
+below 100 % goes to `UNCLASSIFIED`. Nothing is renormalised: an ETF weighted 60 % technology and 25.50 %
+finance puts 14.50 % of its value in `UNCLASSIFIED`, not into the other two. Cash is its own `CASH` bucket
+and is never weighted. An instrument without weights is placed as before. Weights are entered by the
+user; they are not provider data.
+
+`holdingCount` counts the holdings listed in a bucket, and a weighted holding counts in each of its
+buckets (and in `UNCLASSIFIED` when its weights sum below 100), so the counts may add up to more than the
+number of holdings.
+
+With `by=country`, `basis` says what the classified holdings were placed by: `DOMICILE` (the
+instrument's domicile country), `LISTING` (the country of its listing), `WEIGHTED` (hand-entered
+country weights), `MIXED` (the holdings were placed by more than one of these) or `NONE` (no holding was classified). A client that
+switches on `basis` must tolerate `WEIGHTED`.
+
+`get_holdings` relays each position's `sectorWeights` and `countryWeights` when the instrument has
+them: a list of `{ "code": "…", "weight": "60.00" }`, two-decimal percentage strings.
 
 ## Revoking, and what revokes a token for you
 

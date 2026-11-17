@@ -6,6 +6,42 @@ from this file above the generated list of changes.
 
 ---
 
+## v0.4.0
+
+### Sector and country weights for ETFs, funds and SCPI
+
+An ETF or a fund is rarely in one sector or one country. You can now enter, by hand, how it splits: in the
+instrument's « Modifier » dialog, « Pondérations par secteur » and « Pondérations par pays » take several
+rows, each a sector or a country and a percentage. ETFs and funds take both; an SCPI takes countries only;
+shares, crypto-assets and indices take none (a share keeps its single sector and domicile). Each weight is
+above 0 and at most 100 with at most two decimals, a sector or country appears once, and the total is at
+most 100. Whatever is left below 100 % stays « Non classé »: the weights are never scaled up to 100.
+Countries are picked from a searchable list of country names in French, which « Pays du siège social »
+now uses too.
+
+The exposure breakdown by sector and by country splits a weighted instrument's value across its weights.
+Cash now shows as its own « Liquidités » segment there, and a note says when some figures come from
+weights you entered by hand. Weights are always yours: Kerdial does not fetch them from a data provider.
+The instruments list and the instrument's page show the weights too.
+
+A single sector on an ETF or a fund now counts as that sector at 100 %. The database migration applied
+on upgrade converts the ETFs and funds that already had a sector accordingly: until now they counted as
+« Non classé » in the breakdown by sector, and now they count in their sector. No manual step.
+
+**AI assistants.** `get_allocation` with `by=sector` or `by=country` applies the same weights, and a
+weighted holding counts in each of its buckets in `holdingCount`. The country `basis` gains a fifth
+value, `WEIGHTED`, next to `DOMICILE`, `LISTING`, `MIXED` and `NONE`: a client that switches on `basis`
+must handle it. `get_holdings` relays each position's `sectorWeights` and `countryWeights`. See
+[docs/mcp.md](mcp.md).
+
+**Export and import.** The catalogue export (JSON) carries the weights, as the optional keys
+`sectorWeights` and `countryWeights` on an instrument; the format version does not change, and an ETF or
+a fund is no longer exported with a `sectorCode`. A file exported by this version and imported into an
+older version of Kerdial is imported except for each instrument that carries weights: that instrument
+alone is rejected (`MALFORMED_VALUE`, « Unrecognized key »), together with its hand-entered prices, its
+icon and its watchlist row, and the other instruments import normally. The details are in
+[import-export-format.md](import-export-format.md).
+
 ## v0.3.0
 
 ### Read-only access for AI assistants

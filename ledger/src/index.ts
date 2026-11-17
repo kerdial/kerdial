@@ -86,6 +86,21 @@ export * from "./manual-price-service.js";
 /** `instrument-icons` IK6 — the write side of the per-tenant `instrument_icon` table, plus its two reads. The only `ledger` write that fans out to nothing: an icon is presentation, so it bumps no epoch and invalidates no valuation. */
 export * from "./instrument-icon-service.js";
 /**
+ * `exposure-weights` EW-T9 — the one writer and the one reader of the shared
+ * `instrument_exposure_weight` table (FR-719, FR-722, FR-724). The writer
+ * validates whole sets, then replaces them under the instrument row lock; the
+ * reader is one statement for any number of instruments. Named, not starred,
+ * for `STAR_REEXPORT_BUDGET`'s reason stated above.
+ */
+export {
+  ExposureWeightSetRefusedError,
+  ExposureWeightsNotApplicableError,
+  listInstrumentExposureWeights,
+  replaceInstrumentExposureWeights,
+  type InstrumentExposureWeights,
+  type StoredExposureWeight,
+} from "./instrument-exposure-weight-service.js";
+/**
  * `portfolio-details` PD-T5 — the lifetime of a `portfolio_icon` row: set/replace, remove, read.
  * Like the instrument-icon service it fans out to nothing.
  *

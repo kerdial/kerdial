@@ -560,6 +560,29 @@ export const MESSAGE_TABLE: Readonly<Record<string, UiMessage>> = {
     text: "Ces caractéristiques ne s'appliquent qu'à une SCPI.",
     tone: "warning",
   },
+  // exposure-weights (FR-720, FR-723): `PATCH /instruments/:id/exposure-weights`
+  // refusals. The editor runs the same validator before it sends, so these
+  // reach a user only through a race or a direct API call.
+  EXPOSURE_WEIGHT_OUT_OF_RANGE: {
+    text: "Une pondération doit être supérieure à 0 et au plus égale à 100, avec deux décimales au plus.",
+    tone: "error",
+  },
+  EXPOSURE_WEIGHT_UNKNOWN_BUCKET: {
+    text: "Une pondération désigne un secteur ou un pays qui ne figure pas dans la liste.",
+    tone: "error",
+  },
+  EXPOSURE_WEIGHT_DUPLICATE_BUCKET: {
+    text: "Un même secteur ou un même pays figure deux fois dans les pondérations.",
+    tone: "error",
+  },
+  EXPOSURE_WEIGHT_TOTAL_ABOVE_100: {
+    text: "Le total des pondérations dépasse 100 %.",
+    tone: "error",
+  },
+  EXPOSURE_WEIGHTS_NOT_APPLICABLE: {
+    text: "Ce type d'instrument ne peut pas porter ces pondérations.",
+    tone: "warning",
+  },
   // --- History reload (IB13; FR-183/FR-184/FR-193) — the distinguishable
   // rejections of `POST /instruments/:id/history-reload` (the 5/hour rate cap
   // has since been removed). None of them promises an automatic retry (NG1) or names

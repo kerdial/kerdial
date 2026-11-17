@@ -29,6 +29,8 @@ import {
   createPortfolio,
   createProviderMapping,
   deletePortfolio,
+  listInstrumentExposureWeights,
+  replaceInstrumentExposureWeights,
   setInstrumentIcon,
   setPortfolioArchived,
   upsertManualPricePoint,
@@ -2328,5 +2330,200 @@ describe("api — scpi AC-510: an SCPI round-trips through the catalogue (Testco
     expect(result.summary.byReason["APPLY_FAILED"]).toBeUndefined();
     expect(result.enrolmentCandidates).toEqual([]);
     expect(await scpiRows(restoredPg)).toStrictEqual(before);
+  });
+});
+
+/**
+ * **exposure-weights GATE-4 — AC-643 and FR-747(d)**: the hand-entered weight
+ * sets travel through the catalogue export and back into an **empty
+ * installation** (a fresh migrated database, for the reason the SCPI block
+ * above gives: the shared catalogue would otherwise re-resolve the source's own
+ * rows), every call under test as `app_web`. The file is the real export, plus
+ * one hand-written legacy entry — an ETF carrying a single `sectorCode` and no
+ * weights key, the shape a file written before weights existed has.
+ */
+describe("api — exposure-weights AC-643: weight sets round-trip through the catalogue (Testcontainers, as app_web)", () => {
+  const SOURCE = "00000000-0000-7000-8000-0000000e2521";
+  const RESTORED = "00000000-0000-7000-8000-0000000e2522";
+  const ETF_ISIN = "IE00EWRT0001";
+  const SHARE_ISIN = "FR00EWRT0002";
+  const LEGACY_ISIN = "IE00EWRT0003";
+
+  let sourcePg: MigratedPostgres;
+  let restoredPg: MigratedPostgres;
+  let sourceSql: postgres.Sql;
+  let restoredSql: postgres.Sql;
+  let sourceDb: Db;
+  let restoredDb: Db;
+  let exportedText: string;
+  let fileBytes: Uint8Array;
+
+  beforeAll(async () => {
+    sourcePg = await startMigratedPostgres();
+    restoredPg = await startMigratedPostgres();
+    sourceSql = postgres(sourcePg.appWebUri, { max: 2 });
+    restoredSql = postgres(restoredPg.appWebUri, { max: 2 });
+    sourceDb = createDb(sourceSql);
+    restoredDb = createDb(restoredSql);
+    await sourcePg.ownerClient`INSERT INTO "tenant" (id, base_currency) VALUES (${SOURCE}::uuid, 'EUR')`;
+    await restoredPg.ownerClient`INSERT INTO "tenant" (id, base_currency) VALUES (${RESTORED}::uuid, 'EUR')`;
+
+    // AC-617's ETF with AC-623's sector set, written through the API's writer.
+    const etf = await createInstrumentByIsin(sourceDb, {
+      kind: "ETF",
+      isin: ETF_ISIN,
+      exchangeMic: "XAMS",
+      listingCurrency: "EUR",
+      displayName: "ETF A, pondéré",
+    });
+    await replaceInstrumentExposureWeights(sourceDb, etf.id, {
+      countryWeights: [
+        { code: "US", weight: "60.00" },
+        { code: "JP", weight: "25.00" },
+        { code: "GB", weight: "10.00" },
+      ],
+      sectorWeights: [
+        { code: "TECHNOLOGIE", weight: "30.00" },
+        { code: "FINANCE", weight: "20.00" },
+      ],
+    });
+    await createInstrumentByIsin(sourceDb, {
+      kind: "SHARE",
+      isin: SHARE_ISIN,
+      exchangeMic: "XPAR",
+      listingCurrency: "EUR",
+      displayName: "Action B, sans pondération",
+      sectorCode: "FINANCE",
+    });
+
+    const exported = await readCatalogueForExport(sourceDb, SOURCE, {
+      icons: "included",
+      maxFileBytes: KERDIAL_JSON_LIMITS.maxFileBytes,
+    });
+    if (exported.refused) throw new Error("the AC-643 fixture was refused as too large");
+    exportedText = exported.body.toString("utf8");
+
+    const document = JSON.parse(exportedText) as { instruments: unknown[] };
+    document.instruments.push({
+      identity: { kind: "ETF", isin: LEGACY_ISIN, exchangeMic: "XPAR" },
+      private: false,
+      listingCurrency: "EUR",
+      displayName: "ETF C, secteur unique",
+      primaryIdentifier: "ISIN",
+      quotePolicy: "AUTO",
+      status: "ACTIVE",
+      sectorCode: "ENERGIE",
+      manualPrices: [],
+    });
+    fileBytes = new TextEncoder().encode(JSON.stringify(document));
+  }, 300_000);
+
+  afterAll(async () => {
+    await sourceSql?.end({ timeout: 5 });
+    await restoredSql?.end({ timeout: 5 });
+    await sourcePg?.stop();
+    await restoredPg?.stop();
+  }, 30_000);
+
+  async function importInto(db: Db, tenantId: string): Promise<CatalogueImportResult> {
+    const parsed = kerdialCatalogueImporter.validate(
+      kerdialCatalogueImporter.parse({
+        bytes: fileBytes,
+        fileType: KERDIAL_CATALOGUE_FILE_TYPE,
+        limits: KERDIAL_JSON_LIMITS,
+      }),
+    );
+    expect(parsed.problems).toEqual([]);
+    const plan = await planCatalogue({
+      db,
+      tenantId,
+      draft: parsed.draft,
+      problems: parsed.problems,
+      icons: createCatalogueIconValidator(),
+    });
+    return applyCatalogue({
+      db,
+      tenantId,
+      plan,
+      deadlineAt: new Date(Date.now() + 600_000),
+      clock: systemClock,
+      chunkEntities: KERDIAL_JSON_LIMITS.applyChunkEntities,
+    });
+  }
+
+  /** One instrument's stored sets, by ISIN, as `{ code, weight }` pairs in the reader's order — compared parsed, never as JSON text. */
+  async function setsOf(pg: MigratedPostgres, db: Db, isin: string): Promise<unknown> {
+    const [row] = await pg.ownerClient<{ id: string; sector_code: string | null }[]>`
+      SELECT id, sector_code::text AS sector_code FROM "instrument" WHERE isin = ${isin}
+    `;
+    if (row === undefined) return undefined;
+    const sets = (await listInstrumentExposureWeights(db, [row.id])).get(row.id) ?? {};
+    const pairs = (items: readonly { code: string; weight: Decimal }[] | undefined) =>
+      items?.map((item) => ({ code: item.code, weight: item.weight.toFixed(2) }));
+    return {
+      sectorCode: row.sector_code,
+      sectorWeights: pairs(sets.sectorWeights),
+      countryWeights: pairs(sets.countryWeights),
+    };
+  }
+
+  it("exports the ETF with both sets as dot-decimal strings and no sectorCode, and no weights key on any other instrument", () => {
+    const document = JSON.parse(exportedText) as { instruments: Record<string, unknown>[] };
+    const isinOf = (entry: Record<string, unknown>) =>
+      (entry["identity"] as { isin?: string }).isin;
+    const etf = document.instruments.find((entry) => isinOf(entry) === ETF_ISIN);
+
+    expect(etf?.["countryWeights"]).toStrictEqual([
+      { code: "US", weight: "60.00" },
+      { code: "JP", weight: "25.00" },
+      { code: "GB", weight: "10.00" },
+    ]);
+    expect(etf?.["sectorWeights"]).toStrictEqual([
+      { code: "TECHNOLOGIE", weight: "30.00" },
+      { code: "FINANCE", weight: "20.00" },
+    ]);
+    expect(Object.hasOwn(etf ?? {}, "sectorCode")).toBe(false);
+    const others = document.instruments.filter((entry) => isinOf(entry) !== ETF_ISIN);
+    expect(others.some((entry) => isinOf(entry) === SHARE_ISIN)).toBe(true);
+    for (const entry of others) {
+      expect(Object.hasOwn(entry, "sectorWeights")).toBe(false);
+      expect(Object.hasOwn(entry, "countryWeights")).toBe(false);
+    }
+  });
+
+  it("reproduces both sets exactly in an empty installation, and reads the legacy single sector as that sector at 100.00", async () => {
+    expect(await setsOf(restoredPg, restoredDb, ETF_ISIN)).toBeUndefined();
+
+    const result = await importInto(restoredDb, RESTORED);
+
+    expect(result.summary).toMatchObject({ rejected: 0, partsRefused: 0 });
+    expect(await setsOf(restoredPg, restoredDb, ETF_ISIN)).toStrictEqual(
+      await setsOf(sourcePg, sourceDb, ETF_ISIN),
+    );
+    expect(await setsOf(restoredPg, restoredDb, SHARE_ISIN)).toStrictEqual({
+      sectorCode: "FINANCE",
+      sectorWeights: undefined,
+      countryWeights: undefined,
+    });
+    expect(await setsOf(restoredPg, restoredDb, LEGACY_ISIN)).toStrictEqual({
+      sectorCode: null,
+      sectorWeights: [{ code: "ENERGIE", weight: "100.00" }],
+      countryWeights: undefined,
+    });
+  });
+
+  it("imports the same file again with no change to any weighted entry", async () => {
+    const result = await importInto(restoredDb, RESTORED);
+
+    const document = JSON.parse(new TextDecoder().decode(fileBytes)) as {
+      instruments: { identity: { isin?: string } }[];
+    };
+    for (const isin of [ETF_ISIN, LEGACY_ISIN]) {
+      const index = document.instruments.findIndex((entry) => entry.identity.isin === isin);
+      const outcome = result.outcomes.find(
+        (o) => o.at.section === "instruments" && o.at.index === index,
+      );
+      expect(outcome, isin).toMatchObject({ outcome: "SKIP", reason: "CATALOGUE_ENTRY_UNCHANGED" });
+    }
   });
 });

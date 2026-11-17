@@ -100,6 +100,13 @@ const FR_COVERED_CODES = [
   // The propagation's named internal failure — a 500 that would
   // otherwise read as the generic server-error copy.
   "TRANSFER_PROPAGATION_DID_NOT_SETTLE",
+  // The five `PATCH /instruments/:id/exposure-weights` answers with
+  // (FR-720, FR-723).
+  "EXPOSURE_WEIGHT_OUT_OF_RANGE",
+  "EXPOSURE_WEIGHT_UNKNOWN_BUCKET",
+  "EXPOSURE_WEIGHT_DUPLICATE_BUCKET",
+  "EXPOSURE_WEIGHT_TOTAL_ABOVE_100",
+  "EXPOSURE_WEIGHTS_NOT_APPLICABLE",
 ] as const;
 
 /**

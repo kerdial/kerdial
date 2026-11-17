@@ -99,8 +99,22 @@ export interface InstrumentDetailResponse {
   readonly managementCompany?: string | null;
   /** Canonical two-decimal percentage string (`"8.50"`), SCPI only — never parsed into a JS number. */
   readonly subscriptionFeePct?: string | null;
+  /**
+   * exposure-weights (FR-725) — the hand-entered sector and country weight
+   * sets, each weight a two-decimal string (`"60.00"`), sorted by weight
+   * descending. **Present only when the set is non-empty**: an instrument
+   * without weights carries no such key, never `[]`.
+   */
+  readonly sectorWeights?: readonly InstrumentExposureWeight[];
+  readonly countryWeights?: readonly InstrumentExposureWeight[];
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** One stored weight on the wire: a bucket code and a decimal string — never parsed into a JS number. */
+interface InstrumentExposureWeight {
+  readonly code: string;
+  readonly weight: string;
 }
 
 export function fetchInstrument(
@@ -215,6 +229,35 @@ export function updateInstrumentClassification(
 ): Promise<InstrumentDetailResponse> {
   const { instrumentId, ...patch } = input;
   return apiFetch<InstrumentDetailResponse>(`/instruments/${instrumentId}/classification`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+/**
+ * `PATCH /api/v1/instruments/:id/exposure-weights` (exposure-weights; FR-722,
+ * FR-734) — the hand-entered sector and country weight sets, a sibling of
+ * {@link updateInstrumentClassification} rather than a wider body.
+ *
+ * Each **named** dimension is replaced whole and `[]` clears it; an absent key
+ * leaves that dimension alone (`JSON.stringify` drops `undefined`). Weights
+ * travel as two-decimal strings (`"60.00"`), never JS numbers. A set the
+ * shared `validateExposureWeightSet` refuses answers `400 EXPOSURE_WEIGHT_*`;
+ * a kind that cannot carry the dimension answers `400
+ * EXPOSURE_WEIGHTS_NOT_APPLICABLE`. The response is the full
+ * {@link InstrumentDetailResponse}, with the sets the server stored.
+ */
+export interface UpdateInstrumentExposureWeightsInput {
+  readonly instrumentId: string;
+  readonly sectorWeights?: readonly InstrumentExposureWeight[];
+  readonly countryWeights?: readonly InstrumentExposureWeight[];
+}
+
+export function updateInstrumentExposureWeights(
+  input: UpdateInstrumentExposureWeightsInput,
+): Promise<InstrumentDetailResponse> {
+  const { instrumentId, ...patch } = input;
+  return apiFetch<InstrumentDetailResponse>(`/instruments/${instrumentId}/exposure-weights`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

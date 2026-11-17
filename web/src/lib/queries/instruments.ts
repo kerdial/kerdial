@@ -15,6 +15,7 @@ import {
   deleteInstrument,
   deleteInstrumentIcon,
   updateInstrumentClassification,
+  updateInstrumentExposureWeights,
   updateInstrumentIdentity,
   updateInstrumentScpiAttributes,
   type HistoryReloadAcceptedResponse,
@@ -25,6 +26,7 @@ import {
   type PostManualPricePointInput,
   type PriceHistoryPointResponse,
   type UpdateInstrumentClassificationInput,
+  type UpdateInstrumentExposureWeightsInput,
   type UpdateInstrumentIdentityInput,
   type UpdateInstrumentScpiAttributesInput,
 } from "../api-client.js";
@@ -390,24 +392,29 @@ export function instrumentPriceWindowQueryOptions(
  * (`PricePointTable.tsx`) without a manual reload.
  */
 /**
- * The three query keys a classification correction invalidates — named here as
- * data so the form's own test can assert exactly this set, rather than
- * re-deriving three string arrays a component could quietly drift from.
+ * The four query keys a classification correction invalidates — named here as
+ * data so the mutation and its test share one set, rather than re-deriving
+ * string arrays a component could quietly drift from.
  *
- * Why these three, and what each one is actually
+ * Why these four, and what each one is actually
  * for on this app's surfaces:
  *
  *  1. `["instruments", instrumentId]` — the instrument detail view's own read,
  *     **and** every instruments-list row's content: `InstrumentsView` builds
  *     its rows from `instrumentByIdQueryOptions` per id (`InstrumentTable.tsx`
  *     reads `row.detail.sectorCode`), so this one key refreshes both surfaces.
- *  2. `["instruments", "search"]` — the catalogue-search result sets
- *     (`GET /instruments?query=`) behind the pickers and the quick-nav palette.
- *     Included because it is the *instruments-list* key on the wire; note that
+ *  2. `["instruments", "catalogue"]` — the Instruments screen's catalogue
+ *     mode: its rows come from `GET /instruments`, whose `InstrumentResponse`
+ *     carries `sectorCode`/`domicileCountry`, so a cached catalogue page would
+ *     otherwise keep showing the old sector or domicile after a correction.
+ *     This key was missing until the domicile picker made this form a primary
+ *     edit path.
+ *  3. `["instruments", "search"]` — the result sets of
+ *     `GET /instruments?query=` behind the pickers and the quick-nav palette.
  *     `InstrumentSummary` carries no classification field today, so this
  *     invalidation is correctness-by-construction rather than load-bearing —
  *     stated rather than left as a silent no-op.
- *  3. `["portfolios", "holdings"]` — the holdings surface and, through it, the
+ *  4. `["portfolios", "holdings"]` — the holdings surface and, through it, the
  *     exposure breakdown: `HoldingResponse` carries `sectorCode`/
  *     `domicileCountry`/`listingCountry`, so a corrected sector moves a bucket.
  *
@@ -423,6 +430,7 @@ export function instrumentClassificationInvalidationKeys(
 ): readonly (readonly string[])[] {
   return [
     ["instruments", instrumentId],
+    ["instruments", "catalogue"],
     ["instruments", "search"],
     ["portfolios", "holdings"],
   ];
@@ -448,6 +456,58 @@ export function updateInstrumentClassificationMutationOptions(
     onSuccess: async (_data, variables) => {
       await Promise.all(
         instrumentClassificationInvalidationKeys(variables.instrumentId).map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
+  };
+}
+
+/**
+ * The three query keys a weight-set write invalidates (exposure-weights,
+ * FR-731, AC-645):
+ *
+ *  1. `["instruments", instrumentId]` — the detail view (its « Répartition
+ *     saisie manuellement » block and « Secteur » row) and every
+ *     instruments-list row built from it.
+ *  2. `["instruments", "catalogue"]` — catalogue-mode pages: `GET
+ *     /instruments` carries the sets on each `InstrumentResponse`.
+ *  3. `["portfolios", "holdings"]` — `HoldingResponse` carries the sets, and
+ *     the Aperçu exposure strip is computed from it: without this key the
+ *     strip would keep the old buckets until a reload.
+ *
+ * Deliberately **not** `["instruments", "search"]` (`InstrumentSummary`
+ * carries no weights) nor the watchlist (its payload is unchanged by this
+ * feature), and **not** `invalidatePortfolioDerivedFigures`: a weight moves no
+ * value and no `calc_epoch` — the reasoning
+ * {@link instrumentClassificationInvalidationKeys} records.
+ */
+export function instrumentExposureWeightsInvalidationKeys(
+  instrumentId: string,
+): readonly (readonly string[])[] {
+  return [
+    ["instruments", instrumentId],
+    ["instruments", "catalogue"],
+    ["portfolios", "holdings"],
+  ];
+}
+
+/**
+ * The weights half of `InstrumentClassificationForm.tsx`'s submit
+ * (exposure-weights, FR-734). Same shape as
+ * {@link updateInstrumentClassificationMutationOptions}: `networkMode:
+ * "always"` and an `onSuccess` that invalidates
+ * {@link instrumentExposureWeightsInvalidationKeys}.
+ */
+export function updateInstrumentExposureWeightsMutationOptions(
+  queryClient: QueryClient,
+): UseMutationOptions<InstrumentDetailResponse, unknown, UpdateInstrumentExposureWeightsInput> {
+  return {
+    mutationFn: updateInstrumentExposureWeights,
+    networkMode: "always",
+    onSuccess: async (_data, variables) => {
+      await Promise.all(
+        instrumentExposureWeightsInvalidationKeys(variables.instrumentId).map((queryKey) =>
           queryClient.invalidateQueries({ queryKey }),
         ),
       );

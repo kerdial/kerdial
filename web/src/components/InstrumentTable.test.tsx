@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RouterProvider,
@@ -371,6 +371,108 @@ describe("<InstrumentCardList> — the reload affordance", () => {
     expect(within(scpiCard!).getByTestId("instrument-name")).toHaveTextContent("Corum Origin");
     expect(within(scpiCard!).queryByTestId("instrument-reload")).not.toBeInTheDocument();
     expect(within(shareCard!).getByTestId("instrument-reload")).toBeInTheDocument();
+  });
+});
+
+/**
+ * exposure-weights FR-733 / FR-747(f): the sector cell of a weighted
+ * instrument, on the table and on the card list — one fixture set, both
+ * surfaces — and the sector sort.
+ */
+describe("the sector cell of an instrument with sector weights (FR-733, EW-L18)", () => {
+  type Weights = NonNullable<NonNullable<InstrumentRowData["detail"]>["sectorWeights"]>;
+
+  function sectorRow(
+    index: number,
+    name: string,
+    sectorCode: string | null,
+    sectorWeights?: Weights,
+  ): InstrumentRowData {
+    const id = `00000000-0000-4000-8000-00000000000${index}`;
+    const base = row();
+    return row({
+      instrumentId: id,
+      detail: {
+        ...base.detail!,
+        id,
+        kind: sectorWeights === undefined ? "SHARE" : "ETF",
+        displayName: name,
+        sectorCode,
+        ...(sectorWeights === undefined ? {} : { sectorWeights }),
+      },
+    });
+  }
+
+  const FIXTURES: readonly { row: InstrumentRowData; expected: string }[] = [
+    {
+      row: sectorRow(1, "Deux secteurs", null, [
+        { code: "TECHNOLOGIE", weight: "60.00" },
+        { code: "SANTE", weight: "40.00" },
+      ]),
+      expected: "Pondéré · 2 secteurs",
+    },
+    {
+      row: sectorRow(2, "Un secteur partiel", null, [{ code: "SANTE", weight: "60.00" }]),
+      expected: "Pondéré · 1 secteur",
+    },
+    {
+      row: sectorRow(3, "Un secteur entier", null, [{ code: "ENERGIE", weight: "100.00" }]),
+      expected: "Énergie",
+    },
+    { row: sectorRow(4, "Action classée", "SANTE"), expected: "Santé" },
+    { row: sectorRow(5, "Action non classée", null), expected: "Non classé" },
+  ];
+
+  it("the table cell", async () => {
+    renderTable(FIXTURES.map((fixture) => fixture.row));
+    const cells = await screen.findAllByTestId("instrument-sector");
+    expect(cells.map((cell) => cell.textContent)).toEqual(FIXTURES.map((f) => f.expected));
+  });
+
+  it("the card list", async () => {
+    renderInRouter(() => <InstrumentCardList rows={FIXTURES.map((fixture) => fixture.row)} />);
+    const cards = await screen.findAllByTestId("instrument-card");
+    expect(cards.map((card) => within(card).getByTestId("instrument-sector").textContent)).toEqual(
+      FIXTURES.map((f) => f.expected),
+    );
+  });
+
+  it("sorts on the rendered text: weighted rows in their place, equal texts in input order, no sector last", async () => {
+    const rows = [
+      sectorRow(1, "Sans secteur", null),
+      sectorRow(2, "Santé A", "SANTE"),
+      sectorRow(3, "Pondéré B", null, [
+        { code: "TECHNOLOGIE", weight: "60.00" },
+        { code: "SANTE", weight: "40.00" },
+      ]),
+      sectorRow(4, "Énergie entière", null, [{ code: "ENERGIE", weight: "100.00" }]),
+      sectorRow(5, "Pondéré C", null, [
+        { code: "FINANCE", weight: "50.00" },
+        { code: "SANTE", weight: "30.00" },
+      ]),
+    ];
+    renderTable(rows);
+    await screen.findAllByTestId("instrument-table-row");
+    const order = (): (string | null)[] =>
+      screen.getAllByTestId("instrument-name").map((name) => name.textContent);
+
+    fireEvent.click(screen.getByTestId("instrument-sort-sector"));
+    expect(order()).toEqual([
+      "Énergie entière",
+      "Pondéré B",
+      "Pondéré C",
+      "Santé A",
+      "Sans secteur",
+    ]);
+    fireEvent.click(screen.getByTestId("instrument-sort-sector"));
+    // Descending reverses the comparison only: equal texts keep input order.
+    expect(order()).toEqual([
+      "Santé A",
+      "Pondéré B",
+      "Pondéré C",
+      "Énergie entière",
+      "Sans secteur",
+    ]);
   });
 });
 

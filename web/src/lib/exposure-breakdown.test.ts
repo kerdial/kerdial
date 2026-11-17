@@ -6,16 +6,17 @@ import { SECTOR_CODES } from "@kerdial/core-reference-data";
 import { describe, expect, it } from "vitest";
 import type { ValuedAmount } from "../components/Figure.js";
 import { computeAllocation, type AllocationResult } from "./allocation.js";
+import type { HoldingResponse } from "./api-client.js";
+import { allocationInputOf, exposureHoldingsOf } from "./cash-position.js";
 import {
+  CASH,
   UNCLASSIFIED,
   computeExposureBreakdown,
-  countryClassifier,
-  sectorClassifier,
-  type Classifier,
-  type Contribution,
+  countryDimension,
+  sectorDimension,
   type ExposureBreakdown,
+  type ExposureDimension,
   type ExposureHolding,
-  type ExposureRowInput,
 } from "./exposure-breakdown.js";
 
 /**
@@ -111,11 +112,11 @@ const AC14_FIXTURE: readonly Fixture[] = [
   { id: "e1", kind: "ETF", value: "30", domicileCountry: "IE", listingCountry: "IE" },
 ];
 
-function ac14Breakdown(classifier: Classifier = sectorClassifier): ExposureBreakdown {
+function ac14Breakdown(dimension: ExposureDimension = sectorDimension): ExposureBreakdown {
   return computeExposureBreakdown(
     allocationOf(AC14_FIXTURE, "100"),
     holdings(AC14_FIXTURE),
-    classifier,
+    dimension,
   );
 }
 
@@ -143,11 +144,7 @@ describe("computeExposureBreakdown — AC-14: {A, A, B, one ETF} yields exactly 
     // of the per-row `units` that landed in it — the same integers
     // `percentageText` is formatted from on each row.
     const allocation = allocationOf(AC14_FIXTURE, "100");
-    const breakdown = computeExposureBreakdown(
-      allocation,
-      holdings(AC14_FIXTURE),
-      sectorClassifier,
-    );
+    const breakdown = computeExposureBreakdown(allocation, holdings(AC14_FIXTURE), sectorDimension);
     const rowUnits = new Map(allocation.rows.map((r) => [r.instrumentId, r.units]));
 
     expect(breakdown.buckets[0]?.units.toString()).toBe(
@@ -157,7 +154,7 @@ describe("computeExposureBreakdown — AC-14: {A, A, B, one ETF} yields exactly 
   });
 
   it("does the same on the country dimension: the ETF lands in « Non classé », not in IE", () => {
-    const breakdown = ac14Breakdown(countryClassifier);
+    const breakdown = ac14Breakdown(countryDimension);
     // FR = 5000, DE = 2000, « Non classé » = 3000 (the ETF, whole).
     expect(keysOf(breakdown)).toEqual(["FR", "DE", UNCLASSIFIED]);
     expect(keysOf(breakdown)).not.toContain("IE");
@@ -197,7 +194,7 @@ describe("computeExposureBreakdown — AC-15: dropping « Non classé » makes t
       const breakdown = computeExposureBreakdown(
         allocationOf(fixtures, "100"),
         holdings(fixtures),
-        sectorClassifier,
+        sectorDimension,
       );
 
       const unclassified = breakdown.buckets.find((b) => b.bucketKey === UNCLASSIFIED);
@@ -222,110 +219,10 @@ describe("computeExposureBreakdown — AC-15: dropping « Non classé » makes t
     const breakdown = computeExposureBreakdown(
       allocationOf(fixtures, "100"),
       holdings(fixtures),
-      sectorClassifier,
+      sectorDimension,
     );
     expect(keysOf(breakdown)).toEqual([SECTOR_A, UNCLASSIFIED]);
     expect(breakdown.buckets.map((b) => b.percentageText)).toEqual(["10.00%", "90.00%"]);
-  });
-});
-
-describe("computeExposureBreakdown — OD-4 item 4: a fractional contributor needs no module change", () => {
-  /**
-   * **The extension point, proved now rather than asserted later.** This is
-   * the entire ETF-weightings obligation of the cycle (property 3): ETF sector/country weightings are out of scope, but the
-   * model must accept them without a rewrite. So here is a classifier that
-   * splits **every** row across **three** buckets by weight — 50/30/20 — and
-   * it compiles and passes against the shipped `Classifier` signature with no
-   * change to `exposure-breakdown.ts`.
-   *
-   * The split is exact by construction: two truncated parts plus a remainder
-   * that absorbs what truncation dropped, so Σ contributions = the row's own
-   * units with no rounding slack. (A real weighted classifier would use
-   * largest remainder for a fairer distribution of that slack; the invariant
-   * being tested here is the same either way.)
-   */
-  const W1 = "W-FIFTY";
-  const W2 = "W-THIRTY";
-  const W3 = "W-TWENTY";
-
-  const calls: {
-    readonly instrumentId: string;
-    readonly units: Decimal;
-    readonly contributions: readonly Contribution[];
-  }[] = [];
-
-  const weightedClassifier: Classifier = (row: ExposureRowInput) => {
-    const fifty = row.units.times(50).dividedBy(100).trunc();
-    const thirty = row.units.times(30).dividedBy(100).trunc();
-    const rest = row.units.minus(fifty).minus(thirty);
-    const contributions: readonly Contribution[] = [
-      { bucketKey: W1, units: fifty },
-      { bucketKey: W2, units: thirty },
-      { bucketKey: W3, units: rest },
-    ];
-    calls.push({ instrumentId: row.instrumentId, units: row.units, contributions });
-    return contributions;
-  };
-
-  // Deliberately awkward values: seven equal rows against a total of 7, so
-  // each raw share is 10000/7 = 1428.571… and largest remainder hands four
-  // rows 1429 units and three rows 1428. The weighted split therefore has real
-  // remainders to absorb rather than dividing cleanly by construction.
-  const fixtures: readonly Fixture[] = Array.from({ length: 7 }, (_, i) => ({
-    id: `id-${i}`,
-    kind: "SHARE",
-    value: "1",
-    sectorCode: SECTOR_A,
-  }));
-
-  function run(): ExposureBreakdown {
-    calls.length = 0;
-    return computeExposureBreakdown(
-      allocationOf(fixtures, "7"),
-      holdings(fixtures),
-      weightedClassifier,
-    );
-  }
-
-  it("Σ contributions of a row === that row's own units, for every row", () => {
-    run();
-    expect(calls.length).toBe(7);
-    for (const call of calls) {
-      expect(call.contributions.length).toBe(3);
-      expect(sumUnits(call.contributions).toString()).toBe(call.units.toString());
-    }
-    // Not a fixture where every row happens to split evenly: 10000/7 = 1428 or
-    // 1429 units per row, so the 20 % bucket really is absorbing a remainder.
-    expect([...new Set(calls.map((c) => c.units.toString()))].sort()).toEqual(["1428", "1429"]);
-  });
-
-  it("Σ over all rows === 10 000, so the printed total is still exactly 100.00 %", () => {
-    const breakdown = run();
-    expect(sumUnits(breakdown.buckets).toString()).toBe("10000");
-    expect(sumPrinted(breakdown.buckets).toString()).toBe("100");
-  });
-
-  it("puts one holding in several buckets — no « Non classé », and every bucket fed by every row", () => {
-    const breakdown = run();
-    expect(keysOf(breakdown)).toEqual([W1, W2, W3]);
-    expect(keysOf(breakdown)).not.toContain(UNCLASSIFIED);
-    // 7 rows x 3 buckets = 21 contributions, so no bucket is one row's alone.
-    expect(calls.flatMap((c) => c.contributions).length).toBe(21);
-    // W1 = Σ trunc(units x 0.5) over 1428/1429-unit rows = 714 x 7 = 4998.
-    expect(breakdown.buckets[0]?.units.toString()).toBe("4998");
-  });
-
-  it("nothing downstream reads a bucket key off a row — the result is keyed by bucket only", () => {
-    const breakdown = run();
-    // A `bucketKey` never appears on a holding, on an allocation row, or on
-    // anything but a bucket/contribution: the shape itself is what makes a
-    // one-bucket-per-holding assumption impossible to write.
-    for (const bucket of breakdown.buckets) {
-      expect(Object.keys(bucket).sort()).toEqual(["bucketKey", "percentageText", "units"]);
-    }
-    const allocation = allocationOf(fixtures, "7");
-    expect(allocation.rows.every((row) => !("bucketKey" in row))).toBe(true);
-    expect(holdings(fixtures).every((h) => !("bucketKey" in h))).toBe(true);
   });
 });
 
@@ -334,7 +231,7 @@ describe("computeExposureBreakdown — FR-11's basis, four fixtures", () => {
     return computeExposureBreakdown(
       allocationOf(fixtures, "100"),
       holdings(fixtures),
-      countryClassifier,
+      countryDimension,
     ).basis;
   }
 
@@ -384,8 +281,8 @@ describe("computeExposureBreakdown — suppression is inherited from computeAllo
     expect(allocation.totalUnavailable).toBe(true);
     expect(allocation.kindSubtotals).toEqual([]);
 
-    for (const classifier of [sectorClassifier, countryClassifier]) {
-      const breakdown = computeExposureBreakdown(allocation, holdings(AC14_FIXTURE), classifier);
+    for (const dimension of [sectorDimension, countryDimension]) {
+      const breakdown = computeExposureBreakdown(allocation, holdings(AC14_FIXTURE), dimension);
       expect(breakdown.suppressed).toBe(true);
       expect(breakdown.buckets).toEqual([]);
       expect(breakdown.basis).toBe("NONE");
@@ -399,8 +296,8 @@ describe("computeExposureBreakdown — suppression is inherited from computeAllo
     expect(allocation.reconciles).toBe(false);
     expect(allocation.kindSubtotals).toEqual([]);
 
-    for (const classifier of [sectorClassifier, countryClassifier]) {
-      const breakdown = computeExposureBreakdown(allocation, holdings(AC14_FIXTURE), classifier);
+    for (const dimension of [sectorDimension, countryDimension]) {
+      const breakdown = computeExposureBreakdown(allocation, holdings(AC14_FIXTURE), dimension);
       expect(breakdown.suppressed).toBe(true);
       expect(breakdown.buckets).toEqual([]);
     }
@@ -419,7 +316,7 @@ describe("computeExposureBreakdown — suppression is inherited from computeAllo
     const allocation = allocationOf(fixtures, "100");
     expect(allocation.rows.find((r) => r.instrumentId === "e1")?.units).toBeUndefined();
 
-    const breakdown = computeExposureBreakdown(allocation, holdings(fixtures), sectorClassifier);
+    const breakdown = computeExposureBreakdown(allocation, holdings(fixtures), sectorDimension);
     // 10 000 − the ETF's own 3000 = 7000. No « Non classé » bucket at all: the
     // row is not displayed, so it is not counted anywhere.
     expect(sumUnits(breakdown.buckets).toString()).toBe("7000");
@@ -429,10 +326,152 @@ describe("computeExposureBreakdown — suppression is inherited from computeAllo
 
   it("returns nothing to show for an empty holdings set, without claiming a basis", () => {
     const allocation = allocationOf([], "0");
-    const breakdown = computeExposureBreakdown(allocation, [], sectorClassifier);
+    const breakdown = computeExposureBreakdown(allocation, [], sectorDimension);
     expect(breakdown.buckets).toEqual([]);
     expect(breakdown.basis).toBe("NONE");
   });
+});
+
+describe("computeExposureBreakdown — FR-745 / AC-649: cash is its own bucket, after « Non classé »", () => {
+  /**
+   * Built the way the overview builds it: the wire holdings and cash block
+   * through `allocationInputOf` and `exposureHoldingsOf`, so the cash row is the
+   * one the route really adds.
+   */
+  function wireHolding(
+    id: string,
+    kind: string,
+    value: string,
+    extra: Partial<HoldingResponse> = {},
+  ): HoldingResponse {
+    return {
+      instrumentId: id,
+      kind,
+      displayName: id,
+      symbol: null,
+      sectorCode: null,
+      domicileCountry: null,
+      listingCountry: null,
+      hasIcon: false,
+      quantity: "1",
+      currency: "EUR",
+      pmp: amount(value),
+      costBasis: amount(value),
+      currentPrice: amount(value),
+      currentValue: amount(value),
+      unrealizedGainLoss: amount("0"),
+      realizedGains: [],
+      ...extra,
+    };
+  }
+
+  function breakdownOf(
+    wire: readonly HoldingResponse[],
+    cash: string,
+    total: string,
+    dimension: ExposureDimension = countryDimension,
+  ): ExposureBreakdown {
+    const allocation = computeAllocation(
+      allocationInputOf({
+        holdings: wire,
+        totalValue: amount(total),
+        cash: {
+          totalBase: cash,
+          currency: "EUR",
+          isNegative: false,
+          unconverted: [],
+          byCurrency: [],
+        },
+      }),
+    );
+    return computeExposureBreakdown(allocation, exposureHoldingsOf(wire), dimension);
+  }
+
+  const view = (breakdown: ExposureBreakdown) =>
+    breakdown.buckets.map((b) => [b.bucketKey, b.percentageText]);
+
+  // AC-625's holdings: ETF 4 000 (country US 100.00 or no set), SHARE FR 5 000, cash 1 000.
+  const share = wireHolding("share", "SHARE", "5000.00", { domicileCountry: "FR" });
+
+  it("with the ETF's weights: FR 50.00, US 40.00, « Liquidités » 10.00 and no « Non classé »", () => {
+    const etf = wireHolding("etf", "ETF", "4000.00", {
+      countryWeights: [{ code: "US", weight: "100.00" }],
+    });
+    expect(view(breakdownOf([etf, share], "1000.00", "10000.00"))).toEqual([
+      ["FR", "50.00%"],
+      ["US", "40.00%"],
+      [CASH, "10.00%"],
+    ]);
+  });
+
+  it("without them: FR 50.00, « Non classé » 40.00, « Liquidités » 10.00", () => {
+    const etf = wireHolding("etf", "ETF", "4000.00");
+    expect(view(breakdownOf([etf, share], "1000.00", "10000.00"))).toEqual([
+      ["FR", "50.00%"],
+      [UNCLASSIFIED, "40.00%"],
+      [CASH, "10.00%"],
+    ]);
+  });
+
+  it("pins « Liquidités » after « Non classé » even when it is the largest bucket, on both dimensions", () => {
+    const small = wireHolding("share", "SHARE", "2000.00", {
+      domicileCountry: "FR",
+      sectorCode: SECTOR_A,
+    });
+    const etf = wireHolding("etf", "ETF", "3000.00");
+    expect(view(breakdownOf([small, etf], "5000.00", "10000.00"))).toEqual([
+      ["FR", "20.00%"],
+      [UNCLASSIFIED, "30.00%"],
+      [CASH, "50.00%"],
+    ]);
+    expect(view(breakdownOf([small, etf], "5000.00", "10000.00", sectorDimension))).toEqual([
+      [SECTOR_A, "20.00%"],
+      [UNCLASSIFIED, "30.00%"],
+      [CASH, "50.00%"],
+    ]);
+  });
+});
+
+describe("computeExposureBreakdown — AC-630: suppression holds with weighted holdings present", () => {
+  const weighted: readonly ExposureHolding[] = [
+    {
+      instrumentId: "etf",
+      kind: "ETF",
+      sectorCode: null,
+      domicileCountry: null,
+      listingCountry: null,
+      sectorWeights: [{ key: SECTOR_A, weight: new Decimal("60.00") }],
+      countryWeights: [{ key: "US", weight: new Decimal("60.00") }],
+    },
+    {
+      instrumentId: "share",
+      kind: "SHARE",
+      sectorCode: SECTOR_B,
+      domicileCountry: "FR",
+      listingCountry: null,
+    },
+  ];
+  const fixtures: readonly Fixture[] = [
+    { id: "etf", kind: "ETF", value: "60" },
+    { id: "share", kind: "SHARE", value: "40" },
+  ];
+
+  for (const [name, total] of [
+    ["the total is unusable", "0"],
+    ["the rows do not reconcile against the total", "200"],
+  ] as const) {
+    it(`suppresses both dimensions when ${name}`, () => {
+      const allocation = allocationOf(fixtures, total);
+      for (const dimension of [sectorDimension, countryDimension]) {
+        expect(computeExposureBreakdown(allocation, weighted, dimension)).toEqual({
+          buckets: [],
+          basis: "NONE",
+          weighted: false,
+          suppressed: true,
+        });
+      }
+    });
+  }
 });
 
 describe("exposure-breakdown.ts — AC-16: no division of any kind in the module", () => {
@@ -469,7 +508,7 @@ describe("exposure-breakdown.ts — AC-16: no division of any kind in the module
       { id: "s3", kind: "SHARE", value: "1", sectorCode: SECTOR_B },
     ];
     const allocation = allocationOf(fixtures, "3");
-    const breakdown = computeExposureBreakdown(allocation, holdings(fixtures), sectorClassifier);
+    const breakdown = computeExposureBreakdown(allocation, holdings(fixtures), sectorDimension);
     const rowText = allocation.rows.find((r) => r.instrumentId === "s1")?.percentageText;
     expect(breakdown.buckets.find((b) => b.bucketKey === SECTOR_A)?.percentageText).toBe(rowText);
   });

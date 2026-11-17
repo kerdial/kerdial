@@ -10,6 +10,7 @@ import {
   createInstrumentByIsin,
   createPortfolio,
   recomputeAndInvalidate,
+  replaceInstrumentExposureWeights,
   upsertManualPricePoint,
 } from "@kerdial/ledger";
 import {
@@ -17,6 +18,7 @@ import {
   createDb,
   fxRateDaily,
   fxRateUser,
+  instrumentExposureWeight,
   instrumentPriceDaily,
   portfolio,
   tenant,
@@ -27,11 +29,13 @@ import {
 } from "@kerdial/platform-db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { valueClosedPositionsAsOf } from "./closed-positions-valuation.js";
 import {
   TooManyHoldingsError,
   TooManyRealizedGainsError,
   valueHoldingsAsOf,
   valueHoldingsForTenant,
+  type ValuedHolding,
 } from "./holdings-valuation.js";
 
 /**
@@ -1822,6 +1826,208 @@ describe("valuation — holdings/overview valuation with provenance (T-39, Testc
       expect(cash).toBe(1);
       expect(fxProvider).toBe(1);
       expect(fxUser).toBe(1);
+    });
+  });
+
+  /*
+   * exposure-weights EW-T12 (FR-721, FD-2): the stored weights reach the
+   * holdings through one statement per load, over the instrument read's ids.
+   * P holds three weighted ETFs and one SHARE; Q holds the first ETF again, so
+   * the tenant-wide read has to carry the weights through its merge; E has no
+   * transaction at all. ETF 1 also carries a hand-inserted PROVIDER row, which
+   * no read may see this cycle.
+   */
+  describe("exposure-weights — the stored weights reach the holdings (FR-721)", () => {
+    const weightsTenant = "00000000-0000-7000-8000-00000000e120";
+    const asOfDate = "2026-03-10";
+    const statements: string[] = [];
+    let countingSql: postgres.Sql;
+    let countingDb: Db;
+    let weightsSeq = 1n;
+
+    let etfIds: string[];
+    let shareId: string;
+    let portfolioP: string;
+    let portfolioQ: string;
+    let portfolioE: string;
+
+    async function holdOne(portfolioId: string, instrumentId: string) {
+      const s = weightsSeq;
+      weightsSeq += 1n;
+      await withTenant(appWebDb, weightsTenant, async (tx) => {
+        const cashAccountId = await ensureCashAccount(tx, weightsTenant, portfolioId, "EUR");
+        await tx.insert(transaction).values({
+          id: randomUUID(),
+          tenantId: weightsTenant,
+          baseCurrency: "EUR",
+          portfolioId,
+          kind: "BUY",
+          tradeDate: "2026-03-02",
+          seq: s,
+          instrumentId,
+          quantity: new Decimal("1"),
+          unitPrice: new Decimal("100"),
+          grossAmount: new Decimal("100"),
+          txnCurrency: "EUR",
+          cashCurrency: "EUR",
+          cashAmount: new Decimal("100"),
+          cashAccountId,
+          fxRate: new Decimal("1"),
+          fxRateSource: "IMPLIED_BASE",
+        });
+        await recomputeAndInvalidate(tx, {
+          tenantId: weightsTenant,
+          portfolioId,
+          minTradeDate: "2026-03-02",
+        });
+      });
+    }
+
+    /** `instrument_exposure_weight` statements a read issued. */
+    async function measure<T>(read: () => Promise<T>) {
+      statements.length = 0;
+      const result = await read();
+      const weights = statements.filter((q) => q.includes('"instrument_exposure_weight"')).length;
+      return { result, weights };
+    }
+
+    beforeAll(async () => {
+      countingSql = postgres(pg.appWebUri, {
+        max: 2,
+        debug: (_connection, query) => {
+          statements.push(query);
+        },
+      });
+      countingDb = createDb(countingSql);
+      await ownerDb.insert(tenant).values({ id: weightsTenant });
+
+      etfIds = [];
+      for (const n of [1, 2, 3]) {
+        const etf = await createInstrumentByIsin(appWebDb, {
+          kind: "ETF",
+          isin: `ZZEWC200000${n}`,
+          exchangeMic: "XPAR",
+          listingCurrency: "EUR",
+          displayName: `EW-T12 ETF ${n}`,
+        });
+        etfIds.push(etf.id);
+        await seedDailyPrice(etf.id, "2026-03-02", "100");
+        await replaceInstrumentExposureWeights(appWebDb, etf.id, {
+          sectorWeights: [
+            { code: "FINANCE", weight: "20.00" },
+            { code: "TECHNOLOGIE", weight: "30.00" },
+          ],
+          countryWeights: [
+            { code: "JP", weight: "25.00" },
+            { code: "GB", weight: "10.00" },
+            { code: "US", weight: "60.00" },
+          ],
+        });
+      }
+      await ownerDb.insert(instrumentExposureWeight).values({
+        instrumentId: etfIds[0]!,
+        origin: "PROVIDER",
+        countryCode: "DE",
+        weight: new Decimal("5.00"),
+      });
+      shareId = (
+        await createInstrumentByIsin(appWebDb, {
+          kind: "SHARE",
+          isin: "ZZEWC2000004",
+          exchangeMic: "XPAR",
+          listingCurrency: "EUR",
+          displayName: "EW-T12 share",
+          sectorCode: "FINANCE",
+        })
+      ).id;
+      await seedDailyPrice(shareId, "2026-03-02", "100");
+
+      portfolioP = (await createPortfolio(appWebDb, { tenantId: weightsTenant, name: "P" })).id;
+      portfolioQ = (await createPortfolio(appWebDb, { tenantId: weightsTenant, name: "Q" })).id;
+      portfolioE = (await createPortfolio(appWebDb, { tenantId: weightsTenant, name: "E" })).id;
+      for (const id of [...etfIds, shareId]) await holdOne(portfolioP, id);
+      await holdOne(portfolioQ, etfIds[0]!);
+    }, 120_000);
+
+    afterAll(async () => {
+      await countingSql?.end({ timeout: 5 });
+    }, 30_000);
+
+    it("FD-2: one weights statement per holdings load whatever the holding count, none with no instrument, none for closed positions", async () => {
+      const four = await measure(() =>
+        valueHoldingsAsOf(countingDb, {
+          tenantId: weightsTenant,
+          portfolioId: portfolioP,
+          asOfDate,
+        }),
+      );
+      expect(four.result.holdings).toHaveLength(4);
+      expect(four.weights).toBe(1);
+
+      const one = await measure(() =>
+        valueHoldingsAsOf(countingDb, {
+          tenantId: weightsTenant,
+          portfolioId: portfolioQ,
+          asOfDate,
+        }),
+      );
+      expect(one.result.holdings).toHaveLength(1);
+      expect(one.weights).toBe(1);
+
+      const none = await measure(() =>
+        valueHoldingsAsOf(countingDb, {
+          tenantId: weightsTenant,
+          portfolioId: portfolioE,
+          asOfDate,
+        }),
+      );
+      expect(none.result.holdings).toEqual([]);
+      expect(none.weights).toBe(0);
+
+      const closed = await measure(() =>
+        valueClosedPositionsAsOf(countingDb, {
+          tenantId: weightsTenant,
+          portfolioId: portfolioP,
+          asOfDate,
+        }),
+      );
+      expect(closed.weights).toBe(0);
+    });
+
+    it("a weighted ETF carries its MANUAL parts (weight descending, then code), an unweighted SHARE carries none, and the tenant-wide merge keeps them", async () => {
+      const parts = (h: ValuedHolding | undefined) => ({
+        sector: h?.exposureWeights.sector?.map((p) => [p.key, p.weight.toString()]),
+        country: h?.exposureWeights.country?.map((p) => [p.key, p.weight.toString()]),
+      });
+      const expected = {
+        sector: [
+          ["TECHNOLOGIE", "30"],
+          ["FINANCE", "20"],
+        ],
+        country: [
+          ["US", "60"],
+          ["JP", "25"],
+          ["GB", "10"],
+        ],
+      };
+
+      const p = await valueHoldingsAsOf(appWebDb, {
+        tenantId: weightsTenant,
+        portfolioId: portfolioP,
+        asOfDate,
+      });
+      for (const id of etfIds) {
+        expect(parts(p.holdings.find((h) => h.instrumentId === id))).toEqual(expected);
+      }
+      expect(p.holdings.find((h) => h.instrumentId === shareId)?.exposureWeights).toEqual({});
+
+      const tenantWide = await valueHoldingsForTenant(appWebDb, {
+        tenantId: weightsTenant,
+        asOfDate,
+      });
+      const merged = tenantWide.holdings.find((h) => h.instrumentId === etfIds[0]);
+      expect(merged?.quantity.toString()).toBe("2");
+      expect(parts(merged)).toEqual(expected);
     });
   });
 });

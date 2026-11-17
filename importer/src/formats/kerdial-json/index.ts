@@ -1,3 +1,11 @@
+import {
+  EXPOSURE_WEIGHT_DIMENSIONS,
+  EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND,
+  serializeExposureWeight,
+  validateExposureWeightSet,
+  type ExposureWeightDimension,
+  type ExposureWeightRefusal,
+} from "@kerdial/api-contracts";
 import { parseDecimalString, type Decimal } from "@kerdial/core-decimal";
 
 import type { KerdialJsonLimits } from "../../limits.js";
@@ -138,6 +146,12 @@ export interface CatalogueWatchlist {
   readonly note?: string;
 }
 
+/** One hand-entered weight: a bucket code and its value. */
+interface CatalogueExposureWeight {
+  readonly code: string;
+  readonly weight: Decimal;
+}
+
 /** One `instruments[]` entry of the draft. */
 export interface CatalogueInstrumentEntry {
   readonly at: CatalogueEntryRef;
@@ -152,6 +166,13 @@ export interface CatalogueInstrumentEntry {
   readonly sectorCode?: KerdialCatalogueInstrument["sectorCode"];
   readonly industryLabel?: string;
   readonly domicileCountry?: string;
+  /**
+   * The hand-entered weight sets (FR-742, FR-743), each weight a
+   * {@link Decimal}. Absent = no statement: the stored set is left alone, never
+   * cleared. Never empty once {@link validate} has accepted the entry (EW-L17).
+   */
+  readonly sectorWeights?: readonly CatalogueExposureWeight[];
+  readonly countryWeights?: readonly CatalogueExposureWeight[];
   /** SCPI only (`scpi` FR-621); absent = no statement. */
   readonly managementCompany?: string;
   /** SCPI only, a percentage 0..100 with at most two decimals — a {@link Decimal}, as every draft figure. */
@@ -399,6 +420,9 @@ function validateInstrument(
     }
   }
 
+  const weightProblem = validateExposureWeights(entry);
+  if (weightProblem !== null) return weightProblem;
+
   if (entry.icon !== undefined && !iconsIncluded) {
     return malformed(
       "the manifest says this document carries no icons, and this instrument carries one",
@@ -418,6 +442,58 @@ function validateInstrument(
       notPositive(target, "the watchlist target price") ??
       tooLarge(target, PRICE_MAX_INTEGER_DIGITS, "the watchlist target price")
     );
+  }
+  return null;
+}
+
+/**
+ * Why a weight set is refused, as one sentence per FR-720 rule. **No figure
+ * and no code from the entry is echoed**: import diagnostics scrub numerals
+ * from what they log, and the rule is what the user needs to fix the file.
+ */
+const EXPOSURE_WEIGHT_REFUSAL_MESSAGES: Readonly<
+  Record<ExposureWeightRefusal, (dimension: ExposureWeightDimension) => string>
+> = {
+  OUT_OF_RANGE: (dimension) =>
+    `a ${dimension} weight is out of range: each weight is above zero, at most one hundred, with at most two decimals`,
+  UNKNOWN_BUCKET: (dimension) =>
+    dimension === "sector"
+      ? "the sector weights name a code outside the sector list"
+      : "the country weights name a code outside the country list (upper-case two-letter codes)",
+  DUPLICATE_BUCKET: (dimension) => `the ${dimension} weights name the same ${dimension} twice`,
+  TOTAL_ABOVE_100: (dimension) => `the ${dimension} weights sum to more than one hundred`,
+};
+
+/**
+ * FR-743, per present key: the kind may carry that dimension (the one
+ * eligibility list, `EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND`), the set is not
+ * empty (EW-L17 — the schema refuses `[]` in a document, and this refuses it
+ * in a hand-built draft too, so no stage after this one can read it as
+ * "clear"), and the set passes the shared contract's `validateExposureWeightSet`
+ * — the same validator the API's write route and the one writer run. The
+ * weights reach it as two-decimal text, which is lossless here: the schema
+ * already capped the decimals at two.
+ */
+function validateExposureWeights(entry: CatalogueInstrumentEntry): RowProblem | null {
+  const { kind } = entry.identity;
+  for (const dimension of EXPOSURE_WEIGHT_DIMENSIONS) {
+    const items = dimension === "sector" ? entry.sectorWeights : entry.countryWeights;
+    if (items === undefined) continue;
+    if (!EXPOSURE_WEIGHT_DIMENSIONS_BY_KIND[kind].includes(dimension)) {
+      return malformed(
+        `a ${kind} instrument carries no ${dimension} weights; this entry carries some`,
+      );
+    }
+    if (items.length === 0) {
+      return malformed(
+        `the ${dimension} weights are an empty list; an entry without ${dimension} weights leaves the key out`,
+      );
+    }
+    const verdict = validateExposureWeightSet(
+      dimension,
+      items.map((item) => ({ code: item.code, weight: serializeExposureWeight(item.weight) })),
+    );
+    if (!verdict.ok) return malformed(EXPOSURE_WEIGHT_REFUSAL_MESSAGES[verdict.reason](dimension));
   }
   return null;
 }
@@ -667,6 +743,12 @@ function draftInstrument(
     ...(parsed.sectorCode !== undefined && { sectorCode: parsed.sectorCode }),
     ...(parsed.industryLabel !== undefined && { industryLabel: parsed.industryLabel }),
     ...(parsed.domicileCountry !== undefined && { domicileCountry: parsed.domicileCountry }),
+    ...(parsed.sectorWeights !== undefined && {
+      sectorWeights: draftExposureWeights(parsed.sectorWeights),
+    }),
+    ...(parsed.countryWeights !== undefined && {
+      countryWeights: draftExposureWeights(parsed.countryWeights),
+    }),
     ...(parsed.managementCompany !== undefined && {
       managementCompany: parsed.managementCompany,
     }),
@@ -733,6 +815,13 @@ function draftWatchlist(
     }),
     ...(parsed.note !== undefined && { note: parsed.note }),
   };
+}
+
+/** A weight set, each weight turned into a {@link Decimal}; the schema has already fixed its shape. */
+function draftExposureWeights(
+  parsed: NonNullable<KerdialCatalogueInstrument["countryWeights"]>,
+): CatalogueExposureWeight[] {
+  return parsed.map((item) => ({ code: item.code, weight: parseDecimalString(item.weight) }));
 }
 
 /** The one exported value of this module. `formatKey` is data, not a label: it is what the route and the summary name the format by. */

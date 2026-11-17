@@ -93,6 +93,38 @@ describe("allocate", () => {
     expect(result.buckets.map((b) => b.key)).toEqual(["TECH", "UNCLASSIFIED", "CASH"]);
   });
 
+  it("a weighted row is split across its buckets, listed in each of them, its uncovered part in its own bucket", () => {
+    const result = allocate(
+      [
+        {
+          ...row("etf", "UNCLASSIFIED", "6000"),
+          weights: [
+            { key: "US", weight: parseDecimalString("60") },
+            { key: "JP", weight: parseDecimalString("25") },
+            { key: "GB", weight: parseDecimalString("10") },
+          ],
+        },
+        row("share", "FR", "4000"),
+      ],
+      ["UNCLASSIFIED"],
+    );
+    expect(
+      result.buckets.map((b) => [
+        b.key,
+        toDecimalString(b.value),
+        toDecimalString(b.sharePercent!),
+        b.rowIds,
+      ]),
+    ).toEqual([
+      ["FR", "4000", "40", ["share"]],
+      ["US", "3600", "36", ["etf"]],
+      ["JP", "1500", "15", ["etf"]],
+      ["GB", "600", "6", ["etf"]],
+      ["UNCLASSIFIED", "300", "3", ["etf"]],
+    ]);
+    expect(toDecimalString(result.total)).toBe("10000");
+  });
+
   it("any positive total: bucket values sum to the total exactly and the shares sum to exactly 100.00 (500 random sets, negatives included)", () => {
     const next = lcg(20261112);
     for (let round = 0; round < 500; round += 1) {

@@ -18,4 +18,5 @@ export * from "./exchange-mic.js";
 export * from "./sector.js";
 export * from "./country.js";
 export * from "./instrument-icon.js";
+export * from "./exposure-weight-origin.js";
 export * from "./portfolio-accent.js";

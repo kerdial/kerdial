@@ -19,6 +19,7 @@ import {
   type PricePoint,
   type ProvenanceSummaryLeaf,
   type RealizedGain,
+  type WeightPart,
 } from "@kerdial/core-domain";
 // IR-12 (DD29): the
 // listing country is **derived**, here, in the same assembly step that builds
@@ -29,6 +30,7 @@ import {
 // which is why depending on it here costs `valuation` nothing.
 import { micToCountryCode } from "@kerdial/core-reference-data";
 import {
+  listInstrumentExposureWeights,
   listPortfolios,
   loadPositionTimeline,
   type InstrumentKind,
@@ -221,6 +223,17 @@ export interface ValuedHolding {
    * why presence is a joined boolean and not a `length(bytes)`.
    */
   readonly hasIcon: boolean;
+  /**
+   * The instrument's hand-entered exposure weights (FR-721), per dimension;
+   * a dimension is absent when the instrument has no set for it. An
+   * `instrument`-level fact like {@link sectorCode}: the allocation read
+   * places a holding by these instead of its single sector/country for that
+   * dimension, and the holdings wire relays them.
+   */
+  readonly exposureWeights: {
+    readonly sector?: readonly WeightPart[];
+    readonly country?: readonly WeightPart[];
+  };
   /**
    * **Derived, never stored** (FR-10): `micToCountryCode(exchange_mic)`,
    * applied in the assembly step so `exchangeMic` itself never reaches the
@@ -703,6 +716,12 @@ export interface LoadedHoldingsInputs {
    * `ValuedHolding.currency` still comes from `valuePortfolio`, unchanged.
    */
   readonly listingCurrencyByInstrumentId: ReadonlyMap<string, CurrencyCode>;
+  /**
+   * The hand-entered exposure weights (FR-721), keyed by `instrumentId`, over
+   * the same `instrumentIds` superset; an instrument without weights is absent.
+   * Empty when the load ran without `withExposureWeights` (closed positions).
+   */
+  readonly exposureWeightsByInstrumentId: ReadonlyMap<string, ValuedHolding["exposureWeights"]>;
   /** The as-of cash (`loadCashAsOf`), present iff the load ran `withCash`. */
   readonly cash?: CashAsOf;
   /** Every transaction row this portfolio has dated on or before `asOfDate` (superset of what either provenance lookup below needs — see this function's own header). */
@@ -749,6 +768,13 @@ export async function loadHoldingsInputs(
      * and for the tenant fan-out, which loads the tenant's cash once.
      */
     readonly withCash: boolean;
+    /**
+     * FR-721: load the instruments' exposure weights — **one** statement over
+     * the same `instrumentIds` the instrument read uses, whatever the holding
+     * count, none when there is no instrument. `false` for closed positions,
+     * which classify nothing.
+     */
+    readonly withExposureWeights: boolean;
   },
 ): Promise<LoadedHoldingsInputs> {
   const { tenantId, portfolioId, asOfDate } = params;
@@ -882,6 +908,24 @@ export async function loadHoldingsInputs(
     }
   }
 
+  // FR-721: the weights ride the same transaction as the instrument read, one
+  // statement for the whole id set (the reader issues none for `[]`) — never
+  // one per holding.
+  const exposureWeightsByInstrumentId = new Map<string, ValuedHolding["exposureWeights"]>();
+  if (options.withExposureWeights) {
+    const stored = await listInstrumentExposureWeights(tx, instrumentIds);
+    for (const [instrumentId, sets] of stored) {
+      exposureWeightsByInstrumentId.set(instrumentId, {
+        ...(sets.sectorWeights !== undefined && {
+          sector: sets.sectorWeights.map(({ code, weight }) => ({ key: code, weight })),
+        }),
+        ...(sets.countryWeights !== undefined && {
+          country: sets.countryWeights.map(({ code, weight }) => ({ key: code, weight })),
+        }),
+      });
+    }
+  }
+
   const transactionRows = await tx
     .select({
       id: transaction.id,
@@ -917,6 +961,7 @@ export async function loadHoldingsInputs(
     displayNameByInstrumentId,
     referenceByInstrumentId,
     listingCurrencyByInstrumentId,
+    exposureWeightsByInstrumentId,
   };
 }
 
@@ -946,6 +991,7 @@ function assembleHoldings(
     kindByInstrumentId,
     displayNameByInstrumentId,
     referenceByInstrumentId,
+    exposureWeightsByInstrumentId,
   } = loaded;
 
   const truncated = timeline.filter((event) => event.txn.tradeDate <= asOfDate);
@@ -1091,6 +1137,9 @@ function assembleHoldings(
       // is the honest state — never to a rendered `<img>` for bytes that may
       // not exist.
       hasIcon: referenceByInstrumentId.get(state.instrumentId)?.hasIcon ?? false,
+      // FR-721: loaded with the instrument read; an instrument without
+      // weights has none in either dimension.
+      exposureWeights: exposureWeightsByInstrumentId.get(state.instrumentId) ?? {},
       quantity: state.quantity,
       currency: val.currency,
       pmp: { amount: state.pmpUnitBase, currency: baseCurrency, provenance: pmpProvenance },
@@ -1274,7 +1323,10 @@ export async function valueHoldingsAsOf(
   params: ValueHoldingsAsOfParams,
 ): Promise<ValuedPortfolioHoldings> {
   const loaded = await withTenant(db, params.tenantId, (tx) =>
-    loadHoldingsInputs(tx, params, { withCash: params.cash !== "omit" }),
+    loadHoldingsInputs(tx, params, {
+      withCash: params.cash !== "omit",
+      withExposureWeights: true,
+    }),
   );
   return assembleHoldings(loaded, params);
 }
@@ -1304,6 +1356,8 @@ interface HoldingAccumulator {
   listingCountry: string | null;
   /** IK-10: a `(tenant_id, instrument_id)` property, so it cannot vary by contributing portfolio either — same carry-through as the four fields above. */
   hasIcon: boolean;
+  /** FR-721: an `instrument`-level fact like `sectorCode`, carried from the first contributing portfolio. */
+  exposureWeights: ValuedHolding["exposureWeights"];
   currentPrice: ValuedFigure;
   pmpFlagSets: (readonly DerivedFromFlag[])[];
   valueFlagSets: (readonly DerivedFromFlag[])[];
@@ -1462,6 +1516,7 @@ export async function valueHoldingsForTenant(
         // contributing the same instrument reports the same value — carried
         // like `kind`/`displayName` above, not merged like a figure.
         hasIcon: h.hasIcon,
+        exposureWeights: h.exposureWeights,
         currentPrice: h.currentPrice,
         pmpFlagSets: [],
         valueFlagSets: [],
@@ -1531,6 +1586,7 @@ export async function valueHoldingsForTenant(
       domicileCountry: acc.domicileCountry,
       listingCountry: acc.listingCountry,
       hasIcon: acc.hasIcon,
+      exposureWeights: acc.exposureWeights,
       quantity: acc.quantity,
       currency: acc.currency,
       pmp: { amount: pmpUnitBase, currency: baseCurrency, provenance: pmpProvenance },
