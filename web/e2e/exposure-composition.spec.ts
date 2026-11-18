@@ -98,10 +98,13 @@ test.describe("the strip at 320 px", () => {
       for (const dimension of ["sector", "country"] as const) {
         const legend = page.getByTestId(`exposure-strip-buckets-${dimension}`);
         await legend.scrollIntoViewIfNeeded();
-        await expect(legend).toContainText("Liquidités");
-        await expect(
-          page.getByTestId(`exposure-strip-bucket-percentage-${dimension}-__LIQUIDITES__`),
-        ).toHaveText(cash.legend);
+        // Cash is on the type bar only: these two break down the securities alone.
+        await expect(legend).not.toContainText("Liquidités");
+      }
+      await expect(page.getByTestId("exposure-strip-subtotals")).toContainText("Liquidités");
+      await expect(page.getByTestId("exposure-strip-percentage-CASH")).toHaveText(cash.legend);
+      for (const dimension of ["sector", "country"] as const) {
+        const legend = page.getByTestId(`exposure-strip-buckets-${dimension}`);
         // The text's own rectangles, not the box: an unbreakable run overflows its box.
         const rights = await legend.evaluate((element) => {
           const range = document.createRange();

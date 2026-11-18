@@ -6,6 +6,26 @@ from this file above the generated list of changes.
 
 ---
 
+## v0.4.2
+
+### Sector and country bars: securities only
+
+On the dashboard's « Exposition » card, the « Pays » and « Secteur » bars now break down your shares,
+ETFs and funds only, and each adds up to 100 % of those. Cash, crypto-assets and SCPI are no longer on
+these two bars: they stay on the « Type » bar, which still shows the whole portfolio. A percentage on
+« Pays » or « Secteur » is therefore a share of your securities, not of the portfolio, and the bars'
+titles say so (« Pays · actions, ETF et fonds »). With no share, ETF or fund held, a line says so in
+place of the bars.
+
+The sentences under the bars are gone: the one stating which country was used (registered office,
+listing country or weights) and the one flagging weights entered by hand.
+
+This is a display change only. The AI-assistant tools are unchanged: `get_allocation` still breaks down
+the whole portfolio, cash and crypto-assets included, so its percentages by sector and by country no
+longer match the dashboard's.
+
+No manual step.
+
 ## v0.4.1
 
 ### Shorter exposure bars

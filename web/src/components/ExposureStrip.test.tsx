@@ -10,7 +10,8 @@ import {
   countryDimension,
   sectorDimension,
 } from "../lib/exposure-breakdown.js";
-import { CRYPTO, OTHER } from "../lib/exposure-display.js";
+import { OTHER } from "../lib/exposure-display.js";
+import { securitiesAllocationInputOf } from "../lib/exposure-scope.js";
 import type { HoldingResponse, HoldingsResponse } from "../lib/api-client.js";
 import { ExposureStrip } from "./ExposureStrip.js";
 
@@ -66,16 +67,18 @@ function renderStrip(data: HoldingsResponse) {
   // The routes' own input: the holdings plus the « Liquidités » row when the
   // cash block is non-zero.
   const allocation = computeAllocation(allocationInputOf(data));
+  // …and the securities' own apportionment, which the two breakdowns regroup.
+  const securities = computeAllocation(securitiesAllocationInputOf(data));
   return render(
     <ExposureStrip
       allocation={allocation}
       sectorBreakdown={computeExposureBreakdown(
-        allocation,
+        securities,
         exposureHoldingsOf(data.holdings),
         sectorDimension,
       )}
       countryBreakdown={computeExposureBreakdown(
-        allocation,
+        securities,
         exposureHoldingsOf(data.holdings),
         countryDimension,
       )}
@@ -141,12 +144,19 @@ describe("<ExposureStrip> — three bars at once", () => {
     expect(screen.getByTestId("exposure-strip-buckets-sector")).toHaveTextContent("Non classé");
   });
 
-  it("states the country basis under the Pays bar only, and never a spec or ticket reference in the copy", () => {
+  it("titles the Pays and Secteur bars with what they break down, and puts no sentence under any bar", () => {
     renderStrip(TWO);
-    const basis = screen.getByTestId("exposure-strip-basis");
-    expect(basis).toHaveTextContent("Pays du siège social pour toutes les lignes");
-    expect(screen.getByTestId("exposure-strip-country")).toContainElement(basis);
-    expect(screen.getByTestId("exposure-strip").textContent ?? "").not.toMatch(/FR-\d|#\d/);
+    for (const dimension of ["sector", "country"] as const) {
+      expect(screen.getByTestId(`exposure-strip-${dimension}-scope`)).toHaveTextContent(
+        "actions, ETF et fonds",
+      );
+    }
+    expect(screen.queryByTestId("exposure-strip-kind-scope")).not.toBeInTheDocument();
+    // Nothing but the title, the bar and the legend in each dimension.
+    const strip = screen.getByTestId("exposure-strip");
+    expect(strip.querySelector(".ov-note")).toBeNull();
+    expect(strip.textContent ?? "").not.toMatch(/siège social|cotation|saisie/i);
+    expect(strip.textContent ?? "").not.toMatch(/FR-\d|#\d/);
   });
 
   it("says once that the split is unavailable when no total can be established — no bars", () => {
@@ -185,16 +195,16 @@ describe("<ExposureStrip> — the « Liquidités » type-bar segment", () => {
     expect(segments[1]!.style.background).toBe("var(--class-cash)");
     expect(screen.getByTestId("exposure-strip-subtotals")).toHaveTextContent("Liquidités");
     expect(screen.getByTestId("exposure-strip-percentage-CASH")).toHaveTextContent("40.00%");
-    // FR-745: on the classified dimensions the cash is its own « Liquidités »
-    // bucket, not « Non classé », so they still sum to 100 %.
+    // The country bar breaks down the securities alone: no cash there, and
+    // the one share is all of it.
     expect(
-      screen.getByTestId(`exposure-strip-bucket-percentage-country-${CASH}`),
-    ).toHaveTextContent("40.00%");
+      screen.queryByTestId(`exposure-strip-bucket-percentage-country-${CASH}`),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId(`exposure-strip-bucket-percentage-country-${UNCLASSIFIED}`),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("exposure-strip-bucket-percentage-country-FR")).toHaveTextContent(
-      "60.00%",
+      "100.00%",
     );
   });
 
@@ -257,122 +267,122 @@ function etf(overrides: Partial<HoldingResponse> = {}): HoldingResponse {
   });
 }
 
-describe("<ExposureStrip> — « Liquidités » on the sector and country bars (FR-745, AC-649)", () => {
-  it("draws the cash as its own « Liquidités » bucket in the cash token, after « Non classé », on both bars", () => {
-    // SHARE 500 (FR) + unweighted ETF 300 + cash 200 = 1 000: 50.00 / 30.00 / 20.00 on both bars.
+const CRYPTO_HOLDING = holding({
+  instrumentId: "99999999-9999-9999-9999-999999999999",
+  kind: "CRYPTO",
+  displayName: "Bitcoin",
+  sectorCode: null,
+  domicileCountry: null,
+  listingCountry: null,
+});
+
+describe("<ExposureStrip> — Pays and Secteur break down shares, ETFs and funds only", () => {
+  it("leaves cash and crypto out of both bars and shares the securities over their own total", () => {
+    // SHARE 500 (FR) + unweighted ETF 300 + crypto 100 + cash 100 = 1 000.
+    // Of the 800 of securities: 62.50 / 37.50 — not 50 / 30 of the portfolio.
     renderStrip(
       withCashBlock(
         response(
-          [holding({ currentValue: valued("500.00") }), etf({ currentValue: valued("300.00") })],
+          [
+            holding({ currentValue: valued("500.00") }),
+            etf({ currentValue: valued("300.00") }),
+            { ...CRYPTO_HOLDING, currentValue: valued("100.00") },
+          ],
           "1000.00",
         ),
-        "200.00",
+        "100.00",
       ),
     );
+    expect(legendLabels("country")).toEqual(["France", "Non classé"]);
+    expect(legendLabels("sector")).toHaveLength(2);
     for (const dimension of ["sector", "country"] as const) {
-      expect(legendLabels(dimension).slice(-2)).toEqual(["Non classé", "Liquidités"]);
-      expect(
-        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${CASH}`),
-      ).toHaveTextContent("20.00%");
+      expect(legendLabels(dimension).at(-1)).toBe("Non classé");
       expect(
         screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${UNCLASSIFIED}`),
-      ).toHaveTextContent("30.00%");
-      const cash = barSegments(dimension).find((s) => s.getAttribute("data-kind") === CASH);
-      expect(cash?.style.background).toBe("var(--class-cash)");
-      expect(cash?.style.width).toBe("20%");
-    }
-  });
-
-  it("shows no « Liquidités » bucket on either bar when the portfolio has no cash", () => {
-    renderStrip(TWO);
-    for (const dimension of ["sector", "country"] as const) {
-      expect(legendLabels(dimension)).not.toContain("Liquidités");
+      ).toHaveTextContent("37.50%");
       expect(
         screen.queryByTestId(`exposure-strip-bucket-percentage-${dimension}-${CASH}`),
       ).not.toBeInTheDocument();
+      expect(barSegments(dimension).map((s) => s.style.width)).toEqual(["62.5%", "37.5%"]);
     }
-  });
-
-  it("negative cash keeps its signed « Liquidités » entry on the country bar, draws no segment, and the bar stays full", () => {
-    // SHARE 200 (FR), cash −50, total 150: FR 13 333 units, cash −3 333.
-    renderStrip(
-      withCashBlock(response([holding({ currentValue: valued("200.00") })], "150.00"), "-50.00"),
+    expect(screen.getByTestId("exposure-strip-bucket-percentage-country-FR")).toHaveTextContent(
+      "62.50%",
     );
-    expect(
-      screen.getByTestId(`exposure-strip-bucket-percentage-country-${CASH}`),
-    ).toHaveTextContent("−33.33%");
-    const segments = barSegments("country");
-    expect(segments.map((s) => s.getAttribute("data-kind"))).toEqual(["FR"]);
-    expect(segments[0]!.style.width).toBe("100%");
-  });
-});
-
-describe("<ExposureStrip> — hand-entered weights (FR-730, FR-731, AC-627, AC-631)", () => {
-  const WEIGHTED_SENTENCE =
-    "Répartition par pays saisie manuellement pour toutes les lignes classées";
-  const MIXED_SENTENCE = "Pays du siège social lorsqu'il est connu, sinon pays de cotation";
-  const MIXED_WEIGHTED_SENTENCE =
-    "Pays du siège social, pays de cotation ou répartition saisie manuellement, selon la ligne";
-  const NOTE =
-    "Pondérations saisies manuellement pour certains instruments — ce ne sont pas des données vérifiées.";
-
-  const countryWeights = [
-    { code: "US", weight: "60.00" },
-    { code: "JP", weight: "40.00" },
-  ];
-
-  it("states the weighted basis, never a domicile sentence, for a portfolio placed by weights only — and notes it on that bar alone", () => {
-    renderStrip(response([etf({ currentValue: valued("1000.00"), countryWeights })], "1000.00"));
-    expect(screen.getByTestId("exposure-strip-basis").textContent).toBe(WEIGHTED_SENTENCE);
-    expect(screen.getByTestId("exposure-strip-weighted-note-country").textContent).toBe(NOTE);
-    // The ETF has no sector set: whole in « Non classé » there, and no note.
-    expect(screen.queryByTestId("exposure-strip-weighted-note-sector")).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId(`exposure-strip-bucket-percentage-sector-${UNCLASSIFIED}`),
-    ).toHaveTextContent("100.00%");
+    // The type bar still shows the whole portfolio.
+    expect(screen.getByTestId("exposure-strip-percentage-SHARE")).toHaveTextContent("50.00%");
+    expect(screen.getByTestId("exposure-strip-percentage-CRYPTO")).toHaveTextContent("10.00%");
+    expect(screen.getByTestId("exposure-strip-subtotals")).toHaveTextContent("Liquidités");
   });
 
-  it("keeps today's exact MIXED sentence when no weight is involved, with no note anywhere", () => {
+  it("leaves an SCPI out too, even one with country weights", () => {
     renderStrip(
       response(
         [
-          holding(),
+          holding({ currentValue: valued("500.00") }),
           holding({
-            instrumentId: "44444444-4444-4444-4444-444444444444",
+            instrumentId: "55555555-5555-5555-5555-555555555555",
+            kind: "SCPI",
+            sectorCode: null,
             domicileCountry: null,
-            listingCountry: "DE",
-            currentValue: valued("400.00"),
+            listingCountry: null,
+            currentValue: valued("500.00"),
+            countryWeights: [{ code: "DE", weight: "100.00" }],
           }),
         ],
         "1000.00",
       ),
     );
-    expect(screen.getByTestId("exposure-strip-basis").textContent).toBe(MIXED_SENTENCE);
-    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
-  });
-
-  it("says a weighted MIXED in its own words — domicile beside weights", () => {
-    renderStrip(
-      response([holding(), etf({ currentValue: valued("400.00"), countryWeights })], "1000.00"),
+    expect(legendLabels("country")).toEqual(["France"]);
+    expect(screen.getByTestId("exposure-strip-bucket-percentage-country-FR")).toHaveTextContent(
+      "100.00%",
     );
-    expect(screen.getByTestId("exposure-strip-basis").textContent).toBe(MIXED_WEIGHTED_SENTENCE);
-    expect(screen.getByTestId("exposure-strip-weighted-note-country").textContent).toBe(NOTE);
   });
 
-  it("notes the sector bar when a sector weight set placed a holding", () => {
+  it("says there is nothing to break down, in place of both bars, when no share, ETF or fund is held", () => {
+    renderStrip(
+      withCashBlock(
+        response([{ ...CRYPTO_HOLDING, currentValue: valued("600.00") }], "1000.00"),
+        "400.00",
+      ),
+    );
+    for (const dimension of ["sector", "country"] as const) {
+      expect(screen.getByTestId(`exposure-strip-${dimension}-empty`)).toHaveTextContent(
+        "Aucune action, aucun ETF ni fonds en portefeuille.",
+      );
+      expect(screen.queryByTestId(`exposure-strip-buckets-${dimension}`)).not.toBeInTheDocument();
+    }
+    // The type bar is unaffected.
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.getByTestId("exposure-strip-percentage-CRYPTO")).toHaveTextContent("60.00%");
+  });
+});
+
+describe("<ExposureStrip> — hand-entered weights", () => {
+  it("splits a weighted ETF across its countries and says nothing about it under the bar", () => {
     renderStrip(
       response(
         [
+          holding(),
           etf({
-            currentValue: valued("1000.00"),
+            currentValue: valued("400.00"),
+            countryWeights: [
+              { code: "US", weight: "60.00" },
+              { code: "JP", weight: "40.00" },
+            ],
             sectorWeights: [{ code: SECTOR_CODES[1], weight: "50.00" }],
           }),
         ],
         "1000.00",
       ),
     );
-    expect(screen.getByTestId("exposure-strip-weighted-note-sector").textContent).toBe(NOTE);
-    expect(screen.queryByTestId("exposure-strip-weighted-note-country")).not.toBeInTheDocument();
+    expect(legendLabels("country")).toEqual(["France", "États-Unis", "Japon"]);
+    expect(screen.getByTestId("exposure-strip-bucket-percentage-country-US")).toHaveTextContent(
+      "24.00%",
+    );
+    expect(
+      screen.getByTestId(`exposure-strip-bucket-percentage-sector-${UNCLASSIFIED}`),
+    ).toHaveTextContent("20.00%");
+    expect(screen.getByTestId("exposure-strip").querySelector(".ov-note")).toBeNull();
   });
 
   it("AC-631: an unweighted ETF alone is « Non classé » in full on both bars, with no note, placeholder or pending wording", () => {
@@ -383,16 +393,14 @@ describe("<ExposureStrip> — hand-entered weights (FR-730, FR-731, AC-627, AC-6
         screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${UNCLASSIFIED}`),
       ).toHaveTextContent("100.00%");
     }
-    expect(screen.queryByTestId("exposure-strip-basis")).not.toBeInTheDocument();
-    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
     const text = screen.getByTestId("exposure-strip").textContent ?? "";
     expect(text).not.toMatch(/bientôt|à venir|en attente|chargement/i);
     expect(screen.getByTestId("exposure-strip").querySelector("[aria-busy='true']")).toBeNull();
   });
 });
 
-describe("<ExposureStrip> — short legends: « Autres » and « Crypto » on the sector and country bars", () => {
-  it("names five countries of seven, then « Autres », and draws crypto apart from « Non classé » in the crypto token", () => {
+describe("<ExposureStrip> — short legends: « Autres » on the sector and country bars", () => {
+  it("names five countries of seven, then « Autres », then « Non classé »", () => {
     const codes = ["FR", "US", "DE", "JP", "GB", "CH", "IT"];
     const sharesByCountry = codes.map((code, index) =>
       holding({
@@ -403,40 +411,16 @@ describe("<ExposureStrip> — short legends: « Autres » and « Crypto » on th
         currentValue: valued(`${String((codes.length - index) * 10)}.00`),
       }),
     );
-    // + unweighted ETF 60 + crypto 60 = 400.
-    renderStrip(
-      response(
-        [
-          ...sharesByCountry,
-          etf({ currentValue: valued("60.00") }),
-          holding({
-            instrumentId: "99999999-9999-9999-9999-999999999999",
-            kind: "CRYPTO",
-            sectorCode: null,
-            domicileCountry: null,
-            listingCountry: null,
-            currentValue: valued("60.00"),
-          }),
-        ],
-        "400.00",
-      ),
-    );
-    expect(legendLabels("country").slice(-3)).toEqual(["Autres", "Non classé", "Crypto"]);
-    expect(legendLabels("country")).toHaveLength(8);
+    // + unweighted ETF 120 = 400 of securities.
+    renderStrip(response([...sharesByCountry, etf({ currentValue: valued("120.00") })], "400.00"));
+    expect(legendLabels("country").slice(-2)).toEqual(["Autres", "Non classé"]);
+    expect(legendLabels("country")).toHaveLength(7);
     // CH 20 + IT 10 of 400.
     expect(
       screen.getByTestId(`exposure-strip-bucket-percentage-country-${OTHER}`),
     ).toHaveTextContent("7.50%");
-    for (const dimension of ["sector", "country"] as const) {
-      expect(
-        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${UNCLASSIFIED}`),
-      ).toHaveTextContent("15.00%");
-      expect(
-        screen.getByTestId(`exposure-strip-bucket-percentage-${dimension}-${CRYPTO}`),
-      ).toHaveTextContent("15.00%");
-      const crypto = barSegments(dimension).find((s) => s.getAttribute("data-kind") === CRYPTO);
-      expect(crypto?.style.background).toBe("var(--class-crypto)");
-      expect(crypto?.style.width).toBe("15%");
-    }
+    expect(
+      screen.getByTestId(`exposure-strip-bucket-percentage-country-${UNCLASSIFIED}`),
+    ).toHaveTextContent("30.00%");
   });
 });

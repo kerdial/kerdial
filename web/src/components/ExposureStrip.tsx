@@ -1,4 +1,3 @@
-import type { ExposureCountryBasis } from "@kerdial/api-contracts";
 import { Decimal } from "@kerdial/core-decimal";
 import { HOLDINGS_COPY } from "../lib/copy/holdings.js";
 import { Card } from "./ui/index.js";
@@ -11,7 +10,7 @@ import {
   type ExposureBreakdown,
   type ExposureBucket,
 } from "../lib/exposure-breakdown.js";
-import { CRYPTO, OTHER, displayBuckets } from "../lib/exposure-display.js";
+import { OTHER, displayBuckets } from "../lib/exposure-display.js";
 import { SECTOR_UNCLASSIFIED_LABEL, sectorDisplayLabel } from "../lib/sector-display.js";
 import { countryDisplayLabel } from "../lib/country-display.js";
 
@@ -49,23 +48,22 @@ import { countryDisplayLabel } from "../lib/country-display.js";
  * « Non classé » last in the muted tone (A16: a locked per-sector map
  * is the kerdial-skin cycle's decision, not this card's).
  *
- * **« Non classé » is a bucket** (FR-13, FR-28, FR-29, AC-34, AC-631). An ETF
- * with no weight set appears there in full, on both classified dimensions;
- * one with a set is split across it, what the set leaves uncovered staying in
- * « Non classé ». There is no spinner and no placeholder: the honest answer is
- * a labelled grey segment carrying the share.
+ * **Sector and country are a breakdown of the securities alone** — shares,
+ * ETFs and funds. The route apportions those against their own sum
+ * (`exposure-scope.ts`), so each of the two bars adds up to 100 % of the
+ * securities; cash, crypto-assets and the other kinds are on the type bar
+ * only. Each bar's title says so, since its figures are not shares of the
+ * whole portfolio. With no security held, the bar is replaced by one line.
  *
- * **Hand-entered weights say so** (FR-731). A weight set is typed in by the
- * user, not a verified or provider-sourced composition, so a bar whose figures
- * use one carries a note saying exactly that — and only then.
+ * **« Non classé » is a bucket** (FR-13, FR-28, FR-29, AC-34). An ETF with no
+ * weight set appears there in full, on both classified dimensions; one with a
+ * set is split across it, what the set leaves uncovered staying in « Non
+ * classé ». There is no spinner and no placeholder: the honest answer is a
+ * labelled grey segment carrying the share.
  *
- * **« Liquidités » is its own bucket** (FR-745) on the sector and country bars,
- * in the cash colour the type bar already uses, after « Non classé »; absent
- * when there is no cash.
- *
- * **The country dimension states its basis** (FR-11, AC-13, FR-730) — issuer
- * domicile, listing-country fallback, hand-entered weights, or the mix —
- * under its bar.
+ * **No sentence under a bar.** The card used to state the country basis and
+ * to flag hand-entered weights under the bars; both were removed at the
+ * owner's request — the bars and their legends are the whole card.
  *
  * **The legends carry the percentage but no per-bucket money value.** There is
  * no per-kind monetary subtotal on the wire, and a client-side sum would be a
@@ -79,9 +77,9 @@ import { countryDisplayLabel } from "../lib/country-display.js";
  */
 export interface ExposureStripProps {
   readonly allocation: AllocationResult;
-  /** IR-15's regrouping of the same `allocation`, by sector — computed once by the route, never here. */
+  /** IR-15's regrouping, by sector, of the securities' own allocation — computed by the route, never here. */
   readonly sectorBreakdown: ExposureBreakdown;
-  /** IR-15's regrouping of the same `allocation`, by country (FR-11's basis included). */
+  /** The same, by country. */
   readonly countryBreakdown: ExposureBreakdown;
 }
 
@@ -98,33 +96,11 @@ const DIMENSION_TITLES: Readonly<Record<Dimension, string>> = {
   sector: "Secteur",
 };
 
-/**
- * FR-11/AC-13's sentences (the agreed French copy, verbatim) and FR-730's for
- * hand-entered weights, one per member of the shared basis set — a new member
- * is a compile error here until it has one. `"NONE"` has no sentence on
- * purpose: nothing was classified on a country, so there is no basis to state
- * and the legend is « Non classé » alone. `MIXED` reads as before unless a
- * weight set is part of the mix ({@link MIXED_WEIGHTED_SENTENCE}).
- */
-const BASIS_SENTENCE: Readonly<Record<ExposureCountryBasis, string | undefined>> = {
-  DOMICILE: "Pays du siège social pour toutes les lignes",
-  MIXED: "Pays du siège social lorsqu'il est connu, sinon pays de cotation",
-  LISTING: "Pays de cotation (aucun siège social renseigné)",
-  WEIGHTED: "Répartition par pays saisie manuellement pour toutes les lignes classées",
-  NONE: undefined,
-};
+/** What the sector and country bars are a breakdown of — part of their title, since they are not shares of the whole. */
+const SECURITIES_SCOPE = "actions, ETF et fonds";
 
-const MIXED_WEIGHTED_SENTENCE =
-  "Pays du siège social, pays de cotation ou répartition saisie manuellement, selon la ligne";
-
-/** FR-731, AC-631: under any bar whose figures use a hand-entered weight set, and only there. */
-const WEIGHTED_NOTE =
-  "Pondérations saisies manuellement pour certains instruments — ce ne sont pas des données vérifiées.";
-
-function basisSentence(breakdown: ExposureBreakdown): string | undefined {
-  if (breakdown.basis === "MIXED" && breakdown.weighted) return MIXED_WEIGHTED_SENTENCE;
-  return BASIS_SENTENCE[breakdown.basis];
-}
+/** In place of a sector or country bar when the portfolio holds no share, ETF or fund. */
+const NO_SECURITIES_NOTE = "Aucune action, aucun ETF ni fonds en portefeuille.";
 
 /**
  * A16, stated as code: an **ordered** palette keyed by the bucket's rank
@@ -133,9 +109,9 @@ function basisSentence(breakdown: ExposureBreakdown): string | undefined {
  * tone an unknown kind already gets through `assetClassColor`) so
  * "unclassified" never reads as just another sector.
  *
- * Teal, lilac and sky only, in two tones: apricot and lemon are the type
- * bar's « Crypto » and « Liquidités », which these bars now draw too, so a
- * ranked bucket never borrows them. A teal sits between every lilac and sky:
+ * Teal, lilac and sky only, in two tones — never apricot or lemon, the type
+ * bar's « Crypto » and « Liquidités » just above, so a colour means one thing
+ * across the card. A teal sits between every lilac and sky:
  * that pair fails the dataviz validator when adjacent.
  */
 const BUCKET_PALETTE: readonly string[] = [
@@ -150,13 +126,10 @@ const UNCLASSIFIED_COLOR = "var(--chart-6)";
 /** « Autres »: a neutral darker than « Non classé », so the two greys next to each other stay apart. */
 const OTHER_COLOR = "var(--ink-600)";
 const OTHER_LABEL = "Autres";
-const CRYPTO_KIND = "CRYPTO";
 
 function bucketColor(bucketKey: string, index: number): string {
   if (bucketKey === UNCLASSIFIED) return UNCLASSIFIED_COLOR;
   if (bucketKey === OTHER) return OTHER_COLOR;
-  // The type bar's « Crypto » colour, for the same reason as cash below.
-  if (bucketKey === CRYPTO) return assetClassColor(CRYPTO_KIND);
   // FR-745: the type bar's « Liquidités » colour, so cash reads the same on every bar.
   if (bucketKey === CASH) return assetClassColor(CASH_CLASS);
   return BUCKET_PALETTE[index % BUCKET_PALETTE.length]!;
@@ -173,7 +146,6 @@ function bucketLabel(dimension: Dimension, bucketKey: string): string {
   if (bucketKey === UNCLASSIFIED) return SECTOR_UNCLASSIFIED_LABEL;
   if (bucketKey === CASH) return assetClassLabel(CASH_CLASS);
   if (bucketKey === OTHER) return OTHER_LABEL;
-  if (bucketKey === CRYPTO) return assetClassLabel(CRYPTO_KIND);
   return dimension === "sector" ? sectorDisplayLabel(bucketKey) : countryDisplayLabel(bucketKey);
 }
 
@@ -220,7 +192,7 @@ export function kindSegments(allocation: AllocationResult): readonly ExposureSeg
   }));
 }
 
-/** A sector or country bar: one segment per bucket, in the order given (`displayBuckets`: named, « Autres », « Non classé », « Crypto », « Liquidités »). */
+/** A sector or country bar: one segment per bucket, in the order given (`displayBuckets`: named, « Autres », « Non classé »). */
 export function bucketSegments(
   dimension: Dimension,
   buckets: readonly ExposureBucket[],
@@ -240,13 +212,15 @@ export function bucketSegments(
 interface DimensionBarProps {
   readonly dimension: Dimension;
   readonly segments: readonly ExposureSegment[];
-  readonly note?: string | undefined;
-  /** FR-731: this bar's figures use a hand-entered weight set. */
-  readonly weighted?: boolean;
+  /** What the bar is a breakdown of, when that is not the whole portfolio. */
+  readonly scope?: string;
+  /** Shown in place of the bar and its legend when there is nothing to break down. */
+  readonly emptyNote?: string;
 }
 
-function DimensionBar({ dimension, segments, note, weighted = false }: DimensionBarProps) {
+function DimensionBar({ dimension, segments, scope, emptyNote }: DimensionBarProps) {
   const title = DIMENSION_TITLES[dimension];
+  const empty = emptyNote !== undefined && segments.length === 0;
   const legendId =
     dimension === "kind" ? "exposure-strip-subtotals" : `exposure-strip-buckets-${dimension}`;
   return (
@@ -257,55 +231,56 @@ function DimensionBar({ dimension, segments, note, weighted = false }: Dimension
     >
       <h3 id={`exposure-strip-${dimension}-title`} className="micro-label">
         {title}
+        {scope !== undefined && (
+          <span data-testid={`exposure-strip-${dimension}-scope`}>{` · ${scope}`}</span>
+        )}
       </h3>
-      <div className="ov-bar" role="img" aria-label={title} data-testid={`${legendId}-bar`}>
-        {/* A share of zero or below has no width to draw (C-14); its legend
+      {empty ? (
+        <p data-testid={`exposure-strip-${dimension}-empty`} className="ov-note">
+          {emptyNote}
+        </p>
+      ) : (
+        <>
+          <div className="ov-bar" role="img" aria-label={title} data-testid={`${legendId}-bar`}>
+            {/* A share of zero or below has no width to draw (C-14); its legend
             entry below still states it. */}
-        {segments
-          .filter((segment) => segment.percent > 0)
-          .map((segment) => (
-            <span
-              key={segment.key}
-              className="ov-bar-seg"
-              data-testid="exposure-strip-segment"
-              data-kind={segment.key}
-              style={{ width: `${String(segment.percent)}%`, background: segment.color }}
-            />
-          ))}
-      </div>
-      <dl className="ov-bar-legend" data-testid={legendId}>
-        {segments.map((segment) => (
-          <div key={segment.key}>
-            <dt className="ov-bar-item" data-testid={`exposure-strip-${dimension}-label`}>
-              <span
-                className="ov-bar-dot"
-                style={{ background: segment.color }}
-                aria-hidden="true"
-              />
-              {segment.label}
-            </dt>
-            <dd
-              className="ov-bar-pct k-num"
-              data-testid={
-                dimension === "kind"
-                  ? `exposure-strip-percentage-${segment.key}`
-                  : `exposure-strip-bucket-percentage-${dimension}-${segment.key}`
-              }
-            >
-              {segment.percentText}
-            </dd>
+            {segments
+              .filter((segment) => segment.percent > 0)
+              .map((segment) => (
+                <span
+                  key={segment.key}
+                  className="ov-bar-seg"
+                  data-testid="exposure-strip-segment"
+                  data-kind={segment.key}
+                  style={{ width: `${String(segment.percent)}%`, background: segment.color }}
+                />
+              ))}
           </div>
-        ))}
-      </dl>
-      {note !== undefined && (
-        <p data-testid={`exposure-strip-basis`} className="ov-note">
-          {note}
-        </p>
-      )}
-      {weighted && (
-        <p data-testid={`exposure-strip-weighted-note-${dimension}`} className="ov-note">
-          {WEIGHTED_NOTE}
-        </p>
+          <dl className="ov-bar-legend" data-testid={legendId}>
+            {segments.map((segment) => (
+              <div key={segment.key}>
+                <dt className="ov-bar-item" data-testid={`exposure-strip-${dimension}-label`}>
+                  <span
+                    className="ov-bar-dot"
+                    style={{ background: segment.color }}
+                    aria-hidden="true"
+                  />
+                  {segment.label}
+                </dt>
+                <dd
+                  className="ov-bar-pct k-num"
+                  data-testid={
+                    dimension === "kind"
+                      ? `exposure-strip-percentage-${segment.key}`
+                      : `exposure-strip-bucket-percentage-${dimension}-${segment.key}`
+                  }
+                >
+                  {segment.percentText}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </>
       )}
     </section>
   );
@@ -341,13 +316,14 @@ export function ExposureStrip({
             <DimensionBar
               dimension="country"
               segments={bucketSegments("country", displayBuckets(countryBreakdown))}
-              note={basisSentence(countryBreakdown)}
-              weighted={countryBreakdown.weighted}
+              scope={SECURITIES_SCOPE}
+              emptyNote={NO_SECURITIES_NOTE}
             />
             <DimensionBar
               dimension="sector"
               segments={bucketSegments("sector", displayBuckets(sectorBreakdown))}
-              weighted={sectorBreakdown.weighted}
+              scope={SECURITIES_SCOPE}
+              emptyNote={NO_SECURITIES_NOTE}
             />
           </div>
         )}
